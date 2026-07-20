@@ -18,6 +18,22 @@
         // body가 core.css에서 display:flex이므로 셸 요소들은 body의 직계 자식이어야 한다.
         const shell = ParametricCore.mountEditorShell(document.body);
 
+        // 선택 가능한 글씨체 목록 (이모지 전용 폰트인 NotoEmoji는 제외).
+        // label은 화면에 보여줄 이름, file은 assets/fonts/ 안의 실제 파일명.
+        const FONT_OPTIONS = [
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' }
+        ];
+        const DEFAULT_FONT_INDEX = 0;
+
         // 이 디자인만의 컨트롤 UI를 셸의 컨트롤 컨테이너에 채워 넣는다.
         shell.controlsBodyEl.innerHTML = `
             <h3>한글 3D 각인 설정</h3>
@@ -26,6 +42,13 @@
             <div class="control-group">
                 <label>각인할 글자 입력</label>
                 <input type="text" id="inputText" value="테스트" oninput="updateModel()">
+            </div>
+
+            <div class="control-group">
+                <label>글씨체 선택</label>
+                <select id="fontSelect" onchange="onFontChange()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                </select>
             </div>
 
             <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="300" value="60" oninput="updateModel()"></div>
@@ -55,17 +78,33 @@
 
         updateModel();
 
-        const fontUrl = '../assets/fonts/Paperlogy-8ExtraBold.ttf';
+        // 한 번 불러온 폰트는 캐시해둬서, 같은 글씨체를 다시 선택했을 때 재로딩하지 않는다.
+        const fontCache = {};
 
-        opentype.load(fontUrl, function(err, font) {
-            if (err) {
-                console.error('폰트 로딩 실패:', err);
-            } else {
-                console.log('Hahmlet 폰트 자원 파싱 성공');
+        function loadFont(file, callback) {
+            if (fontCache[file]) {
+                callback(fontCache[file]);
+                return;
+            }
+            opentype.load('../assets/fonts/' + file, function(err, font) {
+                if (err) {
+                    console.error('폰트 로딩 실패:', file, err);
+                } else {
+                    fontCache[file] = font;
+                    callback(font);
+                }
+            });
+        }
+
+        function onFontChange() {
+            const idx = document.getElementById('fontSelect').value;
+            loadFont(FONT_OPTIONS[idx].file, function(font) {
                 openTypeFont = font;
                 updateModel();
-            }
-        });
+            });
+        }
+
+        onFontChange();
 
         // 3D 공간 상에 치수 mm 숫자를 렌더링하는 가볍고 고해상도인 Sprite 캔버스 텍스트 생성기
         function createTextLabelSprite(text) {

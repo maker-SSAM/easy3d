@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>한글 3D 각인 이름표 상자</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- 웹 브라우저 자체에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="../assets/js/core.js"></script>
+</head>
+<body>
+
+    <script>
+        // 편집 화면 셸(컨트롤 패널/리사이저/뷰어/뷰큐브) 마운트 — 모든 디자인 페이지가 공유하는 구조.
+        // body가 core.css에서 display:flex이므로 셸 요소들은 body의 직계 자식이어야 한다.
+        const shell = ParametricCore.mountEditorShell(document.body);
+
+        // 이 디자인만의 컨트롤 UI를 셸의 컨트롤 컨테이너에 채워 넣는다.
+        shell.controlsEl.innerHTML = `
+            <h3>한글 3D 각인 설정</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 폰트 로드 완료(1~2초) 후 실제 3D 글자가 돌출됩니다.</p>
+
+            <div class="control-group">
+                <label>각인할 글자 입력</label>
+                <input type="text" id="inputText" value="테스트" oninput="updateModel()">
+            </div>
+
+            <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="150" value="60" oninput="updateModel()"></div>
+            <div class="control-group"><label>상자 세로 (Y): <span id="valY">60</span>mm</label><input type="range" id="sizeY" min="40" max="150" value="60" oninput="updateModel()"></div>
+            <div class="control-group"><label>상자 높이 (Z): <span id="valZ">20</span>mm</label><input type="range" id="sizeZ" min="10" max="100" value="20" oninput="updateModel()"></div>
+
+            <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="25" value="12" oninput="updateModel()"></div>
+            <div class="control-group"><label>글자 돌출 높이: <span id="valFontThick">4</span>mm</label><input type="range" id="fontThick" min="1" max="15" value="4" oninput="updateModel()"></div>
+
+            <button class="download-btn" onclick="downloadSTL()">글자 포함 STL 다운로드</button>
+        `;
+
+        // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드).
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+
+        let modelGroup;
+        let dimensionGroup; // 실시간 자/치수선을 담을 전용 그룹 변수
+        let openTypeFont = null;
+
+        updateModel();
+
+        const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/hahmlet/Hahmlet%5Bwght%5D.ttf';
+
+        opentype.load(fontUrl, function(err, font) {
+            if (err) {
+                console.error('폰트 로딩 실패:', err);
+            } else {
+                console.log('Hahmlet 폰트 자원 파싱 성공');
+                openTypeFont = font;
+                updateModel();
+            }
+        });
+
+        // 3D 공간 상에 치수 mm 숫자를 렌더링하는 가볍고 고해상도인 Sprite 캔버스 텍스트 생성기
+        function createTextLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ff3d00'; // 초등 가독성을 위한 짙은 오렌지/레드 수치선 색상
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(16, 8, 1);
+            return sprite;
+        }
+
+        // 상자 크기에 반응하여 실시간으로 늘어나는 가이드 치수선(자) 드로잉 로직
+        function drawDimensionLines(x, y, z) {
+            if (dimensionGroup) scene.remove(dimensionGroup);
+            dimensionGroup = new THREE.Group();
+
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xff3d00, linewidth: 2 });
+            const hx = x / 2;
+            const hz = y / 2;
+
+            // 1. 가로(X) 가이드 치수선 연산
+            const xGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-hx, 0.5, hz + 10),
+                new THREE.Vector3(hx, 0.5, hz + 10)
+            ]);
+            const xLine = new THREE.Line(xGeo, lineMat);
+            dimensionGroup.add(xLine);
+            const xLabel = createTextLabelSprite(`${x}mm`);
+            xLabel.position.set(0, 3, hz + 15);
+            dimensionGroup.add(xLabel);
+
+            // 2. 세로(Y) 가이드 치수선 연산
+            const yGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(hx + 10, 0.5, -hz),
+                new THREE.Vector3(hx + 10, 0.5, hz)
+            ]);
+            const yLine = new THREE.Line(yGeo, lineMat);
+            dimensionGroup.add(yLine);
+            const yLabel = createTextLabelSprite(`${y}mm`);
+            yLabel.position.set(hx + 15, 3, 0);
+            dimensionGroup.add(yLabel);
+
+            // 3. 높이(Z) 가이드 치수선 연산
+            const zGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-hx - 10, 0, hz),
+                new THREE.Vector3(-hx - 10, z, hz)
+            ]);
+            const zLine = new THREE.Line(zGeo, lineMat);
+            dimensionGroup.add(zLine);
+            const zLabel = createTextLabelSprite(`${z}mm`);
+            zLabel.position.set(-hx - 15, z / 2, hz);
+            dimensionGroup.add(zLabel);
+
+            scene.add(dimensionGroup);
+        }
+
+        function createThreeShapes(text, size) {
+            if (!openTypeFont) return [];
+            const shapes = [];
+            const scale = 1 / openTypeFont.unitsPerEm * size;
+            let currentX = 0;
+
+            for (let i = 0; i < text.length; i++) {
+                const glyph = openTypeFont.charToGlyph(text[i]);
+                if (!glyph) continue;
+
+                const path = glyph.getPath(currentX, 0, size);
+                const fontPaths = path.commands || [];
+                const shapePath = new THREE.ShapePath();
+
+                fontPaths.forEach(cmd => {
+                    if (cmd.type === 'M') shapePath.moveTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'L') shapePath.lineTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'Q') shapePath.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
+                    else if (cmd.type === 'C') shapePath.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
+                });
+
+                const glyphShapes = shapePath.toShapes(true);
+                shapes.push(...glyphShapes);
+                currentX += glyph.advanceWidth * scale;
+            }
+            return shapes;
+        }
+
+        function updateModel() {
+            const textValue = document.getElementById('inputText').value || '';
+            const x = parseFloat(document.getElementById('sizeX').value);
+            const y = parseFloat(document.getElementById('sizeY').value);
+            const z = parseFloat(document.getElementById('sizeZ').value);
+
+            const fSize = parseFloat(document.getElementById('fontSize').value);
+            const fThick = parseFloat(document.getElementById('fontThick').value);
+
+            document.getElementById('valX').innerText = x;
+            document.getElementById('valY').innerText = y;
+            document.getElementById('valZ').innerText = z;
+            document.getElementById('valFontSize').innerText = fSize;
+            document.getElementById('valFontThick').innerText = fThick;
+
+            // 실시간 가이드 자 레이어 동기화 드로잉
+            drawDimensionLines(x, y, z);
+
+            if (modelGroup) scene.remove(modelGroup);
+            modelGroup = new THREE.Group();
+
+            const boxGeo = new THREE.BoxGeometry(x, z, y);
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x1e88e5, roughness: 0.15 });
+            const cubeMesh = new THREE.Mesh(boxGeo, boxMat);
+            cubeMesh.position.y = z / 2;
+            cubeMesh.castShadow = true;
+            cubeMesh.receiveShadow = true;
+            modelGroup.add(cubeMesh);
+
+            if (openTypeFont && textValue.trim().length > 0) {
+                try {
+                    const shapes = createThreeShapes(textValue, fSize);
+                    const extrudeSettings = { depth: fThick, bevelEnabled: false, curveSegments: 8 };
+                    const textGeo = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
+
+                    textGeo.computeBoundingBox();
+                    const minX = textGeo.boundingBox.min.x;
+                    const maxX = textGeo.boundingBox.max.x;
+                    const maxY = textGeo.boundingBox.max.y;
+
+                    const textWidth = maxX - minX;
+                    const textMesh = new THREE.Mesh(textGeo, new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.2 }));
+
+                    textMesh.rotation.x = -Math.PI / 2;
+                    textMesh.position.set(-textWidth / 2 - minX, z, -textGeo.boundingBox.max.y / 2 + maxY / 2);
+                    textMesh.castShadow = true;
+
+                    modelGroup.add(textMesh);
+                } catch (fontError) {
+                    console.error('글자 3D 형상 변환 중 예외 발생:', fontError);
+                }
+            }
+
+            scene.add(modelGroup);
+        }
+
+        function downloadSTL() {
+            const textValue = document.getElementById('inputText').value || 'model';
+            ParametricCore.exportSTL(modelGroup, `${textValue}_box.stl`);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>갤러리1 - 멀티컬러 곡면 이름표 - 초등 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <!-- 2D 다각형 오프셋(글씨 굵기, 바닥판 윤곽선)을 위한 Clipper 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
+    <!-- 3MF(색상 포함) 내보내기를 위한 zip 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="../assets/js/core.js"></script>
+    <style>
+        details { margin-bottom: 18px; }
+        details > summary { cursor: pointer; font-weight: bold; margin-bottom: 10px; color: #333; user-select: none; }
+        .sub-label { font-size: 0.82em; color: #777; font-weight: normal; margin-top: -4px; margin-bottom: 6px; }
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: #333; }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .format-row { display: flex; gap: 8px; margin-top: 8px; }
+        .format-row button {
+            flex: 1; padding: 10px; border: 1px solid #ccc; background: #fff;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em;
+        }
+        .format-row button.active { background: #1976d2; color: #fff; border-color: #1976d2; }
+        .status-msg { font-size: 0.8em; color: #999; margin-top: 8px; min-height: 1.2em; }
+    </style>
+</head>
+<body>
+
+    <script>
+        const shell = ParametricCore.mountEditorShell(document.body);
+
+        // 사용 가능한 글씨체 — 프로젝트에 실제로 있는 10종으로만 제한 (이모지 폰트 제외)
+        const FONT_OPTIONS = [
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' }
+        ];
+        const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
+
+        function fontSelectOptions(defaultIndex) {
+            return FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === defaultIndex ? ' selected' : ''}>${f.label}</option>`).join('');
+        }
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3>멀티컬러 곡면 이름표</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 16px;">* 폰트 로드(1~2초) 후 3D 글자가 나타납니다. 여러 줄 텍스트 + 이모지를 각각 다른 색으로 3D 프린트할 수 있어요.</p>
+
+            <details open>
+                <summary>1. 텍스트 &amp; 글씨체</summary>
+                <div class="control-group"><label>텍스트 1</label><input type="text" id="text1" value="HAPPY-MAKER" oninput="updateModel()"></div>
+                <div class="control-group"><label>텍스트 1 글씨체</label><select id="font1" onchange="onFontChange()">${fontSelectOptions(0)}</select></div>
+                <div class="control-group"><label>텍스트 1 크기: <span id="valSize1">12</span></label><input type="range" id="size1" min="5" max="30" value="12" oninput="updateModel()"></div>
+
+                <div class="control-group" style="margin-top:20px;"><label>텍스트 2</label><input type="text" id="text2" value="MULTI-COLOR" oninput="updateModel()"></div>
+                <div class="control-group"><label>텍스트 2 글씨체</label><select id="font2" onchange="onFontChange()">${fontSelectOptions(4)}</select></div>
+                <div class="control-group"><label>텍스트 2 크기: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="30" value="14" oninput="updateModel()"></div>
+
+                <div class="control-group" style="margin-top:20px;"><label>텍스트 3</label><input type="text" id="text3" value="ALL-LANGUAGE" oninput="updateModel()"></div>
+                <div class="control-group"><label>텍스트 3 글씨체</label><select id="font3" onchange="onFontChange()">${fontSelectOptions(1)}</select></div>
+                <div class="control-group"><label>텍스트 3 크기: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="30" value="10" oninput="updateModel()"></div>
+
+                <div class="control-group" style="margin-top:20px;"><label>줄 간격: <span id="valLineDistance">1.4</span></label><input type="range" id="lineDistance" min="1.0" max="2.5" step="0.1" value="1.4" oninput="updateModel()"></div>
+            </details>
+
+            <details>
+                <summary>2. 텍스트 세부 설정 (장평 / 자간 / 굵기)</summary>
+                <div class="sub-label">텍스트 1</div>
+                <div class="two-col">
+                    <div class="control-group"><label>장평: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                    <div class="control-group"><label>자간: <span id="valT1Spacing">1.0</span></label><input type="range" id="t1Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                </div>
+                <div class="control-group"><label>굵기: <span id="valT1Offset">0.0</span></label><input type="range" id="t1Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="updateModel()"></div>
+
+                <div class="sub-label" style="margin-top:16px;">텍스트 2</div>
+                <div class="two-col">
+                    <div class="control-group"><label>장평: <span id="valT2ScaleX">1.0</span></label><input type="range" id="t2ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                    <div class="control-group"><label>자간: <span id="valT2Spacing">1.0</span></label><input type="range" id="t2Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                </div>
+                <div class="control-group"><label>굵기: <span id="valT2Offset">0.0</span></label><input type="range" id="t2Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="updateModel()"></div>
+
+                <div class="sub-label" style="margin-top:16px;">텍스트 3</div>
+                <div class="two-col">
+                    <div class="control-group"><label>장평: <span id="valT3ScaleX">1.0</span></label><input type="range" id="t3ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                    <div class="control-group"><label>자간: <span id="valT3Spacing">1.0</span></label><input type="range" id="t3Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="updateModel()"></div>
+                </div>
+                <div class="control-group"><label>굵기: <span id="valT3Offset">0.0</span></label><input type="range" id="t3Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="updateModel()"></div>
+            </details>
+
+            <details>
+                <summary>3. 이모지</summary>
+                <div class="control-group"><label>왼쪽 이모지</label><input type="text" id="emojiLeft" value="🦈" oninput="updateModel()"></div>
+                <div class="control-group"><label>왼쪽 이모지 위치: <span id="valEmojiLeftOffset">0.6</span></label><input type="range" id="emojiLeftOffset" min="0" max="2" step="0.1" value="0.6" oninput="updateModel()"></div>
+                <div class="control-group"><label>오른쪽 이모지</label><input type="text" id="emojiRight" value="♥" oninput="updateModel()"></div>
+                <div class="control-group"><label>오른쪽 이모지 위치: <span id="valEmojiRightOffset">0.6</span></label><input type="range" id="emojiRightOffset" min="0" max="2" step="0.1" value="0.6" oninput="updateModel()"></div>
+            </details>
+
+            <details>
+                <summary>4. 바닥판 &amp; 곡률</summary>
+                <div class="control-group"><label>바닥판 여백: <span id="valBaseOffset">5</span>mm</label><input type="range" id="baseOffset" min="0" max="15" value="5" oninput="updateModel()"></div>
+                <div class="control-group"><label>바닥판 높이: <span id="valBaseHeight">4</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="4" oninput="updateModel()"></div>
+                <div class="control-group"><label>휘어짐 각도: <span id="valCutangle">65</span>°</label><input type="range" id="cutangle" min="0" max="150" value="65" oninput="updateModel()"></div>
+                <div class="control-group"><label>휘어짐 반지름: <span id="valTextRadius">12</span>mm</label><input type="range" id="textRadius" min="5" max="40" value="12" oninput="updateModel()"></div>
+                <div class="control-group"><label>곡선 세밀함: <span id="valCurveSeg">8</span></label><input type="range" id="curveSeg" min="4" max="16" value="8" oninput="updateModel()"></div>
+            </details>
+
+            <details open>
+                <summary>5. 색상</summary>
+                <div class="color-row"><span>텍스트 1</span><input type="color" id="colText1" value="#FF5733" oninput="updateModel()"></div>
+                <div class="color-row"><span>텍스트 2</span><input type="color" id="colText2" value="#33FF57" oninput="updateModel()"></div>
+                <div class="color-row"><span>텍스트 3</span><input type="color" id="colText3" value="#3357FF" oninput="updateModel()"></div>
+                <div class="color-row"><span>왼쪽 이모지</span><input type="color" id="colEmojiL" value="#FFD700" oninput="updateModel()"></div>
+                <div class="color-row"><span>오른쪽 이모지</span><input type="color" id="colEmojiR" value="#FF69B4" oninput="updateModel()"></div>
+                <div class="color-row"><span>바닥판</span><input type="color" id="colBase" value="#DDDDDD" oninput="updateModel()"></div>
+            </details>
+
+            <div class="control-group">
+                <label>내보내기 형식</label>
+                <div class="format-row">
+                    <button type="button" id="fmt3mfBtn" class="active" onclick="setExportFormat('3mf')">3MF (색상 포함, 1개 파일)</button>
+                    <button type="button" id="fmtStlBtn" onclick="setExportFormat('stl')">STL (부품별 여러 파일)</button>
+                </div>
+            </div>
+            <button class="download-btn" onclick="downloadModel()">다운로드</button>
+            <div class="status-msg" id="statusMsg"></div>
+        `;
+
+        // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드)
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+
+        let modelGroup = null;
+        let currentMeshParts = []; // [{mesh, label}] - 내보내기용
+        let exportFormat = '3mf';
+
+        function setExportFormat(fmt) {
+            exportFormat = fmt;
+            document.getElementById('fmt3mfBtn').classList.toggle('active', fmt === '3mf');
+            document.getElementById('fmtStlBtn').classList.toggle('active', fmt === 'stl');
+        }
+
+        function setStatus(msg) {
+            const el = document.getElementById('statusMsg');
+            if (el) el.textContent = msg || '';
+        }
+
+        // ---------- 폰트 로딩 (같은 폰트 재선택 시 재로딩하지 않도록 캐시) ----------
+        const fontCache = {};
+        function loadFont(file, callback) {
+            if (fontCache[file]) { callback(fontCache[file]); return; }
+            opentype.load('../assets/fonts/' + file, function (err, font) {
+                if (err) { console.error('폰트 로딩 실패:', file, err); return; }
+                fontCache[file] = font;
+                callback(font);
+            });
+        }
+
+        function onFontChange() {
+            loadRequiredFonts(updateModel);
+        }
+
+        function loadRequiredFonts(done) {
+            const files = [
+                FONT_OPTIONS[document.getElementById('font1').value].file,
+                FONT_OPTIONS[document.getElementById('font2').value].file,
+                FONT_OPTIONS[document.getElementById('font3').value].file,
+                EMOJI_FONT_FILE
+            ];
+            let remaining = files.length;
+            files.forEach(f => loadFont(f, () => { if (--remaining === 0) done(); }));
+        }
+
+        // ---------- 2D 기하 유틸 ----------
+        const CLIPPER_SCALE = 1000;
+
+        function isPointInPolygon(point, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+                const intersect = ((yi > point.y) !== (yj > point.y)) &&
+                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // opentype 패스 명령을 하위 경로(subpath)별 점 배열로 분리
+        function extractSubpaths(commands, curveSegments) {
+            const subpaths = [];
+            let current = null;
+            commands.forEach(cmd => {
+                if (cmd.type === 'M') { current = { commands: [cmd] }; subpaths.push(current); }
+                else if (current) current.commands.push(cmd);
+            });
+            return subpaths.map(sp => {
+                const path = new THREE.Path();
+                sp.commands.forEach(cmd => {
+                    if (cmd.type === 'M') path.moveTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'L') path.lineTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'Q') path.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
+                    else if (cmd.type === 'C') path.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
+                });
+                return path.getPoints(curveSegments);
+            });
+        }
+
+        // 포함 관계(depth)로 외곽선/구멍을 구분해 THREE.Shape 배열로 변환 (짝수 겹=외곽선, 홀수 겹=구멍)
+        function contoursToThreeShapes(pointArrays) {
+            const contours = pointArrays.filter(pts => pts && pts.length >= 3).map(pts => ({ points: pts, testPoint: pts[0], depth: 0 }));
+            contours.forEach(a => {
+                contours.forEach(b => {
+                    if (a !== b && isPointInPolygon(a.testPoint, b.points)) a.depth++;
+                });
+            });
+            const outers = contours.filter(c => c.depth % 2 === 0);
+            const holes = contours.filter(c => c.depth % 2 === 1);
+            outers.forEach(o => { o.shape = new THREE.Shape(o.points); });
+            holes.forEach(h => {
+                let bestParent = null, bestArea = Infinity;
+                outers.forEach(o => {
+                    if (isPointInPolygon(h.testPoint, o.points)) {
+                        const area = Math.abs(THREE.ShapeUtils.area(o.points));
+                        if (area < bestArea) { bestArea = area; bestParent = o; }
+                    }
+                });
+                if (bestParent) bestParent.shape.holes.push(new THREE.Path(h.points));
+            });
+            return outers.map(o => o.shape);
+        }
+
+        // ---------- Clipper 기반 2D 오프셋 / 합집합 ----------
+        function pointsToClipperPath(points) {
+            return points.map(p => ({ X: Math.round(p.x * CLIPPER_SCALE), Y: Math.round(p.y * CLIPPER_SCALE) }));
+        }
+        function clipperPathToPoints(path) {
+            return path.map(p => new THREE.Vector2(p.X / CLIPPER_SCALE, p.Y / CLIPPER_SCALE));
+        }
+
+        // delta > 0: 바깥으로 확장(굵게/여백), delta < 0: 안으로 축소
+        function offsetContours(pointArrayList, delta) {
+            if (!delta) return pointArrayList;
+            const paths = pointArrayList.map(pointsToClipperPath).filter(p => p.length >= 3);
+            if (!paths.length) return [];
+            const co = new ClipperLib.ClipperOffset(2, 0.25);
+            co.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+            const solution = new ClipperLib.Paths();
+            co.Execute(solution, delta * CLIPPER_SCALE);
+            return solution.map(clipperPathToPoints);
+        }
+
+        // 여러 글자/이모지의 외곽선을 하나의 실루엣으로 합침 (구멍은 evenodd 규칙으로 자동 보존)
+        function unionContours(pointArrayLists) {
+            const clipper = new ClipperLib.Clipper();
+            let any = false;
+            pointArrayLists.forEach(list => {
+                const paths = list.map(pointsToClipperPath).filter(p => p.length >= 3);
+                if (paths.length) { clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true); any = true; }
+            });
+            if (!any) return [];
+            const solution = new ClipperLib.Paths();
+            clipper.Execute(ClipperLib.ClipType.ctUnion, solution, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+            return solution.map(clipperPathToPoints);
+        }
+
+        function translatePoints(pointArrayList, dx, dy) {
+            pointArrayList.forEach(pts => pts.forEach(p => { p.x += dx; p.y += dy; }));
+        }
+        function boundingWidth(pointArrayList) {
+            let minX = Infinity, maxX = -Infinity;
+            pointArrayList.forEach(pts => pts.forEach(p => { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }));
+            return isFinite(minX) ? (maxX - minX) : 0;
+        }
+
+        // 텍스트 한 줄을 (장평/자간/굵기 적용 후) x=0 중심으로 정렬된 하위경로 점 배열들로 생성
+        function buildTextContours(text, font, size, scaleX, spacing, boldOffset, curveSegments) {
+            if (!font || !text) return [];
+            const advanceScale = 1 / font.unitsPerEm * size;
+            let currentX = 0;
+            let contours = [];
+            // Array.from()으로 순회 — 이모지 등 서로게이트 쌍(BMP 밖 코드포인트) 문자가
+            // text[i] 인덱싱으로 반쪽씩 잘려서 정의되지 않은 문자로 깨지는 것을 방지
+            const chars = Array.from(text);
+            for (let i = 0; i < chars.length; i++) {
+                const glyph = font.charToGlyph(chars[i]);
+                if (!glyph) continue;
+                const path = glyph.getPath(currentX, 0, size);
+                let subpaths = extractSubpaths(path.commands || [], curveSegments);
+                if (boldOffset) subpaths = offsetContours(subpaths, boldOffset);
+                contours = contours.concat(subpaths);
+                currentX += glyph.advanceWidth * advanceScale * spacing;
+            }
+            if (!contours.length) return [];
+            let minX = Infinity, maxX = -Infinity;
+            contours.forEach(pts => pts.forEach(p => { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }));
+            const centerX = (minX + maxX) / 2;
+            contours.forEach(pts => pts.forEach(p => { p.x = (p.x - centerX) * scaleX; }));
+            return contours;
+        }
+
+        // ---------- 곡면 휘어짐 ----------
+        // OpenSCAD 원본의 rotate_extrude 기반 bend_engine을 그대로 재현하는 대신,
+        // "텍스트 폭 방향(x)을 기준으로 cutangle 만큼의 완만한 호를 그리며 휘는" 방식으로
+        // 시각적으로 동등한(곡면 명찰) 효과를 내는 변형을 직접 구현했다.
+        // x가 커질수록(중심에서 멀어질수록) 돌출 깊이(z)에 text_radius 기반 곡률을 더해 휘게 만든다.
+        function bendGeometry(geometry, textRadius, cutangleDeg, halfWidth) {
+            const cutangleRad = THREE.MathUtils.degToRad(cutangleDeg);
+            if (cutangleRad === 0 || halfWidth === 0) return;
+            const pos = geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const z = pos.getZ(i);
+                const theta = (x / halfWidth) * (cutangleRad / 2);
+                const bulge = textRadius * (1 - Math.cos(theta));
+                pos.setZ(i, z + bulge);
+            }
+            pos.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        // ---------- 모델 조립 ----------
+        function readState() {
+            const val = id => document.getElementById(id).value;
+            return {
+                text1: val('text1'), text2: val('text2'), text3: val('text3'),
+                font1: FONT_OPTIONS[val('font1')], font2: FONT_OPTIONS[val('font2')], font3: FONT_OPTIONS[val('font3')],
+                size1: parseFloat(val('size1')), size2: parseFloat(val('size2')), size3: parseFloat(val('size3')),
+                lineDistance: parseFloat(val('lineDistance')),
+                t1ScaleX: parseFloat(val('t1ScaleX')), t1Spacing: parseFloat(val('t1Spacing')), t1Offset: parseFloat(val('t1Offset')),
+                t2ScaleX: parseFloat(val('t2ScaleX')), t2Spacing: parseFloat(val('t2Spacing')), t2Offset: parseFloat(val('t2Offset')),
+                t3ScaleX: parseFloat(val('t3ScaleX')), t3Spacing: parseFloat(val('t3Spacing')), t3Offset: parseFloat(val('t3Offset')),
+                emojiLeft: val('emojiLeft'), emojiLeftOffset: parseFloat(val('emojiLeftOffset')),
+                emojiRight: val('emojiRight'), emojiRightOffset: parseFloat(val('emojiRightOffset')),
+                baseOffset: parseFloat(val('baseOffset')), baseHeight: parseFloat(val('baseHeight')),
+                cutangle: parseFloat(val('cutangle')), textRadius: parseFloat(val('textRadius')),
+                curveSeg: parseInt(val('curveSeg'), 10),
+                colText1: val('colText1'), colText2: val('colText2'), colText3: val('colText3'),
+                colEmojiL: val('colEmojiL'), colEmojiR: val('colEmojiR'), colBase: val('colBase')
+            };
+        }
+
+        function syncLabels(s) {
+            document.getElementById('valSize1').innerText = s.size1;
+            document.getElementById('valSize2').innerText = s.size2;
+            document.getElementById('valSize3').innerText = s.size3;
+            document.getElementById('valLineDistance').innerText = s.lineDistance;
+            document.getElementById('valT1ScaleX').innerText = s.t1ScaleX;
+            document.getElementById('valT1Spacing').innerText = s.t1Spacing;
+            document.getElementById('valT1Offset').innerText = s.t1Offset;
+            document.getElementById('valT2ScaleX').innerText = s.t2ScaleX;
+            document.getElementById('valT2Spacing').innerText = s.t2Spacing;
+            document.getElementById('valT2Offset').innerText = s.t2Offset;
+            document.getElementById('valT3ScaleX').innerText = s.t3ScaleX;
+            document.getElementById('valT3Spacing').innerText = s.t3Spacing;
+            document.getElementById('valT3Offset').innerText = s.t3Offset;
+            document.getElementById('valEmojiLeftOffset').innerText = s.emojiLeftOffset;
+            document.getElementById('valEmojiRightOffset').innerText = s.emojiRightOffset;
+            document.getElementById('valBaseOffset').innerText = s.baseOffset;
+            document.getElementById('valBaseHeight').innerText = s.baseHeight;
+            document.getElementById('valCutangle').innerText = s.cutangle;
+            document.getElementById('valTextRadius').innerText = s.textRadius;
+            document.getElementById('valCurveSeg').innerText = s.curveSeg;
+        }
+
+        function updateModel() {
+            const s = readState();
+            syncLabels(s);
+
+            const f1 = fontCache[s.font1.file], f2 = fontCache[s.font2.file], f3 = fontCache[s.font3.file], fe = fontCache[EMOJI_FONT_FILE];
+            if (!f1 || !f2 || !f3 || !fe) { setStatus('폰트 로딩 중...'); return; }
+            setStatus('');
+
+            const c1 = buildTextContours(s.text1, f1, s.size1, s.t1ScaleX, s.t1Spacing, s.t1Offset, s.curveSeg);
+            const c2 = buildTextContours(s.text2, f2, s.size2, s.t2ScaleX, s.t2Spacing, s.t2Offset, s.curveSeg);
+            const c3 = buildTextContours(s.text3, f3, s.size3, s.t3ScaleX, s.t3Spacing, s.t3Offset, s.curveSeg);
+
+            const has1 = s.text1.trim() !== '', has2 = s.text2.trim() !== '', has3 = s.text3.trim() !== '';
+            const distance12 = (s.size1 / 2 + s.size2 / 2) * s.lineDistance;
+            const distance23 = (s.size2 / 2 + s.size3 / 2) * s.lineDistance;
+            const distLine1to2 = (!has2 && !has3) ? 0 : distance12;
+            const distLine2to3 = (!has3) ? 0 : distance23;
+
+            translatePoints(c1, 0, distLine2to3 + distLine1to2);
+            translatePoints(c2, 0, distLine2to3);
+            // c3는 이동 없음(y=0 기준선)
+
+            const textWidth = Math.max(boundingWidth(c1), boundingWidth(c2), boundingWidth(c3), 1);
+
+            const specialcharsize = (has1 ? s.size1 : 0) + (has2 ? s.size2 : 0) + (has3 ? s.size3 : 0) || 1;
+            let specialcharY = 0;
+            if (has1 && has2 && !has3) specialcharY = distLine1to2 / 2;
+            else if (!has1 && has2 && has3) specialcharY = distLine2to3 / 2;
+            else if (has1 && has3) specialcharY = (distLine1to2 + distLine2to3) / 2;
+
+            const emojiSize = specialcharsize * 0.8;
+            let cL = [], cR = [];
+            if (s.emojiLeft.trim()) {
+                cL = buildTextContours(s.emojiLeft, fe, emojiSize, 1, 1, 0, s.curveSeg);
+                translatePoints(cL, -textWidth / 2 - specialcharsize * s.emojiLeftOffset, specialcharY);
+            }
+            if (s.emojiRight.trim()) {
+                cR = buildTextContours(s.emojiRight, fe, emojiSize, 1, 1, 0, s.curveSeg);
+                translatePoints(cR, textWidth / 2 + specialcharsize * s.emojiRightOffset, specialcharY);
+            }
+
+            if (modelGroup) scene.remove(modelGroup);
+            modelGroup = new THREE.Group();
+            currentMeshParts = [];
+
+            const extrudeDepth = Math.max(s.textRadius * THREE.MathUtils.degToRad(s.cutangle), 0.5);
+            const halfWidth = textWidth / 2;
+
+            function buildPart(contours, colorHex, label) {
+                if (!contours.length) return;
+                const shapes = contoursToThreeShapes(contours);
+                if (!shapes.length) return;
+                const geo = new THREE.ExtrudeGeometry(shapes, { depth: extrudeDepth, bevelEnabled: false, curveSegments: s.curveSeg });
+                bendGeometry(geo, s.textRadius, s.cutangle, halfWidth);
+                const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.25 }));
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                modelGroup.add(mesh);
+                currentMeshParts.push({ mesh: mesh, label: label });
+            }
+
+            buildPart(c1, s.colText1, 'text1');
+            buildPart(c2, s.colText2, 'text2');
+            buildPart(c3, s.colText3, 'text3');
+            buildPart(cL, s.colEmojiL, 'emoji_left');
+            buildPart(cR, s.colEmojiR, 'emoji_right');
+
+            // 바닥판: 텍스트+이모지 실루엣을 합친 뒤 바깥으로 오프셋한 둥근 윤곽선을 평평하게 돌출
+            const allForBase = [c1, c2, c3, cL, cR].filter(c => c.length);
+            if (allForBase.length) {
+                const unioned = unionContours(allForBase);
+                const baseOutline = s.baseOffset > 0 ? offsetContours(unioned, s.baseOffset) : unioned;
+                const baseShapes = contoursToThreeShapes(baseOutline);
+                if (baseShapes.length) {
+                    const baseGeo = new THREE.ExtrudeGeometry(baseShapes, { depth: s.baseHeight, bevelEnabled: false, curveSegments: s.curveSeg });
+                    const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: s.colBase, roughness: 0.3 }));
+                    baseMesh.rotation.x = -Math.PI / 2;
+                    baseMesh.position.y = -s.baseHeight;
+                    baseMesh.receiveShadow = true;
+                    baseMesh.castShadow = true;
+                    modelGroup.add(baseMesh);
+                    currentMeshParts.push({ mesh: baseMesh, label: 'base' });
+                }
+            }
+
+            scene.add(modelGroup);
+        }
+
+        // ---------- 내보내기 ----------
+        function downloadModel() {
+            if (!currentMeshParts.length) { setStatus('내보낼 모델이 없습니다.'); return; }
+            if (exportFormat === '3mf') downloadAs3MF();
+            else downloadAsSTLParts();
+        }
+
+        function downloadAsSTLParts() {
+            setStatus('STL 파일을 부품별로 다운로드합니다...');
+            currentMeshParts.forEach((part, idx) => {
+                setTimeout(() => {
+                    ParametricCore.exportSTL(part.mesh, `gallery1_${part.label}.stl`);
+                    if (idx === currentMeshParts.length - 1) setStatus('다운로드 완료');
+                }, idx * 350);
+            });
+        }
+
+        function meshToModelXML(mesh, objectId, materialIndex) {
+            const geo = mesh.geometry;
+            const pos = geo.attributes.position;
+            const v = new THREE.Vector3();
+            let vertsXML = '';
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i);
+                v.applyMatrix4(mesh.matrixWorld);
+                vertsXML += `<vertex x="${v.x.toFixed(4)}" y="${v.y.toFixed(4)}" z="${v.z.toFixed(4)}"/>`;
+            }
+            let triXML = '';
+            for (let i = 0; i < pos.count; i += 3) {
+                triXML += `<triangle v1="${i}" v2="${i + 1}" v3="${i + 2}"/>`;
+            }
+            return `<object id="${objectId}" type="model" pid="1" pindex="${materialIndex}"><mesh><vertices>${vertsXML}</vertices><triangles>${triXML}</triangles></mesh></object>`;
+        }
+
+        async function downloadAs3MF() {
+            setStatus('3MF 파일 생성 중...');
+            scene.updateMatrixWorld(true);
+
+            let materialsXML = '', objectsXML = '', itemsXML = '';
+            currentMeshParts.forEach((part, idx) => {
+                const hex = part.mesh.material.color.getHexString().toUpperCase();
+                materialsXML += `<base name="${part.label}" displaycolor="#${hex}FF"/>`;
+                const objId = 10 + idx;
+                objectsXML += meshToModelXML(part.mesh, objId, idx);
+                itemsXML += `<item objectid="${objId}"/>`;
+            });
+
+            const modelXML = `<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n<resources>\n<basematerials id="1">${materialsXML}</basematerials>\n${objectsXML}\n</resources>\n<build>${itemsXML}</build>\n</model>`;
+
+            const contentTypesXML = `<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n</Types>`;
+
+            const relsXML = `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n<Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n</Relationships>`;
+
+            const zip = new JSZip();
+            zip.file('[Content_Types].xml', contentTypesXML);
+            zip.file('_rels/.rels', relsXML);
+            zip.file('3D/3dmodel.model', modelXML);
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.href = URL.createObjectURL(blob);
+            link.download = 'gallery1_design.3mf';
+            link.click();
+            document.body.removeChild(link);
+            setStatus('다운로드 완료');
+        }
+
+        // ---------- 시작 ----------
+        setStatus('폰트 로딩 중...');
+        loadRequiredFonts(updateModel);
+    </script>
+</body>
+</html>

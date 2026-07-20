@@ -33,7 +33,13 @@ window.JscadCore = (function () {
                 else if (cmd.type === 'Q') path.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
                 else if (cmd.type === 'C') path.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
             });
-            return path.getPoints(curveSegments || 8).map(p => [p.x, p.y]);
+            let points = path.getPoints(curveSegments || 8);
+            // 평면화된 점을 THREE.Path에 다시 한번 통과시켜 정규화한다 — 실제로 겪은 문제:
+            // 이 재정규화 없이 바로 쓰면 특정 글자(뾰족한 꼭짓점이 있는 자모 등)에서
+            // THREE.ShapeUtils.triangulateShape가 이상한 삼각형(삐죽 튀어나온 모양)을
+            // 만드는 경우가 있었는데, 이렇게 한 번 더 통과시키면 사라진다.
+            points = new THREE.Path(points).getPoints(curveSegments || 8);
+            return points.map(p => [p.x, p.y]);
         }).filter(pts => pts.length >= 3);
     }
 
@@ -54,14 +60,68 @@ window.JscadCore = (function () {
     function ensureCCW(points) {
         return signedArea(points) < 0 ? points.slice().reverse() : points;
     }
+    function ensureCW(points) {
+        return signedArea(points) > 0 ? points.slice().reverse() : points;
+    }
 
-    // 글자 하나의 하위경로들(외곽선+구멍)을 JSCAD geom2 하나로 변환.
-    // point-in-polygon으로 구멍 여부만 판정하고(짝수 겹=외곽선, 홀수 겹=구멍) 실제 결합은
-    // JSCAD의 subtract()가 처리한다 — 어떤 외곽선의 구멍인지 직접 매칭할 필요가 없다.
-    function glyphContoursToGeom2(contours) {
-        const { geom2 } = jscadModeling.geometries;
-        const { union, subtract } = jscadModeling.booleans;
-        const info = contours.map(pts => ({ points: pts, testPoint: pts[0], depth: 0 }));
+    // three.js BufferGeometry(삼각형 목록)를 JSCAD geom3로 그대로 옮긴다.
+    function threeGeometryToGeom3(bufferGeometry) {
+        const { geom3, poly3 } = jscadModeling.geometries;
+        const pos = bufferGeometry.attributes.position;
+        const polys = [];
+        function vert(i) { return [pos.getX(i), pos.getY(i), pos.getZ(i)]; }
+        if (bufferGeometry.index) {
+            const idx = bufferGeometry.index.array;
+            for (let i = 0; i < idx.length; i += 3) {
+                polys.push(poly3.fromPoints([vert(idx[i]), vert(idx[i + 1]), vert(idx[i + 2])]));
+            }
+        } else {
+            for (let i = 0; i < pos.count; i += 3) {
+                polys.push(poly3.fromPoints([vert(i), vert(i + 1), vert(i + 2)]));
+            }
+        }
+        return geom3.create(polys);
+    }
+
+    // 폰트 굵은 글씨체(특히 Noto Sans/Serif KR Black)는 자모의 획 두 개가 서로 맞닿는 게
+    // 아니라 실제로 겹치는(overlap) 경우가 있다(예: "스"의 ㅅ 두 획). 이런 하위경로들은
+    // 각각 따로 보면 자기교차 없는 멀쩡한 폴리곤이라, 기존 방식대로 각각을 독립된
+    // THREE.Shape로 만들어 압출하면 겹치는 부분에서 두 솔리드가 서로를 관통하게 되고,
+    // 그 결과 JSCAD geom3로 변환했을 때 비매니폴드 모서리가 생겨 상자와 union할 때
+    // 표면이 깨지는 문제가 있었다(실제로 Noto Sans/Serif KR의 "테스트"에서 겪음).
+    // Clipper로 모든 하위경로를 한꺼번에 겹침 해소(self-union)하면, 겹치는 두 외곽선이
+    // 하나로 합쳐지고 구멍(ㅇ, ㅁ 등)도 정상적으로 유지된다.
+    const CLIPPER_SCALE = 10000;
+    function cleanupOverlappingContours(contours) {
+        if (typeof ClipperLib === 'undefined') return contours;
+        const paths = contours.map(pts => pts.map(p => ({
+            X: Math.round(p[0] * CLIPPER_SCALE),
+            Y: Math.round(p[1] * CLIPPER_SCALE)
+        })));
+        const simplified = ClipperLib.Clipper.SimplifyPolygons(paths, ClipperLib.PolyFillType.pftNonZero);
+        return simplified
+            .map(path => path.map(pt => [pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE]))
+            .filter(pts => pts.length >= 3);
+    }
+
+    // 하위경로 점 배열(외곽선+구멍 뒤섞인 상태) 하나를 z=0~height로 압출한 JSCAD geom3로
+    // 만든다. 여러 가지 방식을 시도해보면서 겪은 문제들:
+    //   1) 각 글자를 JSCAD geom2(fromPoints/union/subtract)로 만든 뒤 extrudeLinear()로
+    //      압출 → geom2 왕복(fromPoints→toOutlines) 과정에서 좌표가 미세하게 정규화되며
+    //      뾰족한 꼭짓점이 있는 자모(예: "스"의 ㅅ)에서 삼각분할이 깨져 표면에 삐죽 튀어나온
+    //      삼각형이 생겼다.
+    //   2) 캡/벽면 삼각형을 직접 손으로 조립 → 감김 방향을 아무리 맞줘도, 글자처럼 복잡한
+    //      다중 하위경로 도형에서는 퇴화 삼각형·비매니폴드 모서리가 생기기 쉬웠고, 이 상태로
+    //      상자와 union()하면 상자가 통째로(혹은 절반 넘게) 사라지는 심각한 버그가 났다.
+    // 그래서 캡+벽면 조립 자체는 이미 수년간 검증된 THREE.ExtrudeGeometry에게 통째로
+    // 맡기고(구멍 처리 포함, 항상 올바른 매니폴드를 만들어준다), 그 결과만 JSCAD geom3로
+    // 옮긴다. JSCAD는 이렇게 만든 geom3를 상자와 union할 때만 사용한다.
+    function contoursToGeom3(contours, height, curveSegments) {
+        const { geom3 } = jscadModeling.geometries;
+        if (!contours.length) return geom3.create();
+
+        const cleanedContours = cleanupOverlappingContours(contours);
+        const info = cleanedContours.map(pts => ({ points: pts, testPoint: pts[0], depth: 0 }));
         info.forEach(a => {
             info.forEach(b => {
                 if (a !== b && isPointInPolygon(a.testPoint, b.points)) a.depth++;
@@ -69,30 +129,33 @@ window.JscadCore = (function () {
         });
         const outers = info.filter(c => c.depth % 2 === 0);
         const holes = info.filter(c => c.depth % 2 === 1);
-        if (!outers.length) return null;
-
-        let outerUnion = null;
-        outers.forEach(o => {
-            const g = geom2.fromPoints(ensureCCW(o.points));
-            outerUnion = outerUnion ? union(outerUnion, g) : g;
+        outers.forEach(o => { o.shape = new THREE.Shape(o.points.map(p => new THREE.Vector2(p[0], p[1]))); });
+        holes.forEach(h => {
+            let bestParent = null, bestArea = Infinity;
+            outers.forEach(o => {
+                if (isPointInPolygon(h.testPoint, o.points)) {
+                    const area = Math.abs(signedArea(o.points));
+                    if (area < bestArea) { bestArea = area; bestParent = o; }
+                }
+            });
+            if (bestParent) bestParent.shape.holes.push(new THREE.Path(h.points.map(p => new THREE.Vector2(p[0], p[1]))));
         });
-        if (holes.length) {
-            outerUnion = subtract(outerUnion, ...holes.map(h => geom2.fromPoints(ensureCCW(h.points))));
-        }
-        return outerUnion;
+        if (!outers.length) return geom3.create();
+
+        const shapes = outers.map(o => o.shape);
+        const extrudeGeo = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false, curveSegments: curveSegments || 8 });
+        return threeGeometryToGeom3(extrudeGeo);
     }
 
-    // 텍스트 한 줄 전체를 하나의 JSCAD geom2로 생성 (글자 배치 + x=0 중심 정렬 포함).
-    // curveSegments 기본값 8, 필요하면 옵션으로 조정 가능.
-    function buildTextGeom2(text, font, size, options) {
+    // 텍스트 한 줄 전체를 하나의 JSCAD geom3로 생성 (글자 배치 + x=0 중심 정렬 + 압출까지
+    // 한 번에). 각 글자의 원시 점 배열을 그대로 이어붙여 마지막에 딱 한 번만
+    // contoursToGeom3로 삼각분할한다 — 글자별 union이 필요 없다.
+    function buildTextGeom3(text, font, size, height, options) {
         const opts = options || {};
         const curveSegments = opts.curveSegments || 8;
-        const { geom2 } = jscadModeling.geometries;
-        const { union } = jscadModeling.booleans;
-        const { translate } = jscadModeling.transforms;
         const scale = 1 / font.unitsPerEm * size;
         let currentX = 0;
-        let textUnion = null;
+        const allContours = [];
 
         const chars = Array.from(text); // 서로게이트 쌍(이모지 등) 문자가 반쪽씩 잘리지 않도록
         for (let i = 0; i < chars.length; i++) {
@@ -100,25 +163,22 @@ window.JscadCore = (function () {
             if (!glyph) continue;
             const path = glyph.getPath(0, 0, size);
             const contours = extractGlyphContours(path.commands || [], curveSegments);
-            if (contours.length) {
-                let g = glyphContoursToGeom2(contours);
-                if (g) {
-                    g = translate([currentX, 0, 0], g);
-                    textUnion = textUnion ? union(textUnion, g) : g;
-                }
-            }
+            contours.forEach(pts => {
+                pts.forEach(p => { p[0] += currentX; });
+                allContours.push(pts);
+            });
             currentX += glyph.advanceWidth * scale;
         }
 
-        if (textUnion) {
-            // halign=center와 동일하게 전체 텍스트를 x=0 중심으로 이동
-            const bbox = geom2.toOutlines(textUnion).flat();
-            let minX = Infinity, maxX = -Infinity;
-            bbox.forEach(p => { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; });
-            const centerX = (minX + maxX) / 2;
-            textUnion = translate([-centerX, 0, 0], textUnion);
-        }
-        return textUnion;
+        if (!allContours.length) return null;
+
+        // halign=center와 동일하게 전체 텍스트를 x=0 중심으로 이동
+        let minX = Infinity, maxX = -Infinity;
+        allContours.forEach(pts => pts.forEach(p => { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; }));
+        const centerX = (minX + maxX) / 2;
+        allContours.forEach(pts => pts.forEach(p => { p[0] -= centerX; }));
+
+        return contoursToGeom3(allContours, height, curveSegments);
     }
 
     // ---------- JSCAD geom3 → three.js BufferGeometry ----------
@@ -180,14 +240,31 @@ window.JscadCore = (function () {
         return geo;
     }
 
+    // JSCAD의 union() 등 불리언 연산은 절대 오차(epsilon)를 쓰는 것으로 보여, 원본 치수를
+    // mm 단위 그대로(예: 60mm 상자) 넣으면 두 솔리드의 표면이 거의 겹치는 부분에서
+    // 비매니폴드 모서리가 생기며 결과 표면이 깨지는 문제가 있었다(실제로 겪음: 이름표
+    // 상자에 글자를 union할 때 작은 글자 크기에서 상자 윗면이 깨져 보였다). 두 도형을
+    // 배율만큼 키운 뒤 union하고 다시 같은 배율로 축소하면, 같은 절대 오차가 상대적으로
+    // 작아져서 문제가 사라진다.
+    function robustUnion(a, b, scaleFactor) {
+        const { transforms, booleans } = jscadModeling;
+        const s = scaleFactor || 20;
+        const up = g => transforms.scale([s, s, s], g);
+        const fusedUp = booleans.union(up(a), up(b));
+        return transforms.scale([1 / s, 1 / s, 1 / s], fusedUp);
+    }
+
     return {
         isPointInPolygon: isPointInPolygon,
         extractGlyphContours: extractGlyphContours,
         signedArea: signedArea,
         ensureCCW: ensureCCW,
-        glyphContoursToGeom2: glyphContoursToGeom2,
-        buildTextGeom2: buildTextGeom2,
+        ensureCW: ensureCW,
+        contoursToGeom3: contoursToGeom3,
+        buildTextGeom3: buildTextGeom3,
+        threeGeometryToGeom3: threeGeometryToGeom3,
         newellNormal: newellNormal,
-        geom3ToThreeGeometry: geom3ToThreeGeometry
+        geom3ToThreeGeometry: geom3ToThreeGeometry,
+        robustUnion: robustUnion
     };
 })();

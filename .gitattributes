@@ -1,1 +1,10 @@
 * text=auto eol=lf
+
+# 폰트/이미지 등 바이너리 파일은 줄바꿈 정규화 대상에서 제외
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary

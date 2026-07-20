@@ -28,11 +28,11 @@
                 <input type="text" id="inputText" value="테스트" oninput="updateModel()">
             </div>
 
-            <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="150" value="60" oninput="updateModel()"></div>
-            <div class="control-group"><label>상자 세로 (Y): <span id="valY">60</span>mm</label><input type="range" id="sizeY" min="40" max="150" value="60" oninput="updateModel()"></div>
-            <div class="control-group"><label>상자 높이 (Z): <span id="valZ">20</span>mm</label><input type="range" id="sizeZ" min="10" max="100" value="20" oninput="updateModel()"></div>
+            <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="300" value="60" oninput="updateModel()"></div>
+            <div class="control-group"><label>상자 세로 (Y): <span id="valY">60</span>mm</label><input type="range" id="sizeY" min="40" max="300" value="60" oninput="updateModel()"></div>
+            <div class="control-group"><label>상자 높이 (Z): <span id="valZ">20</span>mm</label><input type="range" id="sizeZ" min="10" max="300" value="20" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="25" value="12" oninput="updateModel()"></div>
+            <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="70" value="12" oninput="updateModel()"></div>
             <div class="control-group"><label>글자 돌출 높이: <span id="valFontThick">4</span>mm</label><input type="range" id="fontThick" min="1" max="15" value="4" oninput="updateModel()"></div>
 
             <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
@@ -168,14 +168,18 @@
             const fSize = parseFloat(document.getElementById('fontSize').value);
             const fThick = parseFloat(document.getElementById('fontThick').value);
 
+            // 글자가 상자 위로 돌출되는 만큼(fThick)을 더한 총 높이 — 디자인 전체 크기 확인용
+            const hasText = openTypeFont && textValue.trim().length > 0;
+            const totalHeight = z + (hasText ? fThick : 0);
+
             document.getElementById('valX').innerText = x;
             document.getElementById('valY').innerText = y;
             document.getElementById('valZ').innerText = z;
             document.getElementById('valFontSize').innerText = fSize;
             document.getElementById('valFontThick').innerText = fThick;
 
-            // 실시간 가이드 자 레이어 동기화 드로잉
-            drawDimensionLines(x, y, z);
+            // 실시간 가이드 자 레이어 동기화 드로잉 (높이는 글자 돌출분을 포함한 총 높이 기준)
+            drawDimensionLines(x, y, totalHeight);
 
             if (modelGroup) scene.remove(modelGroup);
             modelGroup = new THREE.Group();

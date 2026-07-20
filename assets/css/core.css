@@ -26,6 +26,16 @@ html, body {
     overflow-y: auto;
 }
 
+.home-link {
+    display: inline-block;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #1976d2;
+    text-decoration: none;
+}
+.home-link:hover { text-decoration: underline; }
+
 #resizer {
     width: 8px;
     height: 100%;

@@ -10,7 +10,9 @@ window.ParametricCore = (function () {
 
     // #controls / #resizer / #viewer / #viewcube-container DOM을 생성해 rootEl에 삽입.
     // 모든 디자인 페이지에서 동일한 구조가 나오도록 마크업을 코드로 고정한다.
-    function mountEditorShell(rootEl, viewCubeLabels) {
+    function mountEditorShell(rootEl, viewCubeLabels, options) {
+        const opts = options || {};
+        const homeUrl = opts.homeUrl || '../index.html';
         const labels = viewCubeLabels || {
             TOP: '윗면 (탑다운)',
             FRONT: '정면',
@@ -20,6 +22,18 @@ window.ParametricCore = (function () {
 
         const controlsEl = document.createElement('div');
         controlsEl.id = 'controls';
+
+        // 좌측 최상단 "메인화면으로" 버튼. 디자인 페이지가 controlsBodyEl만 채우도록 해서
+        // 이 버튼이 항상 모든 편집 페이지 맨 위에 고정으로 남도록 보장한다.
+        const homeLink = document.createElement('a');
+        homeLink.className = 'home-link';
+        homeLink.href = homeUrl;
+        homeLink.textContent = '← 메인화면으로';
+        controlsEl.appendChild(homeLink);
+
+        const controlsBodyEl = document.createElement('div');
+        controlsBodyEl.className = 'controls-body';
+        controlsEl.appendChild(controlsBodyEl);
 
         const resizerEl = document.createElement('div');
         resizerEl.id = 'resizer';
@@ -52,7 +66,13 @@ window.ParametricCore = (function () {
         rootEl.appendChild(resizerEl);
         rootEl.appendChild(viewerEl);
 
-        return { controlsEl: controlsEl, resizerEl: resizerEl, viewerEl: viewerEl, cubeButtons: cubeButtons };
+        return {
+            controlsEl: controlsEl,
+            controlsBodyEl: controlsBodyEl,
+            resizerEl: resizerEl,
+            viewerEl: viewerEl,
+            cubeButtons: cubeButtons
+        };
     }
 
     // scene/camera/renderer/조명/그리드/바닥/애니메이션 루프 초기화.

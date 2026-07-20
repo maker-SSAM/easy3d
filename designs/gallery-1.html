@@ -319,20 +319,22 @@
         }
 
         // ---------- 곡면 휘어짐 ----------
-        // OpenSCAD 원본의 rotate_extrude 기반 bend_engine을 그대로 재현하는 대신,
-        // "텍스트 폭 방향(x)을 기준으로 cutangle 만큼의 완만한 호를 그리며 휘는" 방식으로
-        // 시각적으로 동등한(곡면 명찰) 효과를 내는 변형을 직접 구현했다.
-        // x가 커질수록(중심에서 멀어질수록) 돌출 깊이(z)에 text_radius 기반 곡률을 더해 휘게 만든다.
-        function bendGeometry(geometry, textRadius, cutangleDeg, halfWidth) {
+        // OpenSCAD 원본의 bend_engine(rotate_extrude)을 좌표 변환으로 다시 유도한 결과:
+        // 글자가 "읽히는 방향(x)"을 따라 휘는 게 아니라, 글자 하나하나의 "돌출 깊이(z, 새겨지는
+        // 방향)" 자체가 text_radius 반지름의 원호를 그리며 휜다 — 카누/반원통 단면을 글자 폭
+        // 방향으로 쭉 그대로 미는 형태. 그래서 모든 글자가 x 위치와 무관하게 동일한 곡선
+        // 단면을 갖고, 비스듬한 각도에서 보면 전체 명찰이 완만하게 휘어 보인다(사진 참고 검증).
+        // 바닥판(base)은 원본이 linear_extrude(평평)라서 이 변형을 적용하지 않는다.
+        function bendGeometry(geometry, extrudeDepth, textRadius, cutangleDeg) {
             const cutangleRad = THREE.MathUtils.degToRad(cutangleDeg);
-            if (cutangleRad === 0 || halfWidth === 0) return;
+            if (cutangleRad === 0 || extrudeDepth === 0) return;
             const pos = geometry.attributes.position;
             for (let i = 0; i < pos.count; i++) {
-                const x = pos.getX(i);
+                const y = pos.getY(i);
                 const z = pos.getZ(i);
-                const theta = (x / halfWidth) * (cutangleRad / 2);
-                const bulge = textRadius * (1 - Math.cos(theta));
-                pos.setZ(i, z + bulge);
+                const theta = (z / extrudeDepth) * cutangleRad;
+                pos.setY(i, y + textRadius * Math.sin(theta));
+                pos.setZ(i, textRadius * (1 - Math.cos(theta)));
             }
             pos.needsUpdate = true;
             geometry.computeVertexNormals();
@@ -428,14 +430,13 @@
             currentMeshParts = [];
 
             const extrudeDepth = Math.max(s.textRadius * THREE.MathUtils.degToRad(s.cutangle), 0.5);
-            const halfWidth = textWidth / 2;
 
             function buildPart(contours, colorHex, label) {
                 if (!contours.length) return;
                 const shapes = contoursToThreeShapes(contours);
                 if (!shapes.length) return;
                 const geo = new THREE.ExtrudeGeometry(shapes, { depth: extrudeDepth, bevelEnabled: false, curveSegments: s.curveSeg });
-                bendGeometry(geo, s.textRadius, s.cutangle, halfWidth);
+                bendGeometry(geo, extrudeDepth, s.textRadius, s.cutangle);
                 const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.25 }));
                 mesh.rotation.x = -Math.PI / 2;
                 mesh.castShadow = true;

@@ -20,13 +20,19 @@
         header h1 { margin: 0 0 8px; font-size: 1.8rem; }
         header p { margin: 0; color: #666; }
 
+        /* 위 3개 / 아래 3개, 2줄 x 3열 고정 그리드 */
         #gallery {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 24px;
             max-width: 1000px;
             margin: 0 auto;
             padding: 0 24px 64px;
+        }
+        @media (max-width: 720px) {
+            #gallery {
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            }
         }
 
         .design-card {
@@ -77,32 +83,57 @@
     <canvas id="preview-canvas"></canvas>
 
     <script>
-        // 갤러리에 노출할 디자인 목록. 새 디자인이 추가되면 이 배열에 항목만 추가하면 된다.
+        // 갤러리에 노출할 디자인 목록. 지금은 갤러리1~6 자리만 잡아둔 임시 상태이고,
+        // 각 항목이 실제 디자인으로 완성되면 buildPreviewScene과 url을 교체하면 된다.
+        // (참고: designs/nameplate-box.html은 테스트용으로 만들었던 첫 디자인이라 삭제하지
+        // 않고 남겨뒀다 — 갤러리 목록에서만 빠진 상태.)
+        function simplePolygonPreview(geometry, color, restY) {
+            return function (scene) {
+                const group = new THREE.Group();
+                const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: color, roughness: 0.25 }));
+                mesh.position.y = restY;
+                group.add(mesh);
+                scene.add(group);
+                return group;
+            };
+        }
+
         const designs = [
             {
-                title: '한글 각인 이름표 상자',
-                description: '가로/세로/높이와 글자를 자유롭게 조절하는 이름표 상자',
-                url: 'designs/nameplate-box.html',
-                buildPreviewScene: function (scene) {
-                    const group = new THREE.Group();
-
-                    const box = new THREE.Mesh(
-                        new THREE.BoxGeometry(1.6, 0.6, 1.6),
-                        new THREE.MeshStandardMaterial({ color: 0x1e88e5, roughness: 0.2 })
-                    );
-                    box.position.y = 0.3;
-                    group.add(box);
-
-                    const label = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.9, 0.12, 0.35),
-                        new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.25 })
-                    );
-                    label.position.y = 0.66;
-                    group.add(label);
-
-                    scene.add(group);
-                    return group;
-                }
+                title: '갤러리1',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-1.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.IcosahedronGeometry(1.1, 0), 0xef5350, 1.1)
+            },
+            {
+                title: '갤러리2',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-2.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.DodecahedronGeometry(1.1, 0), 0x66bb6a, 1.1)
+            },
+            {
+                title: '갤러리3',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-3.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.TorusKnotGeometry(0.65, 0.22, 64, 8), 0xab47bc, 0.8)
+            },
+            {
+                title: '갤러리4',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-4.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.ConeGeometry(1.0, 1.7, 5), 0xffa726, 0.85)
+            },
+            {
+                title: '갤러리5',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-5.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.OctahedronGeometry(1.15, 0), 0x26c6da, 1.15)
+            },
+            {
+                title: '갤러리6',
+                description: '준비 중인 디자인입니다',
+                url: 'designs/gallery-6.html',
+                buildPreviewScene: simplePolygonPreview(new THREE.TetrahedronGeometry(1.25, 0), 0x5c6bc0, 1.0)
             }
         ];
 
@@ -133,8 +164,8 @@
             scene.add(dirLight);
 
             const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-            camera.position.set(2, 1.8, 2.4);
-            camera.lookAt(0, 0.3, 0);
+            camera.position.set(2.4, 2, 3);
+            camera.lookAt(0, 0.9, 0);
 
             const previewGroup = design.buildPreviewScene(scene);
 
@@ -149,7 +180,7 @@
         renderer.setScissorTest(true);
 
         function updateCanvasSize() {
-            renderer.setSize(window.innerWidth, window.innerHeight, false);
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
         window.addEventListener('resize', updateCanvasSize);
         updateCanvasSize();

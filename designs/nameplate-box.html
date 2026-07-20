@@ -170,6 +170,83 @@
             scene.add(dimensionGroup);
         }
 
+        const GLYPH_CURVE_SEGMENTS = 8;
+
+        // 다각형 점 배열 안에 점이 있는지 판별하는 레이캐스팅(ray casting) 알고리즘.
+        function isPointInPolygon(point, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+                const intersect = ((yi > point.y) !== (yj > point.y)) &&
+                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // opentype 글자 패스를 THREE.Shape 배열로 변환한다.
+        // three.js의 ShapePath.toShapes()는 구멍(홍/동처럼 ㅎ의 고리와 받침 ㅇ 등 한 글자에
+        // 구멍이 두 곳 이상인 경우)을 엉뚱한 외곽선에 잘못 배정해서 3D 돌출이 뒤틀리는 문제가
+        // 있었다. 대신 각 하위 경로(subpath)의 포함 관계를 point-in-polygon으로 직접 계산해
+        // 외곽선/구멍을 정확히 매칭한다.
+        function glyphPathToShapes(commands) {
+            const subpaths = [];
+            let current = null;
+            commands.forEach(cmd => {
+                if (cmd.type === 'M') {
+                    current = { commands: [cmd] };
+                    subpaths.push(current);
+                } else if (current) {
+                    current.commands.push(cmd);
+                }
+            });
+
+            subpaths.forEach(sp => {
+                const path = new THREE.Path();
+                sp.commands.forEach(cmd => {
+                    if (cmd.type === 'M') path.moveTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'L') path.lineTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'Q') path.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
+                    else if (cmd.type === 'C') path.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
+                });
+                sp.path = path;
+                sp.points = path.getPoints(GLYPH_CURVE_SEGMENTS);
+                sp.testPoint = sp.points[0];
+            });
+
+            // 다른 외곽선 안에 몇 겹 들어있는지(depth)로 외곽선/구멍을 구분한다.
+            // 짝수 겹 = 글자 몸통(외곽선), 홀수 겹 = 구멍.
+            subpaths.forEach(a => {
+                a.depth = 0;
+                subpaths.forEach(b => {
+                    if (a !== b && isPointInPolygon(a.testPoint, b.points)) a.depth++;
+                });
+            });
+
+            const outers = subpaths.filter(sp => sp.depth % 2 === 0);
+            const holes = subpaths.filter(sp => sp.depth % 2 === 1);
+
+            outers.forEach(o => {
+                o.shape = new THREE.Shape(o.points);
+            });
+
+            // 구멍마다 자신을 포함하는 외곽선 중 가장 작은(가장 가까이 감싸는) 것에 배정한다.
+            holes.forEach(h => {
+                let bestParent = null;
+                let bestArea = Infinity;
+                outers.forEach(o => {
+                    if (isPointInPolygon(h.testPoint, o.points)) {
+                        const area = Math.abs(THREE.ShapeUtils.area(o.points));
+                        if (area < bestArea) { bestArea = area; bestParent = o; }
+                    }
+                });
+                if (bestParent) bestParent.shape.holes.push(h.path);
+            });
+
+            return outers.map(o => o.shape);
+        }
+
         function createThreeShapes(text, size) {
             if (!openTypeFont) return [];
             const shapes = [];
@@ -181,18 +258,7 @@
                 if (!glyph) continue;
 
                 const path = glyph.getPath(currentX, 0, size);
-                const fontPaths = path.commands || [];
-                const shapePath = new THREE.ShapePath();
-
-                fontPaths.forEach(cmd => {
-                    if (cmd.type === 'M') shapePath.moveTo(cmd.x, -cmd.y);
-                    else if (cmd.type === 'L') shapePath.lineTo(cmd.x, -cmd.y);
-                    else if (cmd.type === 'Q') shapePath.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
-                    else if (cmd.type === 'C') shapePath.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
-                });
-
-                const glyphShapes = shapePath.toShapes(true);
-                shapes.push(...glyphShapes);
+                shapes.push(...glyphPathToShapes(path.commands || []));
                 currentX += glyph.advanceWidth * scale;
             }
             return shapes;

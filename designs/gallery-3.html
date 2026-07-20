@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>갤러리3 (준비 중) - 초등 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="../assets/js/core.js"></script>
+</head>
+<body>
+
+    <script>
+        // 갤러리3 자리를 표시만 해두는 임시 페이지. 실제 파라메트릭 디자인이
+        // 완성되면 이 파일의 컨트롤 UI + 모델링 로직을 nameplate-box.html처럼 채운다.
+        const shell = ParametricCore.mountEditorShell(document.body);
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3>갤러리3</h3>
+            <p style="font-size: 0.9em; color: #666; line-height: 1.6;">
+                🚧 아직 준비 중인 디자인이에요.<br>
+                조금만 기다려 주세요!
+            </p>
+        `;
+
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, viewer.camera, viewer.controls);
+
+        const placeholderMesh = new THREE.Mesh(
+            new THREE.TorusKnotGeometry(24, 8, 64, 8),
+            new THREE.MeshStandardMaterial({ color: 0xab47bc, roughness: 0.25 })
+        );
+        placeholderMesh.position.y = 32;
+        placeholderMesh.castShadow = true;
+        placeholderMesh.receiveShadow = true;
+        scene.add(placeholderMesh);
+
+        (function spinPlaceholder() {
+            placeholderMesh.rotation.y += 0.006;
+            placeholderMesh.rotation.x += 0.002;
+            requestAnimationFrame(spinPlaceholder);
+        })();
+    </script>
+</body>
+</html>

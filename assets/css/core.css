@@ -1,0 +1,118 @@
+/* 모든 파라메트릭 디자인 편집 페이지가 공유하는 레이아웃/스타일.
+   편집 화면 뼈대(컨트롤 패널 크기, 뷰어 구성)를 모든 디자인에서 동일하게 유지하기 위한 공통 CSS. */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: sans-serif;
+    display: flex;
+    user-select: none;
+}
+
+#controls {
+    width: 320px;
+    min-width: 280px;
+    max-width: 500px;
+    flex-shrink: 0;
+    height: 100%;
+    padding: 25px;
+    background: #f8f9fa;
+    box-sizing: border-box;
+    z-index: 10;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    overflow-y: auto;
+}
+
+#resizer {
+    width: 8px;
+    height: 100%;
+    background: #e0e0e0;
+    cursor: col-resize;
+    z-index: 20;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, width 0.1s, box-shadow 0.1s;
+}
+#resizer:hover {
+    width: 12px;
+    background: #2196f3;
+    box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
+}
+#resizer.active {
+    width: 12px;
+    background: #1976d2;
+    box-shadow: 0 0 12px rgba(25, 118, 210, 0.8);
+}
+#resizer::after {
+    content: "";
+    width: 4px;
+    height: 24px;
+    border-left: 2px dotted #9e9e9e;
+    border-right: 2px dotted #9e9e9e;
+    opacity: 0.8;
+    transition: border-color 0.1s;
+}
+#resizer:hover::after, #resizer.active::after {
+    border-color: #ffffff;
+}
+
+#viewer {
+    flex: 1;
+    height: 100%;
+    background: #eee;
+    position: relative;
+}
+
+#viewcube-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    backdrop-filter: blur(4px);
+}
+.viewcube-title {
+    font-size: 0.75rem;
+    text-align: center;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 2px;
+}
+.cube-btn {
+    background: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.1s;
+    text-align: center;
+}
+.cube-btn:hover {
+    background: #2196f3;
+    color: #fff;
+    border-color: #2196f3;
+}
+
+.control-group { margin-bottom: 20px; }
+label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.95rem; color: #333; }
+input[type="range"], input[type="text"] { width: 100%; padding: 6px; box-sizing: border-box; }
+.download-btn {
+    width: 100%; padding: 14px; background-color: #4caf50; color: white;
+    border: none; border-radius: 6px; font-size: 16px; font-weight: bold;
+    cursor: pointer; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.download-btn:hover { background-color: #45a049; }

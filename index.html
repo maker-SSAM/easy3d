@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>초등 교육용 벡터 기반 한글 3D 뷰어</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- 웹 브라우저 자체에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: sans-serif;
+            display: flex;
+            user-select: none;
+        }
+
+        #controls {
+            width: 320px;
+            min-width: 280px;
+            max-width: 500px;
+            flex-shrink: 0;
+            height: 100%;
+            padding: 25px;
+            background: #f8f9fa;
+            box-sizing: border-box;
+            z-index: 10;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            overflow-y: auto;
+        }
+
+        #resizer {
+            width: 8px;
+            height: 100%;
+            background: #e0e0e0;
+            cursor: col-resize;
+            z-index: 20;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.1s, width 0.1s, box-shadow 0.1s;
+        }
+        #resizer:hover {
+            width: 12px;
+            background: #2196f3;
+            box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
+        }
+        #resizer.active {
+            width: 12px;
+            background: #1976d2;
+            box-shadow: 0 0 12px rgba(25, 118, 210, 0.8);
+        }
+        #resizer::after {
+            content: "";
+            width: 4px;
+            height: 24px;
+            border-left: 2px dotted #9e9e9e;
+            border-right: 2px dotted #9e9e9e;
+            opacity: 0.8;
+            transition: border-color 0.1s;
+        }
+        #resizer:hover::after, #resizer.active::after {
+            border-color: #ffffff;
+        }
+
+        #viewer {
+            flex: 1;
+            height: 100%;
+            background: #eee;
+            position: relative;
+        }
+
+        /* [수정 포인트] 시점 제어 뷰큐브 인터페이스 HTML/CSS 레이아웃 */
+        #viewcube-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            backdrop-filter: blur(4px);
+        }
+        .cube-btn {
+            background: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.1s;
+            text-align: center;
+        }
+        .cube-btn:hover {
+            background: #2196f3;
+            color: #fff;
+            border-color: #2196f3;
+        }
+
+        .control-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.95rem; color: #333; }
+        input[type="range"], input[type="text"] { width: 100%; padding: 6px; box-sizing: border-box; }
+        .download-btn {
+            width: 100%; padding: 14px; background-color: #4caf50; color: white;
+            border: none; border-radius: 6px; font-size: 16px; font-weight: bold;
+            cursor: pointer; margin-top: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .download-btn:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <h3>한글 3D 각인 설정</h3>
+        <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 폰트 로드 완료(1~2초) 후 실제 3D 글자가 돌출됩니다.</p>
+
+        <div class="control-group">
+            <label>각인할 글자 입력</label>
+            <input type="text" id="inputText" value="테스트" oninput="updateModel()">
+        </div>
+
+        <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="150" value="60" oninput="updateModel()"></div>
+        <div class="control-group"><label>상자 세로 (Y): <span id="valY">60</span>mm</label><input type="range" id="sizeY" min="40" max="150" value="60" oninput="updateModel()"></div>
+        <div class="control-group"><label>상자 높이 (Z): <span id="valZ">20</span>mm</label><input type="range" id="sizeZ" min="10" max="100" value="20" oninput="updateModel()"></div>
+
+        <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="25" value="12" oninput="updateModel()"></div>
+        <div class="control-group"><label>글자 돌출 높이: <span id="valFontThick">4</span>mm</label><input type="range" id="fontThick" min="1" max="15" value="4" oninput="updateModel()"></div>
+
+        <button class="download-btn" onclick="downloadSTL()">글자 포함 STL 다운로드</button>
+    </div>
+
+    <div id="resizer"></div>
+
+    <div id="viewer">
+        <!-- [수정 포인트] 시점 리셋 컨트롤 뷰큐브 UI 요소 -->
+        <div id="viewcube-container">
+            <div style="font-size: 0.75rem; text-align: center; font-weight: bold; color: #666; margin-bottom: 2px;">시점 변경</div>
+            <button class="cube-btn" onclick="resetCamera('TOP')">윗면 (탑다운)</button>
+            <button class="cube-btn" onclick="resetCamera('FRONT')">정면</button>
+            <button class="cube-btn" onclick="resetCamera('SIDE')">측면</button>
+            <button class="cube-btn" onclick="resetCamera('ISO')">기본 입체</button>
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('viewer');
+        const controlsElement = document.getElementById('controls');
+        const resizer = document.getElementById('resizer');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xe0e0e0);
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 1000);
+        camera.position.set(120, 150, 200);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.AmbientLight(0x555555));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(80, 150, 60);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        scene.add(new THREE.GridHelper(300, 30, 0x888888, 0xbbbbbb));
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShadowMaterial({ opacity: 0.2 }));
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        let modelGroup;
+        let dimensionGroup; // 실시간 자/치수선을 담을 전용 그룹 변수
+        let openTypeFont = null;
+
+        updateModel();
+
+        const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/hahmlet/Hahmlet%5Bwght%5D.ttf';
+
+        opentype.load(fontUrl, function(err, font) {
+            if (err) {
+                console.error('폰트 로딩 실패:', err);
+            } else {
+                console.log('Hahmlet 폰트 자원 파싱 성공');
+                openTypeFont = font;
+                updateModel();
+            }
+        });
+
+        // [수정 포인트] 3D 공간 상에 치수 mm 숫자를 렌더링하는 가볍고 고해상도인 Sprite 캔버스 텍스트 생성기
+        function createTextLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ff3d00'; // 초등 가독성을 위한 짙은 오렌지/레드 수치선 색상
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.scale.set(16, 8, 1);
+            return sprite;
+        }
+
+        // [수정 포인트] 상자 크기에 반응하여 실시간으로 늘어나는 가이드 치수선(자) 드로잉 로직
+        function drawDimensionLines(x, y, z) {
+            if (dimensionGroup) scene.remove(dimensionGroup);
+            dimensionGroup = new THREE.Group();
+
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xff3d00, linewidth: 2 });
+            const hx = x / 2;
+            const hz = y / 2;
+
+            // 1. 가로(X) 가이드 치수선 연산
+            const xGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-hx, 0.5, hz + 10),
+                new THREE.Vector3(hx, 0.5, hz + 10)
+            ]);
+            const xLine = new THREE.Line(xGeo, lineMat);
+            dimensionGroup.add(xLine);
+            const xLabel = createTextLabelSprite(`${x}mm`);
+            xLabel.position.set(0, 3, hz + 15);
+            dimensionGroup.add(xLabel);
+
+            // 2. 세로(Y) 가이드 치수선 연산
+            const yGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(hx + 10, 0.5, -hz),
+                new THREE.Vector3(hx + 10, 0.5, hz)
+            ]);
+            const yLine = new THREE.Line(yGeo, lineMat);
+            dimensionGroup.add(yLine);
+            const yLabel = createTextLabelSprite(`${y}mm`);
+            yLabel.position.set(hx + 15, 3, 0);
+            dimensionGroup.add(yLabel);
+
+            // 3. 높이(Z) 가이드 치수선 연산
+            const zGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-hx - 10, 0, hz),
+                new THREE.Vector3(-hx - 10, z, hz)
+            ]);
+            const zLine = new THREE.Line(zGeo, lineMat);
+            dimensionGroup.add(zLine);
+            const zLabel = createTextLabelSprite(`${z}mm`);
+            zLabel.position.set(-hx - 15, z / 2, hz);
+            dimensionGroup.add(zLabel);
+
+            scene.add(dimensionGroup);
+        }
+
+        function createThreeShapes(text, size) {
+            if (!openTypeFont) return [];
+            const shapes = [];
+            const scale = 1 / openTypeFont.unitsPerEm * size;
+            let currentX = 0;
+
+            for (let i = 0; i < text.length; i++) {
+                const glyph = openTypeFont.charToGlyph(text[i]);
+                if (!glyph) continue;
+
+                const path = glyph.getPath(currentX, 0, size);
+                const fontPaths = path.commands || [];
+                const shapePath = new THREE.ShapePath();
+
+                fontPaths.forEach(cmd => {
+                    if (cmd.type === 'M') shapePath.moveTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'L') shapePath.lineTo(cmd.x, -cmd.y);
+                    else if (cmd.type === 'Q') shapePath.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
+                    else if (cmd.type === 'C') shapePath.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
+                });
+
+                const glyphShapes = shapePath.toShapes(true);
+                shapes.push(...glyphShapes);
+                currentX += glyph.advanceWidth * scale;
+            }
+            return shapes;
+        }
+
+        function updateModel() {
+            const textValue = document.getElementById('inputText').value || '';
+            const x = parseFloat(document.getElementById('sizeX').value);
+            const y = parseFloat(document.getElementById('sizeY').value);
+            const z = parseFloat(document.getElementById('sizeZ').value);
+
+            const fSize = parseFloat(document.getElementById('fontSize').value);
+            const fThick = parseFloat(document.getElementById('fontThick').value);
+
+            document.getElementById('valX').innerText = x;
+            document.getElementById('valY').innerText = y;
+            document.getElementById('valZ').innerText = z;
+            document.getElementById('valFontSize').innerText = fSize;
+            document.getElementById('valFontThick').innerText = fThick;
+
+            // 실시간 가이드 자 레이어 동기화 드로잉
+            drawDimensionLines(x, y, z);
+
+            if (modelGroup) scene.remove(modelGroup);
+            modelGroup = new THREE.Group();
+
+            const boxGeo = new THREE.BoxGeometry(x, z, y);
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x1e88e5, roughness: 0.15 });
+            const cubeMesh = new THREE.Mesh(boxGeo, boxMat);
+            cubeMesh.position.y = z / 2;
+            cubeMesh.castShadow = true;
+            cubeMesh.receiveShadow = true;
+            modelGroup.add(cubeMesh);
+
+            if (openTypeFont && textValue.trim().length > 0) {
+                try {
+                    const shapes = createThreeShapes(textValue, fSize);
+                    const extrudeSettings = { depth: fThick, bevelEnabled: false, curveSegments: 8 };
+                    const textGeo = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
+
+                    textGeo.computeBoundingBox();
+                    const minX = textGeo.boundingBox.min.x;
+                    const maxX = textGeo.boundingBox.max.x;
+                    const maxY = textGeo.boundingBox.max.y;
+
+                    const textWidth = maxX - minX;
+                    const textMesh = new THREE.Mesh(textGeo, new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.2 }));
+
+                    textMesh.rotation.x = -Math.PI / 2;
+                    textMesh.position.set(-textWidth / 2 - minX, z, -textGeo.boundingBox.max.y / 2 + maxY / 2);
+                    textMesh.castShadow = true;
+
+                    modelGroup.add(textMesh);
+                } catch (fontError) {
+                    console.error('글자 3D 형상 변환 중 예외 발생:', fontError);
+                }
+            }
+
+            scene.add(modelGroup);
+        }
+
+        // [수정 포인트] 뷰큐브 동작을 처리하는 카메라 좌표 제어 함수 구현
+        function resetCamera(viewType) {
+            controls.reset();
+            if (viewType === 'TOP') {
+                camera.position.set(0, 220, 0); // 위에서 수직 아래를 조망
+            } else if (viewType === 'FRONT') {
+                camera.position.set(0, 40, 220); // 완벽한 정면 배치
+            } else if (viewType === 'SIDE') {
+                camera.position.set(220, 40, 0); // 완벽한 우측면 배치
+            } else if (viewType === 'ISO') {
+                camera.position.set(120, 150, 200); // 디폴트 3차원 입체 시점 리셋
+            }
+            controls.update();
+        }
+
+        function downloadSTL() {
+            if (!modelGroup) return;
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(modelGroup, { binary: true });
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            const link = document.createElement('a');
+            const textValue = document.getElementById('inputText').value || 'model';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.href = URL.createObjectURL(blob);
+            link.download = `${textValue}_box.stl`;
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        let isMd = false;
+        resizer.addEventListener('mousedown', function() { isMd = true; resizer.classList.add('active'); });
+        document.addEventListener('mousemove', function(e) {
+            if (!isMd) return;
+            let nw = e.clientX;
+            if (nw < 280) nw = 280;
+            if (nw > 500) nw = 500;
+            controlsElement.style.width = nw + 'px';
+            onWindowResize();
+        });
+        document.addEventListener('mouseup', function() { if (isMd) { isMd = false; resizer.classList.remove('active'); } });
+
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

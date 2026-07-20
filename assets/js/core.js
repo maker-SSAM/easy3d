@@ -89,16 +89,40 @@ window.ParametricCore = (function () {
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(viewerEl.clientWidth, viewerEl.clientHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 그림자 경계를 부드럽게
+        // 주의: sRGBEncoding/ACESFilmicToneMapping을 같이 켜봤더니 디자인 색상이 하얗게
+        // 씻겨나가는(밝게 날아가는) 부작용이 있어서 뺐다 — 사이트 전체 색상에 영향을 주는
+        // 변경이라 안전하게 기존 색 재현 방식(선형)을 유지한다.
         viewerEl.insertBefore(renderer.domElement, viewerEl.firstChild);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        controls.zoomSpeed = 0.5; // 마우스 휠 확대/축소 속도를 기본값의 절반으로
 
-        scene.add(new THREE.AmbientLight(0x555555));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        // 하늘/바닥 느낌으로 은은하게 전체를 채워주는 조명 (평평한 회색 AmbientLight 대체)
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x999999, 0.55));
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
         dirLight.position.set(80, 150, 60);
         dirLight.castShadow = true;
+        // 그림자 카메라(그림자가 계산되는 범위)의 기본값은 아주 작아서(-5~5), 모델이 그 밖으로
+        // 나가는 순간 그림자 계산 경계선이 바닥에 사각형 테두리로 그대로 보이는 문제가 있었다.
+        // 그리드 크기(300)에 맞춰 범위를 넉넉히 키운다.
+        dirLight.shadow.camera.left = -220;
+        dirLight.shadow.camera.right = 220;
+        dirLight.shadow.camera.top = 220;
+        dirLight.shadow.camera.bottom = -220;
+        dirLight.shadow.camera.near = 10;
+        dirLight.shadow.camera.far = 600;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.bias = -0.0015; // 그림자 여드름(shadow acne) 방지
         scene.add(dirLight);
+
+        // 주 조명 반대편에서 살짝 채워주는 보조광 — 그림자 쪽이 완전히 새까매지지 않도록
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.22);
+        fillLight.position.set(-120, 90, -80);
+        scene.add(fillLight);
 
         scene.add(new THREE.GridHelper(300, 30, 0x888888, 0xbbbbbb));
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShadowMaterial({ opacity: 0.2 }));

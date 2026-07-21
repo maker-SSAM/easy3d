@@ -81,6 +81,26 @@ window.ManifoldCore = (function () {
         return manifold.translate([0, y, 0]);
     }
 
+    // font-core.js의 윤곽선으로 2D 단면(CrossSection)만 만들고 압출하지 않는다. extrudeContours와
+    // 달리, 결과를 곧바로 offset()/add()/subtract() 같은 2D 연산에 먼저 쓴 뒤(예: 갤러리4의
+    // 글자 외곽선/테두리 링처럼 폰트 윤곽선 자체를 부풀리거나 서로 합치는 경우) 원하는 시점에
+    // extrudeXS()로 나중에 압출하고 싶을 때 쓴다.
+    function contoursToXS(contours) {
+        if (!contours || !contours.length) return null;
+        return new CrossSection(contours, 'NonZero');
+    }
+
+    // 이미 만들어진(2D 연산을 거쳤을 수도 있는) CrossSection을 압출한다. extrudeContours와
+    // 동일하게 Y-up으로 회전하고 originalID를 부여하지만, 입력이 원시 점 배열이 아니라
+    // CrossSection 객체라는 점만 다르다. 입력으로 받은 cross 자체는 지우지 않는다 — 여러
+    // 압출에 재사용하거나 호출부가 직접 정리(track)할 수 있도록.
+    function extrudeXS(cross, height) {
+        const extruded = cross.extrude(height);
+        const rotated = extruded.rotate([-90, 0, 0]);
+        extruded.delete();
+        return markAsOriginal(rotated);
+    }
+
     // 반지름이 다른 두 원판을 잇는 원뿔대(윗면 반지름=radiusTop, 아랫면 반지름=radiusBottom)를
     // 만든다. sides로 원 대신 N각형 단면(각기둥/각뿔대)도 만들 수 있다 — 갤러리2 보석 디자인의
     // 면(facet) 개수 조절이 여기서 나온다. Manifold의 cylinder()는 로컬 Z축을 따라
@@ -148,6 +168,86 @@ window.ManifoldCore = (function () {
     }
 
     // ---------- Manifold → three.js 변환 ----------
+    // three.js BufferGeometryUtils(r150+ jsm 전용, 이 프로젝트가 쓰는 r146 classic 빌드에는
+    // 없음)의 toCreasedNormals()를 그대로 옮겨왔다(MIT 라이선스, three.js 원작). 삼각형별
+    // 법선을 미리 계산해서, 인접한 두 면의 각도 차이가 creaseAngle보다 작으면 부드럽게
+    // 평균 내고 그보다 크면 그대로 나눠 각지게 남긴다 — computeVertexNormals()처럼 무조건
+    // 평균 내지도, flatShading처럼 무조건 각지게 만들지도 않아서 "둥근 곡면은 매끈하게,
+    // 진짜 모서리는 여전히 선명하게" 둘 다 가능하다. (원본:
+    // three.js examples/jsm/utils/BufferGeometryUtils.js — toCreasedNormals)
+    // 입력을 비인덱스(non-indexed)로 펼치되, 원래 삼각형 순서는 그대로 유지하므로 이후
+    // toThreeMesh()가 Manifold의 runIndex(삼각형 순서 기준 구간)로 매기는 부품별 색상
+    // 그룹핑도 그대로 들어맞는다.
+    function creaseNormals(geo, creaseAngle) {
+        const creaseDot = Math.cos(creaseAngle);
+        const hashMultiplier = (1 + 1e-10) * 1e2;
+        const verts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+        const tempVec1 = new THREE.Vector3();
+        const tempVec2 = new THREE.Vector3();
+        const tempNorm = new THREE.Vector3();
+        const tempNorm2 = new THREE.Vector3();
+
+        function hashVertex(v) {
+            const x = ~~(v.x * hashMultiplier);
+            const y = ~~(v.y * hashMultiplier);
+            const z = ~~(v.z * hashMultiplier);
+            return x + ',' + y + ',' + z;
+        }
+
+        const resultGeometry = geo.index ? geo.toNonIndexed() : geo;
+        const posAttr = resultGeometry.attributes.position;
+        const vertexMap = {};
+
+        // 같은 위치의 정점들이 공유하는 면 법선을 모두 모아둔다.
+        for (let i = 0, l = posAttr.count / 3; i < l; i++) {
+            const i3 = 3 * i;
+            const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
+            const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
+            const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
+            tempVec1.subVectors(c, b);
+            tempVec2.subVectors(a, b);
+            const normal = new THREE.Vector3().crossVectors(tempVec1, tempVec2).normalize();
+            for (let n = 0; n < 3; n++) {
+                const hash = hashVertex(verts[n]);
+                if (!(hash in vertexMap)) vertexMap[hash] = [];
+                vertexMap[hash].push(normal);
+            }
+        }
+
+        // creaseAngle 안쪽에 있는 법선들만 평균 내서 최종 법선을 정한다.
+        const normalArray = new Float32Array(posAttr.count * 3);
+        const normAttr = new THREE.BufferAttribute(normalArray, 3, false);
+        for (let i = 0, l = posAttr.count / 3; i < l; i++) {
+            const i3 = 3 * i;
+            const a = verts[0].fromBufferAttribute(posAttr, i3 + 0);
+            const b = verts[1].fromBufferAttribute(posAttr, i3 + 1);
+            const c = verts[2].fromBufferAttribute(posAttr, i3 + 2);
+            tempVec1.subVectors(c, b);
+            tempVec2.subVectors(a, b);
+            tempNorm.crossVectors(tempVec1, tempVec2).normalize();
+
+            for (let n = 0; n < 3; n++) {
+                const hash = hashVertex(verts[n]);
+                const otherNormals = vertexMap[hash];
+                tempNorm2.set(0, 0, 0);
+                for (let k = 0; k < otherNormals.length; k++) {
+                    if (tempNorm.dot(otherNormals[k]) > creaseDot) tempNorm2.add(otherNormals[k]);
+                }
+                tempNorm2.normalize();
+                normAttr.setXYZ(i3 + n, tempNorm2.x, tempNorm2.y, tempNorm2.z);
+            }
+        }
+
+        resultGeometry.setAttribute('normal', normAttr);
+        return resultGeometry;
+    }
+
+    // 갤러리1(이름표 상자 모서리)/갤러리3(나사산 스레드)처럼 실제 각져야 하는 부분과,
+    // 갤러리2(보석 파빌리온 능선)처럼 실제 각져야 하는 다각형 면 사이의 경계는 살리면서도
+    // 30° 미만의 미세한 삼각분할 각도 차이(둥근 부분을 근사하며 생기는 자잘한 꺾임)는
+    // 부드럽게 이어붙이기 위한 기준각. Code and Make 저장소가 실측으로 확정한 35°를 그대로 썼다.
+    const CREASE_ANGLE = (35 * Math.PI) / 180;
+
     // Manifold의 Mesh는 이미 삼각형만으로 이루어진 GL 스타일 버퍼(vertProperties/triVerts)라,
     // JSCAD의 임의 다각형(poly3)을 다시 삼각분할해야 했던 jscad-core.js의
     // geom3ToThreeGeometry(Newell 법선 계산 + 평면 투영 + ShapeUtils 재삼각분할)가 통째로
@@ -157,8 +257,8 @@ window.ManifoldCore = (function () {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(mesh.vertProperties, 3));
         geo.setIndex(new THREE.Uint32BufferAttribute(mesh.triVerts, 1));
-        geo.computeVertexNormals();
-        return { geo: geo, mesh: mesh };
+        const creased = creaseNormals(geo, CREASE_ANGLE);
+        return { geo: creased, mesh: mesh };
     }
 
     // union된 결과를 부품별로 다른 색을 가진 THREE.Mesh 하나로 만든다. box/text 각각의
@@ -175,13 +275,16 @@ window.ManifoldCore = (function () {
         // 확정한 값이다. materialOptions로 필요하면 호출부에서 덮어쓸 수 있게는 열어둔다.
         const metalness = matOpts.metalness !== undefined ? matOpts.metalness : 0.2;
         const roughness = matOpts.roughness !== undefined ? matOpts.roughness : 0.45;
-        // 실제로 겪은 문제: Manifold의 메시는 정점을 면끼리 공유(용접)한 형태라, 상자
-        // 모서리 하나가 서로 다른 방향을 보는 3개 면(윗면+옆면 2개)에 동시에 속한다.
-        // computeVertexNormals()는 이 공유 정점에서 세 면의 법선을 그대로 평균 내버려서
-        // (실측: 상자 모서리 근처 법선이 위쪽에서 평균 57°, 최대 107°나 기울어짐), 평평해야
-        // 할 상자 표면이 각 모서리에서 접힌 것처럼 보이는 사선 얼룩이 생겼다. flatShading은
-        // 정점 법선 평균 대신 삼각형별 실제 법선을 그대로 쓰게 해서 이 문제를 없앤다.
-        const flatShading = matOpts.flatShading !== undefined ? matOpts.flatShading : true;
+        // PMREM 환경광(core.js의 RoomEnvironment)이 재질에 얼마나 반영될지 — 이 값도
+        // mountLightTuningPanel()로 확정했다.
+        const envMapIntensity = matOpts.envMapIntensity !== undefined ? matOpts.envMapIntensity : 0.55;
+        // 예전에는 flatShading:true로 이 문제를 막았었다 — Manifold 메시는 정점을 면끼리
+        // 공유(용접)한 형태라, computeVertexNormals()가 상자 모서리 같은 곳까지 무조건
+        // 평균 내버려 접힌 것처럼 보이는 사선 얼룩이 생겼기 때문이다. 지금은 toBufferGeometry()가
+        // creaseNormals()로 각도 기준(35°)에 따라 진짜 모서리만 선택적으로 각지게 남기므로,
+        // flatShading을 켤 필요가 없다 — 오히려 켜면 이 선택적 처리를 다 무시하고 모든 삼각형을
+        // 강제로 각지게 만들어버린다.
+        const flatShading = matOpts.flatShading !== undefined ? matOpts.flatShading : false;
 
         function materialIndexFor(originalID) {
             if (idToMaterialIndex.has(originalID)) return idToMaterialIndex.get(originalID);
@@ -191,7 +294,8 @@ window.ManifoldCore = (function () {
                 color: color !== undefined ? color : (fallbackColor || 0x9e9e9e),
                 metalness: metalness,
                 roughness: roughness,
-                flatShading: flatShading
+                flatShading: flatShading,
+                envMapIntensity: envMapIntensity
             }));
             idToMaterialIndex.set(originalID, idx);
             return idx;
@@ -226,6 +330,8 @@ window.ManifoldCore = (function () {
         cuboid: cuboid,
         cylinder: cylinder,
         extrudeContours: extrudeContours,
+        contoursToXS: contoursToXS,
+        extrudeXS: extrudeXS,
         translateY: translateY,
         union: union,
         subtract: subtract,

@@ -7,6 +7,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/core.js"></script>
     <!-- 회전 압출/꼬임 압출 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
@@ -346,10 +348,10 @@
             currentLidGeo = lidGeo;
 
             const bodyMesh = new THREE.Mesh(currentBodyGeo, new THREE.MeshStandardMaterial({
-                color: colBody, metalness: 0.15, roughness: 0.4, flatShading: true
+                color: colBody, metalness: 0.15, roughness: 0.4, envMapIntensity: 0.55
             }));
             const lidMesh = new THREE.Mesh(currentLidGeo, new THREE.MeshStandardMaterial({
-                color: colLid, metalness: 0.15, roughness: 0.4, flatShading: true
+                color: colLid, metalness: 0.15, roughness: 0.4, envMapIntensity: 0.55
             }));
 
             currentGroup = new THREE.Group();

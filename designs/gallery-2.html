@@ -7,6 +7,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/core.js"></script>
     <!-- 원뿔대(cylinder) 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
@@ -191,6 +193,10 @@
             }
 
             // 실제 보석처럼 매끈하게 반짝이도록 이름표 상자보다 낮은 roughness/metalness를 준다.
+            // 보석은 다른 갤러리와 달리 면(facet)이 각져 보이는 것 자체가 매력이라, creaseNormals의
+            // 매끈한 곡면 처리 대신 flatShading으로 되돌린다 — 인접한 두 면(facet) 사이 각도 차이가
+            // 35°(CREASE_ANGLE) 미만이면(면 개수가 많을수록 그럴 가능성이 커짐) 보석인데도 뭉개져
+            // 보이는 문제가 생기기 때문.
             const threeMesh = ManifoldCore.toThreeMesh(fused, idToColor, gemColor, { metalness: 0.15, roughness: 0.15, flatShading: true });
             threeMesh.castShadow = false;
             threeMesh.receiveShadow = false;

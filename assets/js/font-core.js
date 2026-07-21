@@ -7,10 +7,16 @@
 window.FontCore = (function () {
     const fontCache = {};
 
+    // 폰트 폴더 위치를 이 스크립트 파일 자체의 경로 기준으로 계산한다 — designs/ 아래
+    // 페이지(상대경로 ../assets/fonts/)든 프로젝트 루트의 index.html(상대경로 assets/fonts/)이든
+    // 어디서 이 파일을 불러오든 항상 올바른 위치를 가리키게 하기 위함.
+    const scriptSrc = document.currentScript ? document.currentScript.src : '';
+    const fontsBaseUrl = scriptSrc ? scriptSrc.replace(/assets\/js\/font-core\.js.*$/, 'assets/fonts/') : '../assets/fonts/';
+
     // 폰트 파일을 로드하고 캐시한다 (같은 파일을 다시 요청하면 재로딩 없이 즉시 콜백).
     function loadFont(file, callback) {
         if (fontCache[file]) { callback(fontCache[file]); return; }
-        opentype.load('../assets/fonts/' + file, function (err, font) {
+        opentype.load(fontsBaseUrl + file, function (err, font) {
             if (err) { console.error('폰트 로딩 실패:', file, err); return; }
             fontCache[file] = font;
             callback(font);

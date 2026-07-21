@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <title>초등 파라메트릭 디자인 스튜디오</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <!-- 갤러리 카드의 미리보기를 실제 디자인 기본 모델로 띄우기 위한 의존성들
+         (갤러리1의 글자 압출용 opentype.js/font-core.js, Manifold-3D 결합용 manifold-core.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="assets/js/font-core.js"></script>
+    <script type="module" src="assets/js/manifold-core.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -82,7 +87,7 @@
 
     <canvas id="preview-canvas"></canvas>
 
-    <script>
+    <script type="module">
         // 갤러리에 노출할 디자인 목록. 지금은 갤러리1~6 자리만 잡아둔 임시 상태이고,
         // 각 항목이 실제 디자인으로 완성되면 buildPreviewScene과 url을 교체하면 된다.
         // (참고: designs/nameplate-box.html은 테스트용으로 만들었던 첫 디자인이라 삭제하지
@@ -166,8 +171,8 @@
                 buildPreviewScene: simplePolygonPreview(new THREE.CylinderGeometry(0.85, 0.85, 1.6, 32), 0x42a5f5, 0.8)
             },
             {
-                title: '갤러리4',
-                description: '준비 중인 디자인입니다',
+                title: '다국어 키링',
+                description: '이름과 이모지를 넣어 나만의 키링을 만들어보세요',
                 url: 'designs/gallery-4.html',
                 buildPreviewScene: simplePolygonPreview(new THREE.ConeGeometry(1.0, 1.7, 5), 0xffa726, 0.85)
             },
@@ -264,6 +269,369 @@
             renderPreviews();
         }
         animate();
+
+        // ---------- 미리보기를 실제 디자인 기본 모델로 교체 ----------
+        // 위 buildPreviewScene들은 즉시 보여줄 수 있는 가벼운 흉내용 도형이다. Manifold-3D
+        // WASM 로딩을 기다린 뒤, 각 갤러리의 실제 기본값 그대로 진짜 모델을 만들어서
+        // 카드 미리보기를 교체한다 — 카드가 먼저 뜨고 잠시 후 실제 모양으로 바뀌는 식.
+        // 주의: 아래 기본값/로직은 각 갤러리 페이지의 DEFAULTS와 반드시 일치해야 한다.
+        // 갤러리 쪽 기본값을 바꾸면 여기도 같이 바꿔야 한다(자동 동기화 아님).
+        function swapPreviewGroup(index, newGroup) {
+            const item = previewScenes[index];
+            if (item.group) {
+                item.scene.remove(item.group);
+                item.group.traverse(function (obj) {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                    else if (obj.material) obj.material.dispose();
+                });
+            }
+            item.scene.add(newGroup);
+            item.group = newGroup;
+        }
+
+        async function upgradeRealPreviews() {
+            await ManifoldCore.ready;
+
+            // ---- 갤러리1: 이름표 상자 (텍스트 "테스트", 60x60x20 상자, Paperlogy 폰트) ----
+            FontCore.loadFont('Paperlogy-8ExtraBold.ttf', function (font) {
+                try {
+                    function buildContours(text, f, size) {
+                        const contours = [];
+                        let currentX = 0;
+                        Array.from(text).forEach(function (ch) {
+                            const glyph = f.charToGlyph(ch);
+                            if (!glyph) return;
+                            const path = glyph.getPath(currentX, 0, size);
+                            FontCore.extractGlyphContours(path.commands || [], 48).forEach(function (c) { contours.push(c); });
+                            currentX += glyph.advanceWidth / f.unitsPerEm * size;
+                        });
+                        if (!contours.length) return contours;
+                        let minX = Infinity, maxX = -Infinity;
+                        contours.forEach(function (pts) { pts.forEach(function (p) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; }); });
+                        const centerX = (minX + maxX) / 2;
+                        contours.forEach(function (pts) { pts.forEach(function (p) { p[0] -= centerX; }); });
+                        return contours;
+                    }
+
+                    const box = ManifoldCore.cuboid(60, 20, 60);
+                    const idToColor = new Map([[box.originalID(), '#1e88e5']]);
+                    const toDispose = [box];
+                    let fused = box;
+
+                    const contours = buildContours('테스트', font, 12);
+                    if (contours.length) {
+                        const text = ManifoldCore.extrudeContours(contours, 4);
+                        toDispose.push(text);
+                        idToColor.set(text.originalID(), '#ffca28');
+                        const positioned = ManifoldCore.translateY(text, 20);
+                        toDispose.push(positioned);
+                        fused = ManifoldCore.union(box, positioned);
+                        toDispose.push(fused);
+                    }
+
+                    const mesh = ManifoldCore.toThreeMesh(fused, idToColor);
+                    mesh.castShadow = false;
+                    mesh.receiveShadow = false;
+                    ManifoldCore.dispose.apply(ManifoldCore, toDispose);
+
+                    const group = new THREE.Group();
+                    group.add(mesh);
+                    group.scale.setScalar(0.035);
+                    swapPreviewGroup(0, group);
+                } catch (err) {
+                    console.error('갤러리1 미리보기 생성 실패:', err);
+                }
+            });
+
+            // ---- 갤러리2: 보석 (지름30/6면, 아래높이30·자르기0%, 가운데0, 위높이15·자르기50%) ----
+            try {
+                const diameter = 30, sides = 6;
+                const bottomHeight = 30, bottomCutoff = 0;
+                const middleHeight = 0;
+                const topHeight = 15, topCutoff = 50;
+                const gemColor = '#8e24aa';
+
+                const radius = diameter / 2;
+                const bottomCutHeight = bottomHeight * (100 - bottomCutoff) / 100;
+                const bottomTipRadius = radius * (bottomCutoff / 100);
+                const topCutHeight = topHeight * (100 - topCutoff) / 100;
+                const topTipRadius = radius * (topCutoff / 100);
+
+                const idToColor2 = new Map();
+                const parts = [];
+                const toDispose2 = [];
+                let cursorY = 0;
+
+                if (bottomCutHeight > 0.001) {
+                    const piece = ManifoldCore.cylinder(bottomTipRadius, radius, bottomCutHeight, sides);
+                    toDispose2.push(piece);
+                    idToColor2.set(piece.originalID(), gemColor);
+                    const positioned = ManifoldCore.translateY(piece, cursorY);
+                    toDispose2.push(positioned);
+                    parts.push(positioned);
+                    cursorY += bottomCutHeight;
+                }
+                if (middleHeight > 0.001) {
+                    const piece = ManifoldCore.cylinder(radius, radius, middleHeight, sides);
+                    toDispose2.push(piece);
+                    idToColor2.set(piece.originalID(), gemColor);
+                    const positioned = ManifoldCore.translateY(piece, cursorY);
+                    toDispose2.push(positioned);
+                    parts.push(positioned);
+                    cursorY += middleHeight;
+                }
+                if (topCutHeight > 0.001) {
+                    const piece = ManifoldCore.cylinder(radius, topTipRadius, topCutHeight, sides);
+                    toDispose2.push(piece);
+                    idToColor2.set(piece.originalID(), gemColor);
+                    const positioned = ManifoldCore.translateY(piece, cursorY);
+                    toDispose2.push(positioned);
+                    parts.push(positioned);
+                    cursorY += topCutHeight;
+                }
+
+                if (parts.length) {
+                    let fused2 = parts[0];
+                    for (let i = 1; i < parts.length; i++) {
+                        const merged = ManifoldCore.union(fused2, parts[i]);
+                        toDispose2.push(merged);
+                        fused2 = merged;
+                    }
+
+                    const mesh2 = ManifoldCore.toThreeMesh(fused2, idToColor2, gemColor, { metalness: 0.15, roughness: 0.15, flatShading: true });
+                    mesh2.castShadow = false;
+                    mesh2.receiveShadow = false;
+                    ManifoldCore.dispose.apply(ManifoldCore, toDispose2);
+
+                    const group2 = new THREE.Group();
+                    group2.add(mesh2);
+                    group2.scale.setScalar(0.04);
+                    swapPreviewGroup(1, group2);
+                }
+            } catch (err) {
+                console.error('갤러리2 미리보기 생성 실패:', err);
+            }
+
+            // ---- 갤러리3: 나사 뚜껑 통 (안지름30/높이50/뚜껑10/모따기1, 널링 무늬 꺼짐) ----
+            // 기본값이 널링을 꺼둔 상태라 knurlGroove 로직 자체를 생략했다 — 기본값을 바꾸면
+            // 이 부분도 다시 맞춰야 한다.
+            try {
+                const diameter3 = 30, height3 = 50, chamfer3 = 1;
+                const wall3 = 3.7, BOTTOMTOP3 = 1, TOLERANCE3 = 0.25, THREADLEN3 = 6;
+                const KNURL_DEPTH_PCT3 = 40;
+                const colBody3 = '#00ff88', colLid3 = '#d400ff';
+                const SEG3 = 48, THREAD_SEG3 = 40;
+
+                const D3 = diameter3 + 2 * wall3;
+                const H3 = height3 + 2 * BOTTOMTOP3;
+                const head3 = Math.max(8.5, Math.min(10, H3 - chamfer3 - 5));
+                const maxdep3 = wall3 - 0.7 - 1 - TOLERANCE3 - 0.7;
+                const DscrewRaw3 = Math.min(D3 - 2 * (KNURL_DEPTH_PCT3 / 100) * maxdep3 - 1.4 - 2 - 2 * TOLERANCE3, D3 - wall3 - 1 - TOLERANCE3);
+                const Dscrew3 = Math.max(diameter3 + 1.4, DscrewRaw3);
+
+                const toDispose3 = [];
+                function track3(m) { toDispose3.push(m); return m; }
+
+                function cscrew3(d, threadLen, neckHeight) {
+                    const hh = Math.min(threadLen, neckHeight);
+                    const part1 = track3(ManifoldCore.rawCylinder(d, d, neckHeight - 0.25, THREAD_SEG3));
+                    const part2raw = track3(ManifoldCore.rawCylinder(d, d - 0.5, 0.25, THREAD_SEG3));
+                    const part2 = track3(part2raw.translate([0, 0, neckHeight - 0.25]));
+                    const part3 = track3(ManifoldCore.rawCylinder(d + 2, d, 1, THREAD_SEG3));
+                    let solid = track3(ManifoldCore.union(part1, part2));
+                    solid = track3(ManifoldCore.union(solid, part3));
+                    if (hh > 0.05) {
+                        const maskCone = track3(ManifoldCore.rawCylinder(d + 2 * hh, d, hh, THREAD_SEG3));
+                        const circle = track3(ManifoldCore.circleXS((d + 1) / 2, 20));
+                        const circleShifted = track3(circle.translate([0.5, 0]));
+                        const twistDeg = -144 * hh;
+                        const nDiv = Math.max(6, Math.min(120, Math.round(Math.abs(twistDeg) / 20)));
+                        const ridge = track3(ManifoldCore.extrudeTwist(circleShifted, hh, nDiv, twistDeg, [1, 1]));
+                        const threadPart = track3(ManifoldCore.intersect(maskCone, ridge));
+                        solid = track3(ManifoldCore.union(solid, threadPart));
+                    }
+                    return solid;
+                }
+
+                const bodyChamfer = track3(ManifoldCore.rawCylinder(D3 - 2 * chamfer3, D3, chamfer3, SEG3));
+                const bodyWallRaw = track3(ManifoldCore.rawCylinder(D3, D3, H3 - chamfer3 - head3, SEG3));
+                const bodyWall = track3(bodyWallRaw.translate([0, 0, chamfer3]));
+                let bodyUnion = track3(ManifoldCore.union(bodyChamfer, bodyWall));
+                const neckHeight3 = Math.min(THREADLEN3 + 1.5, head3 - BOTTOMTOP3);
+                const bodyThreadRaw = cscrew3(Dscrew3, THREADLEN3, neckHeight3);
+                const bodyThread = track3(bodyThreadRaw.translate([0, 0, H3 - head3]));
+                bodyUnion = track3(ManifoldCore.union(bodyUnion, bodyThread));
+                const bodyHollowRaw = track3(ManifoldCore.rawCylinder(diameter3, diameter3, height3 + 1, SEG3));
+                const bodyHollow = track3(bodyHollowRaw.translate([0, 0, BOTTOMTOP3]));
+                const bodySolid = track3(ManifoldCore.subtract(bodyUnion, bodyHollow));
+
+                const lidWall = track3(ManifoldCore.rawCylinder(D3, D3, head3 - chamfer3, SEG3));
+                const lidCapRaw = track3(ManifoldCore.rawCylinder(D3, D3 - 2 * chamfer3, chamfer3, SEG3));
+                const lidCap = track3(lidCapRaw.translate([0, 0, head3 - chamfer3]));
+                const lidUnion = track3(ManifoldCore.union(lidWall, lidCap));
+                const lidThreadRaw = cscrew3(Dscrew3 + 2 * TOLERANCE3, THREADLEN3 + 0.2, head3 - BOTTOMTOP3);
+                const lidThread = track3(lidThreadRaw.translate([0, 0, -0.01]));
+                const lidSolid = track3(ManifoldCore.subtract(lidUnion, lidThread));
+
+                const bodyYUp = ManifoldCore.toYUp(bodySolid);
+                const lidYUp = ManifoldCore.toYUp(lidSolid);
+                const bodyBuf = ManifoldCore.toBufferGeometry(bodyYUp);
+                const lidBuf = ManifoldCore.toBufferGeometry(lidYUp);
+                toDispose3.push(bodyYUp, lidYUp);
+                ManifoldCore.dispose.apply(ManifoldCore, toDispose3);
+
+                const lidGeo = lidBuf.geo;
+                lidGeo.rotateX(Math.PI);
+                lidGeo.computeBoundingBox();
+                const minY3 = lidGeo.boundingBox.min.y;
+                lidGeo.translate(D3 + 15, -minY3, 0);
+
+                const bodyMesh = new THREE.Mesh(bodyBuf.geo, new THREE.MeshStandardMaterial({ color: colBody3, metalness: 0.15, roughness: 0.4, envMapIntensity: 0.55 }));
+                const lidMesh = new THREE.Mesh(lidGeo, new THREE.MeshStandardMaterial({ color: colLid3, metalness: 0.15, roughness: 0.4, envMapIntensity: 0.55 }));
+                bodyMesh.castShadow = false; bodyMesh.receiveShadow = false;
+                lidMesh.castShadow = false; lidMesh.receiveShadow = false;
+
+                const group3 = new THREE.Group();
+                group3.add(bodyMesh);
+                group3.add(lidMesh);
+                // 몸체는 x=0 중심(반지름 D3/2), 뚜껑은 x=D3+15 중심(반지름 D3/2)에 있으므로
+                // 전체 범위는 [-D3/2, 1.5*D3+15] — 그 중점만큼 반대로 옮겨야 가운데 정렬된다.
+                group3.position.x = -(D3 + 15) / 2; // mm 단위 오프셋 — 아래서 축소됨
+
+                const wrapper3 = new THREE.Group();
+                wrapper3.add(group3);
+                wrapper3.scale.setScalar(0.03);
+                swapPreviewGroup(2, wrapper3);
+            } catch (err) {
+                console.error('갤러리3 미리보기 생성 실패:', err);
+            }
+
+            // ---- 갤러리4: 다국어 키링 (텍스트 "HELLO", 왼쪽🦈/오른쪽♥ 이모지, 키링 구멍 켜짐) ----
+            // designs/gallery-4.html의 DEFAULTS/buildKeychain과 반드시 일치시킬 것.
+            FontCore.loadFont('Paperlogy-8ExtraBold.ttf', function (textFont) {
+                FontCore.loadFont('NotoEmoji-SemiBold.ttf', function (emojiFont) {
+                    try {
+                        function centeredContours(text, font, size, spacing) {
+                            const contours = [];
+                            let currentX = 0;
+                            Array.from(text).forEach(function (ch) {
+                                const glyph = font.charToGlyph(ch);
+                                if (!glyph) return;
+                                const path = glyph.getPath(currentX, 0, size);
+                                FontCore.extractGlyphContours(path.commands || [], 48).forEach(function (c) { contours.push(c); });
+                                currentX += (glyph.advanceWidth / font.unitsPerEm * size) * spacing;
+                            });
+                            if (!contours.length) return contours;
+                            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                            contours.forEach(function (pts) {
+                                pts.forEach(function (p) {
+                                    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+                                    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+                                });
+                            });
+                            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+                            contours.forEach(function (pts) { pts.forEach(function (p) { p[0] -= cx; p[1] -= cy; }); });
+                            return contours;
+                        }
+
+                        const text4 = 'HELLO', fontSize4 = 10, spacing4 = 1.0;
+                        const outlineW4 = 0.3, borderW4 = 1.0, innerMargin4 = 1.5, outerMargin4 = 1.0;
+                        const keyringX4 = 0, keyringY4 = 15, keyringHoleSize4 = 3.5, keyringRim4 = 1.0;
+                        const baseThick4 = 3.0, outlineThick4 = 0.4, borderThick4 = 0.6, textThick4 = 0.8;
+                        const colBase4 = '#ffffff', colOutline4 = '#ff9a5b', colBorder4 = '#000000', colText4 = '#ff5703', colEmojiL4 = '#ff0000', colEmojiR4 = '#00ff6f';
+
+                        const toDispose4 = [];
+                        function track4(m) { toDispose4.push(m); return m; }
+
+                        const textContours = centeredContours(text4, textFont, fontSize4, spacing4);
+                        const textXS = textContours.length ? track4(ManifoldCore.contoursToXS(textContours)) : null;
+                        const textWidthHalf4 = (Array.from(text4).length * fontSize4 * spacing4) / 2;
+
+                        function emojiXS4(text, side) {
+                            if (!text || !text.length) return null;
+                            const contours = centeredContours(text, emojiFont, fontSize4, 1);
+                            if (!contours.length) return null;
+                            let xs = track4(ManifoldCore.contoursToXS(contours));
+                            const tx = side === 'L' ? -textWidthHalf4 : textWidthHalf4;
+                            xs = track4(xs.translate([tx, 0]));
+                            return xs;
+                        }
+                        const emojiLXS = emojiXS4('🦈', 'L');
+                        const emojiRXS = emojiXS4('♥', 'R');
+
+                        let masterXS4 = textXS;
+                        if (emojiLXS) masterXS4 = masterXS4 ? track4(masterXS4.add(emojiLXS)) : emojiLXS;
+                        if (emojiRXS) masterXS4 = masterXS4 ? track4(masterXS4.add(emojiRXS)) : emojiRXS;
+
+                        let ringXS4 = track4(ManifoldCore.circleXS(keyringHoleSize4 / 2 + keyringRim4, 48));
+                        ringXS4 = track4(ringXS4.translate([keyringX4, keyringY4]));
+                        const masterWithRing4 = masterXS4 ? track4(masterXS4.add(ringXS4)) : ringXS4;
+
+                        const idToColor4 = new Map();
+                        const parts4 = [];
+
+                        function extrudeAndStack4(xs, height, color) {
+                            if (!xs) return;
+                            const solid = track4(ManifoldCore.extrudeXS(xs, height));
+                            idToColor4.set(solid.originalID(), color);
+                            const positioned = track4(ManifoldCore.translateY(solid, baseThick4));
+                            parts4.push(positioned);
+                        }
+
+                        const baseOffsetAmt4 = outlineW4 + innerMargin4 + borderW4 + outerMargin4;
+                        const baseXS4 = track4(masterWithRing4.offset(baseOffsetAmt4));
+                        const baseSolid4 = track4(ManifoldCore.extrudeXS(baseXS4, baseThick4));
+                        idToColor4.set(baseSolid4.originalID(), colBase4);
+                        parts4.push(baseSolid4);
+
+                        if (masterXS4) {
+                            const outlineXS4 = track4(masterXS4.offset(outlineW4));
+                            extrudeAndStack4(outlineXS4, outlineThick4, colOutline4);
+                        }
+
+                        const borderOuterXS4 = track4(masterWithRing4.offset(outlineW4 + innerMargin4 + borderW4));
+                        const borderInnerXS4 = track4(masterWithRing4.offset(outlineW4 + innerMargin4));
+                        const borderRingXS4 = track4(borderOuterXS4.subtract(borderInnerXS4));
+                        extrudeAndStack4(borderRingXS4, borderThick4, colBorder4);
+
+                        extrudeAndStack4(textXS, textThick4, colText4);
+                        extrudeAndStack4(emojiLXS, textThick4, colEmojiL4);
+                        extrudeAndStack4(emojiRXS, textThick4, colEmojiR4);
+
+                        let fused4 = parts4[0];
+                        for (let i = 1; i < parts4.length; i++) fused4 = track4(ManifoldCore.union(fused4, parts4[i]));
+
+                        let holeXS4 = track4(ManifoldCore.circleXS(keyringHoleSize4 / 2, 48));
+                        holeXS4 = track4(holeXS4.translate([keyringX4, keyringY4]));
+                        const holeCyl4 = track4(ManifoldCore.extrudeXS(holeXS4, baseThick4 + borderThick4 + 2));
+                        idToColor4.set(holeCyl4.originalID(), colBase4);
+                        const holeCylPositioned4 = track4(ManifoldCore.translateY(holeCyl4, -1));
+                        fused4 = track4(ManifoldCore.subtract(fused4, holeCylPositioned4));
+
+                        const mesh4 = ManifoldCore.toThreeMesh(fused4, idToColor4);
+                        mesh4.castShadow = false;
+                        mesh4.receiveShadow = false;
+                        ManifoldCore.dispose.apply(ManifoldCore, toDispose4);
+
+                        // 이 디자인은 얇고 넓적한 판(두께 ~4mm, 폭은 수십~100mm대)이라, 다른 카드처럼
+                        // Y축(높이)이 아니라 X/Z축(폭/깊이) 기준으로 스케일을 잡아야 카드 안에 알맞게 들어온다.
+                        const box4 = new THREE.Box3().setFromObject(new THREE.Mesh(mesh4.geometry));
+                        const size4 = box4.getSize(new THREE.Vector3());
+                        const scale4 = 2.0 / Math.max(size4.x, size4.z);
+
+                        const group4 = new THREE.Group();
+                        group4.add(mesh4);
+                        group4.scale.setScalar(scale4);
+                        swapPreviewGroup(3, group4);
+                        previewScenes[3].camera.lookAt(0, size4.y * scale4 * 2, 0);
+                    } catch (err) {
+                        console.error('갤러리4 미리보기 생성 실패:', err);
+                    }
+                });
+            });
+        }
+        upgradeRealPreviews();
     </script>
 </body>
 </html>

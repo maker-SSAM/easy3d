@@ -98,12 +98,36 @@
             };
         }
 
+        // 갤러리1(이름표 상자)의 실제 디자인 색상(상자 파랑/글자 노랑)을 그대로 축소해서
+        // 미리보기로 보여준다 — 상자 위에 작은 블록을 얹어 "글자가 돌출된 이름표" 느낌만 표현.
+        function nameplatePreview() {
+            return function (scene) {
+                const group = new THREE.Group();
+                const box = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.2, 0.7, 1.3),
+                    new THREE.MeshStandardMaterial({ color: 0x1e88e5, metalness: 0.2, roughness: 0.45, flatShading: true })
+                );
+                box.position.y = 0.35;
+                group.add(box);
+
+                const text = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.4, 0.22, 0.5),
+                    new THREE.MeshStandardMaterial({ color: 0xffca28, metalness: 0.2, roughness: 0.45, flatShading: true })
+                );
+                text.position.y = 0.7 + 0.11;
+                group.add(text);
+
+                scene.add(group);
+                return group;
+            };
+        }
+
         const designs = [
             {
-                title: '갤러리1',
-                description: '준비 중인 디자인입니다',
+                title: '이름표 상자',
+                description: '글자를 새긴 나만의 이름표를 만들어보세요',
                 url: 'designs/gallery-1.html',
-                buildPreviewScene: simplePolygonPreview(new THREE.IcosahedronGeometry(1.1, 0), 0xef5350, 1.1)
+                buildPreviewScene: nameplatePreview()
             },
             {
                 title: '갤러리2',

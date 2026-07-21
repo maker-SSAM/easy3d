@@ -1,47 +1,13 @@
 // JSCAD(@jscad/modeling) 기반 파라메트릭 디자인 페이지들이 공유하는 브릿지 코드.
-// opentype.js로 뽑은 폰트 글자 외곽선을 JSCAD의 진짜 솔리드(geom2/geom3) 도형으로 만들고,
-// JSCAD 결과물을 three.js가 그릴 수 있는 BufferGeometry로 변환하는 부분을 모아둔다.
-// 이 파일을 쓰는 페이지는 head에서 three.js와 @jscad/modeling을 먼저 로드해야 한다.
+// 폰트 파일 → 글자 윤곽선 추출 자체는 font-core.js(FontCore)가 맡고, 여기서는 그 윤곽선을
+// JSCAD의 진짜 솔리드(geom2/geom3) 도형으로 만들고, JSCAD 결과물을 three.js가 그릴 수 있는
+// BufferGeometry로 변환하는 부분만 담당한다.
+// 이 파일을 쓰는 페이지는 head에서 three.js, @jscad/modeling, font-core.js를 먼저 로드해야 한다.
 window.JscadCore = (function () {
 
-    // ---------- 2D 다각형 유틸 ----------
-    function isPointInPolygon(point, polygon) {
-        let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i][0], yi = polygon[i][1];
-            const xj = polygon[j][0], yj = polygon[j][1];
-            const intersect = ((yi > point[1]) !== (yj > point[1])) &&
-                (point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    }
-
-    // opentype 글자 패스 명령을 하위경로(subpath)별 점 배열(JSCAD 좌표 형식 [x,y])로 분리.
-    function extractGlyphContours(commands, curveSegments) {
-        const subpaths = [];
-        let current = null;
-        commands.forEach(cmd => {
-            if (cmd.type === 'M') { current = { commands: [cmd] }; subpaths.push(current); }
-            else if (current) current.commands.push(cmd);
-        });
-        return subpaths.map(sp => {
-            const path = new THREE.Path();
-            sp.commands.forEach(cmd => {
-                if (cmd.type === 'M') path.moveTo(cmd.x, -cmd.y);
-                else if (cmd.type === 'L') path.lineTo(cmd.x, -cmd.y);
-                else if (cmd.type === 'Q') path.quadraticCurveTo(cmd.x1, -cmd.y1, cmd.x, -cmd.y);
-                else if (cmd.type === 'C') path.bezierCurveTo(cmd.x1, -cmd.y1, cmd.x2, -cmd.y2, cmd.x, -cmd.y);
-            });
-            let points = path.getPoints(curveSegments || 8);
-            // 평면화된 점을 THREE.Path에 다시 한번 통과시켜 정규화한다 — 실제로 겪은 문제:
-            // 이 재정규화 없이 바로 쓰면 특정 글자(뾰족한 꼭짓점이 있는 자모 등)에서
-            // THREE.ShapeUtils.triangulateShape가 이상한 삼각형(삐죽 튀어나온 모양)을
-            // 만드는 경우가 있었는데, 이렇게 한 번 더 통과시키면 사라진다.
-            points = new THREE.Path(points).getPoints(curveSegments || 8);
-            return points.map(p => [p.x, p.y]);
-        }).filter(pts => pts.length >= 3);
-    }
+    // ---------- 2D 다각형 유틸 (font-core.js로 이전, 여기서는 별칭만 유지) ----------
+    const isPointInPolygon = FontCore.isPointInPolygon;
+    const extractGlyphContours = FontCore.extractGlyphContours;
 
     // JSCAD의 geom2.fromPoints()는 점이 반시계 방향(CCW)이어야 정상 동작한다 — 시계 방향
     // 점을 넣으면 지오메트리가 "뒤집힌" 상태가 되어, 나중에 다른 솔리드와 union할 때

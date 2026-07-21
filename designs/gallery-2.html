@@ -2,259 +2,49 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리2 - JSCAD 이름표 상자 (실험) - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리2 (준비 중) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
-    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
-    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
-    <!-- 굵은 폰트에서 자모 획끼리 겹치는 글자 윤곽선을 정리(자기교차/겹침 해소)하는 데 사용 -->
-    <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
-    <!-- OpenSCAD와 유사한 진짜 솔리드(CSG) 모델링 라이브러리 — union/subtract/intersect 지원.
-         이 페이지는 gallery-1(Three.js 메쉬 조합 방식)과 비교 평가하기 위한 실험용 재구현이다. -->
-    <script src="https://cdn.jsdelivr.net/npm/@jscad/modeling@2/dist/jscad-modeling.min.js"></script>
     <script src="../assets/js/core.js"></script>
-    <!-- 폰트 → JSCAD 솔리드 → three.js 변환 공용 브릿지 (JSCAD를 쓰는 모든 갤러리가 공유) -->
-    <script src="../assets/js/jscad-core.js"></script>
-    <style>
-        .perf-box {
-            margin-top: 16px; padding: 12px; background: #f0f7ff; border: 1px solid #cfe3ff;
-            border-radius: 8px; font-size: 0.82em; color: #333; line-height: 1.6;
-        }
-        .perf-box b { color: #1976d2; }
-        .note-box {
-            margin-top: 16px; padding: 10px 12px; background: #fff8e1; border: 1px solid #ffe082;
-            border-radius: 8px; font-size: 0.78em; color: #6d5300; line-height: 1.5;
-        }
-    </style>
 </head>
 <body>
 
     <script>
-        // 이전에 만든 designs/nameplate-box.html(Three.js 메쉬 조합 방식)과 동일한 디자인을
-        // JSCAD(@jscad/modeling)의 진짜 CSG 솔리드 union으로 재구현한 실험 페이지.
-        // 박스와 글자를 각각 별개 메쉬로 얹어두는 대신, 실제로 하나의 결합된 솔리드로 union한다.
+        // 갤러리2 자리를 표시만 해두는 임시 페이지. 실제 파라메트릭 디자인이
+        // 완성되면 이 파일의 컨트롤 UI + 모델링 로직을 채운다.
         const shell = ParametricCore.mountEditorShell(document.body);
 
-        const FONT_OPTIONS = [
-            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
-            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
-            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
-            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
-            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
-            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
-            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
-            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' },
-            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
-            { label: 'Mona12', file: 'Mona12-Bold.ttf' }
-        ];
-        const DEFAULT_FONT_INDEX = 0;
-
         shell.controlsBodyEl.innerHTML = `
-            <h3>한글 3D 각인 설정 (JSCAD)</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 폰트 로드 완료(1~2초) 후 실제 3D 글자가 돌출됩니다. 이 페이지는 상자와 글자를 <b>진짜 하나의 솔리드로 결합(union)</b>하는 JSCAD 실험 버전입니다.</p>
-
-            <div class="control-group">
-                <label>각인할 글자 입력</label>
-                <input type="text" id="inputText" value="테스트" oninput="updateModel()">
-            </div>
-
-            <div class="control-group">
-                <label>글씨체 선택</label>
-                <select id="fontSelect" onchange="onFontChange()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                </select>
-            </div>
-
-            <div class="control-group"><label>상자 가로 (X): <span id="valX">60</span>mm</label><input type="range" id="sizeX" min="40" max="300" value="60" oninput="updateModel()"></div>
-            <div class="control-group"><label>상자 세로 (Y): <span id="valY">60</span>mm</label><input type="range" id="sizeY" min="40" max="300" value="60" oninput="updateModel()"></div>
-            <div class="control-group"><label>상자 높이 (Z): <span id="valZ">20</span>mm</label><input type="range" id="sizeZ" min="10" max="300" value="20" oninput="updateModel()"></div>
-
-            <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="70" value="12" oninput="updateModel()"></div>
-            <div class="control-group"><label>글자 돌출 높이: <span id="valFontThick">4</span>mm</label><input type="range" id="fontThick" min="1" max="15" value="4" oninput="updateModel()"></div>
-
-            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
-
-            <div class="perf-box" id="perfBox">모델 생성 중...</div>
-            <div class="note-box">
-                💡 이 페이지는 gallery-1과 달리 Clipper 라이브러리 없이 구멍(ㅇ, ㅁ, ㅎ 등)을
-                처리합니다. 글자 지오메트리는 THREE.ShapeUtils로 직접 삼각분할하고, 상자와의
-                최종 결합(union)만 JSCAD가 담당합니다.
-            </div>
+            <h3>갤러리2</h3>
+            <p style="font-size: 0.9em; color: #666; line-height: 1.6;">
+                🚧 아직 준비 중인 디자인이에요.<br>
+                조금만 기다려 주세요!
+            </p>
         `;
 
-        // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드)
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
         });
         const scene = viewer.scene;
-        const camera = viewer.camera;
-        const controls = viewer.controls;
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
-        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindViewCube(shell.cubeButtons, viewer.camera, viewer.controls);
 
-        let modelGroup;
-        let dimensionGroup;
-        let openTypeFont = null;
-        let lastFusedGeom3 = null; // STL 내보내기용 JSCAD geom3 결과
+        const placeholderMesh = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(32, 0),
+            new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.25 })
+        );
+        placeholderMesh.position.y = 32;
+        placeholderMesh.castShadow = true;
+        placeholderMesh.receiveShadow = true;
+        scene.add(placeholderMesh);
 
-        function setPerf(msg) {
-            const el = document.getElementById('perfBox');
-            if (el) el.innerHTML = msg;
-        }
-
-        updateModel();
-
-        const fontCache = {};
-        function loadFont(file, callback) {
-            if (fontCache[file]) { callback(fontCache[file]); return; }
-            opentype.load('../assets/fonts/' + file, function (err, font) {
-                if (err) { console.error('폰트 로딩 실패:', file, err); return; }
-                fontCache[file] = font;
-                callback(font);
-            });
-        }
-
-        function onFontChange() {
-            const idx = document.getElementById('fontSelect').value;
-            loadFont(FONT_OPTIONS[idx].file, function (font) {
-                openTypeFont = font;
-                updateModel();
-            });
-        }
-
-        onFontChange();
-
-        // 3D 공간 상에 치수 mm 숫자를 렌더링하는 Sprite 텍스트 생성기 (nameplate-box.html과 동일)
-        function createTextLabelSprite(text) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ff3d00';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(text, 64, 32);
-
-            const texture = new THREE.CanvasTexture(canvas);
-            const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-            const sprite = new THREE.Sprite(spriteMat);
-            sprite.scale.set(16, 8, 1);
-            return sprite;
-        }
-
-        function drawDimensionLines(x, y, z) {
-            if (dimensionGroup) scene.remove(dimensionGroup);
-            dimensionGroup = new THREE.Group();
-
-            const lineMat = new THREE.LineBasicMaterial({ color: 0xff3d00, linewidth: 2 });
-            const hx = x / 2;
-            const hz = y / 2;
-
-            const xGeo = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-hx, 0.5, hz + 10),
-                new THREE.Vector3(hx, 0.5, hz + 10)
-            ]);
-            dimensionGroup.add(new THREE.Line(xGeo, lineMat));
-            const xLabel = createTextLabelSprite(`${x}mm`);
-            xLabel.position.set(0, 3, hz + 15);
-            dimensionGroup.add(xLabel);
-
-            const yGeo = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(hx + 10, 0.5, -hz),
-                new THREE.Vector3(hx + 10, 0.5, hz)
-            ]);
-            dimensionGroup.add(new THREE.Line(yGeo, lineMat));
-            const yLabel = createTextLabelSprite(`${y}mm`);
-            yLabel.position.set(hx + 15, 3, 0);
-            dimensionGroup.add(yLabel);
-
-            const zGeo = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-hx - 10, 0, hz),
-                new THREE.Vector3(-hx - 10, z, hz)
-            ]);
-            dimensionGroup.add(new THREE.Line(zGeo, lineMat));
-            const zLabel = createTextLabelSprite(`${z}mm`);
-            zLabel.position.set(-hx - 15, z / 2, hz);
-            dimensionGroup.add(zLabel);
-
-            scene.add(dimensionGroup);
-        }
-
-        function updateModel() {
-            const textValue = document.getElementById('inputText').value || '';
-            const x = parseFloat(document.getElementById('sizeX').value);
-            const y = parseFloat(document.getElementById('sizeY').value);
-            const z = parseFloat(document.getElementById('sizeZ').value);
-            const fSize = parseFloat(document.getElementById('fontSize').value);
-            const fThick = parseFloat(document.getElementById('fontThick').value);
-
-            const hasText = openTypeFont && textValue.trim().length > 0;
-            const totalHeight = z + (hasText ? fThick : 0);
-
-            document.getElementById('valX').innerText = x;
-            document.getElementById('valY').innerText = y;
-            document.getElementById('valZ').innerText = z;
-            document.getElementById('valFontSize').innerText = fSize;
-            document.getElementById('valFontThick').innerText = fThick;
-
-            drawDimensionLines(x, y, totalHeight);
-
-            const t0 = performance.now();
-            let textGenMs = 0, unionMs = 0, convertMs = 0;
-
-            const { primitives } = jscadModeling;
-            const { translate } = jscadModeling.transforms;
-
-            // JSCAD는 Z-up(OpenSCAD와 동일): 상자를 X=가로, Y=세로, Z=높이로 만든다.
-            const boxGeom3 = primitives.cuboid({ size: [x, y, z], center: [0, 0, z / 2] });
-
-            let fused = boxGeom3;
-            if (hasText) {
-                const tText0 = performance.now();
-                const textGeom3Raw = JscadCore.buildTextGeom3(textValue, openTypeFont, fSize, fThick);
-                textGenMs = performance.now() - tText0;
-
-                if (textGeom3Raw) {
-                    const tUnion0 = performance.now();
-                    const textOnTop = translate([0, 0, z], textGeom3Raw);
-                    fused = JscadCore.robustUnion(boxGeom3, textOnTop);
-                    unionMs = performance.now() - tUnion0;
-                }
-            }
-
-            const tConvert0 = performance.now();
-            const threeGeo = JscadCore.geom3ToThreeGeometry(fused);
-            convertMs = performance.now() - tConvert0;
-
-            lastFusedGeom3 = fused;
-
-            if (modelGroup) scene.remove(modelGroup);
-            modelGroup = new THREE.Group();
-            const mesh = new THREE.Mesh(threeGeo, new THREE.MeshStandardMaterial({ color: 0x1e88e5, roughness: 0.2, side: THREE.DoubleSide }));
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            modelGroup.add(mesh);
-            scene.add(modelGroup);
-
-            const totalMs = performance.now() - t0;
-            setPerf(
-                `<b>JSCAD 모델 생성 시간: ${totalMs.toFixed(1)}ms</b><br>` +
-                `- 글자 도형(subtract) 생성: ${textGenMs.toFixed(1)}ms<br>` +
-                `- 박스+글자 union: ${unionMs.toFixed(1)}ms<br>` +
-                `- three.js 변환(삼각분할): ${convertMs.toFixed(1)}ms<br>` +
-                `삼각형 수: ${(threeGeo.attributes.position.count / 3) | 0}개`
-            );
-        }
-
-        function downloadSTL() {
-            if (!modelGroup) return;
-            const textValue = document.getElementById('inputText').value || 'model';
-            ParametricCore.exportSTL(modelGroup, `${textValue}_box_jscad.stl`);
-        }
+        (function spinPlaceholder() {
+            placeholderMesh.rotation.y += 0.006;
+            placeholderMesh.rotation.x += 0.002;
+            requestAnimationFrame(spinPlaceholder);
+        })();
     </script>
 </body>
 </html>

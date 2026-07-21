@@ -2,49 +2,380 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리3 (준비 중) - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리3 - 돌려 닫는 보관통 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
     <script src="../assets/js/core.js"></script>
+    <!-- 회전 압출/꼬임 압출 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
+         로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
+         ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <script type="module" src="../assets/js/manifold-core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: #333; }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+        .check-row label { font-size: 0.95em; }
+    </style>
 </head>
 <body>
 
-    <script>
-        // 갤러리3 자리를 표시만 해두는 임시 페이지. 실제 파라메트릭 디자인이
-        // 완성되면 이 파일의 컨트롤 UI + 모델링 로직을 nameplate-box.html처럼 채운다.
+    <script type="module">
+        // 갤러리3: 돌려서 여닫는 나사 뚜껑 보관통. DrJones(printables.com/@DrJones,
+        // makerworld.com/@DrJones)의 오픈소스 OpenSCAD "Customizable/Parametric cylindric
+        // screw container v2"(CC-BY 라이선스) 설계를 이 프로젝트의 three.js + Manifold-3D
+        // 스택으로 포팅했다.
+        //
+        // 원본은 원형/각형 널링(knurl, 손잡이 그립 홈)에 몸체/뚜껑 각각 1·2차 무늬를 독립
+        // 설정(각도/방향/깊이/폭/간격/모양 6개 x 2 무늬 x 2부품 = 24개 파라미터)할 수 있게
+        // 만들어져 있는데, 초등학생 대상 슬라이더 UI로는 너무 많아서 다음처럼 정리했다:
+        //   - 무늬 모양(round/sharp/flat)은 원형(round)으로 고정
+        //   - 몸체/뚜껑에 같은 무늬 설정을 적용 (원본처럼 따로 조절 불가)
+        //   - 1차(시계방향)/2차(반시계방향)는 각각 켜고 끌 수 있게 노출(둘 다 켜면 원본
+        //     기본값처럼 서로 교차하는 다이아몬드 무늬가 됨)
+        //   - 최초 로딩 속도를 위해 1차/2차 무늬는 페이지를 처음 열었을 때는 둘 다 꺼진 상태로 시작
+        //   - 무늬 각도/간격(%)만 슬라이더로 노출하고, 깊이(%)/폭(%)/적용 범위(%)는 이미 보기 좋은
+        //     조합(KNURL_DEPTH_PCT/KNURL_WIDTH_PCT/KNURL_COVERAGE_PCT)으로 고정
+        //   - bottomtop(바닥/뚜껑 두께)·tolerance(나사 헐거움)·threadlen(나사산 길이)은
+        //     원본 기본값으로 고정(각각 1mm/0.25mm/6mm) — 출력 성공률에 영향을 주는 값이라
+        //     잘못 만지면 나사가 안 맞물릴 수 있어서 뺐다
+        //
+        // 나사산(cscrew)과 널링 홈(knurl)은 둘 다 원본처럼 "편심 원(또는 여러 개의 작은 원)을
+        // 꼬면서(twist) 압출"하는 방식 그대로 구현했다 — Manifold의 CrossSection.extrude(height,
+        // nDivisions, twistDegrees)가 OpenSCAD의 linear_extrude(height, twist)와 정확히 대응된다.
+        // 널링 무늬의 높이 범위(height_body/height_lid, %)를 제한하는 마스크만 원본은 회전
+        // 압출된 완만한 테이퍼 단면을 쓰는데, 여기서는 그냥 넉넉한 지름의 평평한 원기둥
+        // 마스크로 단순화했다(끝부분이 부드럽게 사라지는 대신 살짝 딱 끊기는 정도의 차이).
         const shell = ParametricCore.mountEditorShell(document.body);
 
+        // ---- 성능을 위한 해상도 상수 (원본 $fn=96보다 낮춰서 실시간 슬라이더 조작이 버벅이지 않게 함) ----
+        const BODY_SEGMENTS = 48;
+        const THREAD_CIRCLE_SEGMENTS = 20;
+        const KNURL_CIRCLE_SEGMENTS = 10;
+        const MAX_KNURL_N = 60;
+
+        // ---- 원본 기본값 그대로 고정한 값 (슬라이더로 노출하지 않음) ----
+        const BOTTOMTOP = 1;      // 바닥/뚜껑 벽 두께
+        const TOLERANCE = 0.25;   // 나사 틈새(헐거움 정도)
+        const THREADLEN = 6;      // 나사산 길이(돌리는 회전 수를 결정)
+        const WALL_MM = 3.7;      // 옆벽 두께 — 그립 홈 최대 깊이(maxdep)가 여기서 갈라지므로, 무늬가
+                                  // 흐릿해지지 않도록 이전 기본값(3.7mm)으로 고정하고 조절바를 뺐다.
+
+        // 그립 깊이/폭/적용 범위는 슬라이더로 조절하기보다 고정값이 나을 만큼 이미 보기 좋은
+        // 조합이 나와서 고정하고 조절바를 뺐다. (각도/간격/방향만 계속 조절 가능)
+        const KNURL_DEPTH_PCT = 40;
+        const KNURL_WIDTH_PCT = 1.5;
+        const KNURL_COVERAGE_PCT = 90;
+
+        const DEFAULTS = {
+            diameter: 30, height: 50, head: 10, chamfer: 1,
+            knurl1On: false, knurl2On: false, angle: 35, distPct: 80,
+            colBody: '#00ff88', colLid: '#d400ff'
+        };
+
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
         shell.controlsBodyEl.innerHTML = `
-            <h3>갤러리3</h3>
-            <p style="font-size: 0.9em; color: #666; line-height: 1.6;">
-                🚧 아직 준비 중인 디자인이에요.<br>
-                조금만 기다려 주세요!
-            </p>
+            <h3>보관통 설정</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
+
+            <div class="control-group"><label>안지름: <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="100" step="1" value="30" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>안쪽 높이: <span id="valHeight">50</span>mm</label><input type="range" id="height" min="20" max="150" step="1" value="50" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>뚜껑 높이: <span id="valHead">10</span>mm</label><input type="range" id="head" min="10" max="50" step="1" value="10" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>모따기: <span id="valChamfer">1</span>mm</label><input type="range" id="chamfer" min="0" max="3" step="0.2" value="1" oninput="scheduleUpdate()"></div>
+
+            <div class="check-row"><input type="checkbox" id="knurl1On" onchange="scheduleUpdate()"><label for="knurl1On">1차 무늬 사용 (시계 방향)</label></div>
+            <div class="check-row"><input type="checkbox" id="knurl2On" onchange="scheduleUpdate()"><label for="knurl2On">2차 무늬 사용 (반시계 방향)</label></div>
+            <div class="control-group"><label>그립 각도: <span id="valAngle">35</span>°</label><input type="range" id="angle" min="0" max="70" step="1" value="35" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>그립 간격: <span id="valDistPct">80</span>%</label><input type="range" id="distPct" min="0" max="500" step="10" value="80" oninput="scheduleUpdate()"></div>
+
+            <div class="color-row"><span>몸체 색</span><input type="color" id="colBody" value="#00ff88" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colLid" value="#d400ff" oninput="scheduleUpdate()"></div>
+        `;
+
+        shell.controlsFooterEl.innerHTML = `
+            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
         `;
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
         });
         const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
-        ParametricCore.bindViewCube(shell.cubeButtons, viewer.camera, viewer.controls);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
 
-        const placeholderMesh = new THREE.Mesh(
-            new THREE.TorusKnotGeometry(24, 8, 64, 8),
-            new THREE.MeshStandardMaterial({ color: 0xab47bc, roughness: 0.25 })
-        );
-        placeholderMesh.position.y = 32;
-        placeholderMesh.castShadow = true;
-        placeholderMesh.receiveShadow = true;
-        scene.add(placeholderMesh);
+        let currentGroup = null;
+        let currentBodyGeo = null; // STL 내보내기용으로 보관해두는, 위치 이동 전 상태의 지오메트리
+        let currentLidGeo = null;
+        let currentD = 0;
+        let manifoldReady = false;
+        let updateTimer = null;
 
-        (function spinPlaceholder() {
-            placeholderMesh.rotation.y += 0.006;
-            placeholderMesh.rotation.x += 0.002;
-            requestAnimationFrame(spinPlaceholder);
-        })();
+        // 이 디자인은 나사산/널링 홈이 매번 여러 번의 꼬임 압출(twist extrude)을 필요로 해서
+        // 이름표 상자/보석보다 계산이 무겁다 — 슬라이더를 드래그하는 동안 매 픽셀마다 다시
+        // 계산하면 버벅이므로, 짧은 디바운스를 둬서 손을 뗀 직후에만 다시 만든다.
+        function scheduleUpdate() {
+            updateLabels();
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 120);
+        }
+
+        function updateLabels() {
+            document.getElementById('valDiameter').innerText = document.getElementById('diameter').value;
+            document.getElementById('valHeight').innerText = document.getElementById('height').value;
+            document.getElementById('valHead').innerText = document.getElementById('head').value;
+            document.getElementById('valChamfer').innerText = document.getElementById('chamfer').value;
+            document.getElementById('valAngle').innerText = document.getElementById('angle').value;
+            document.getElementById('valDistPct').innerText = document.getElementById('distPct').value;
+        }
+
+        function resetToDefaults() {
+            document.getElementById('diameter').value = DEFAULTS.diameter;
+            document.getElementById('height').value = DEFAULTS.height;
+            document.getElementById('head').value = DEFAULTS.head;
+            document.getElementById('chamfer').value = DEFAULTS.chamfer;
+            document.getElementById('knurl1On').checked = DEFAULTS.knurl1On;
+            document.getElementById('knurl2On').checked = DEFAULTS.knurl2On;
+            document.getElementById('angle').value = DEFAULTS.angle;
+            document.getElementById('distPct').value = DEFAULTS.distPct;
+            document.getElementById('colBody').value = DEFAULTS.colBody;
+            document.getElementById('colLid').value = DEFAULTS.colLid;
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            updateLabels();
+            updateModel();
+        }
+
+        // ---------- 실제 모델링 ----------
+        // OpenSCAD 원본과 동일하게 Z축이 "위"인 좌표계에서 몸체/뚜껑을 각각 조립하고,
+        // 마지막에 ManifoldCore.toYUp()으로 딱 한 번씩만 three.js Y-up으로 바꾼다.
+        function buildContainer(p, track) {
+            const diameter = p.diameter, height = p.height, wall = WALL_MM, chamfer = p.chamfer;
+            const D = diameter + 2 * wall;
+            const H = height + 2 * BOTTOMTOP;
+            // 뚜껑 높이(head)를 몸체 높이(height)와 별개로 넉넉하게 조절할 수 있게 되면서,
+            // 뚜껑이 몸체의 나사 목 아래 곧은 벽 구간보다 커지는 조합(예: 안쪽 높이 최소값 +
+            // 뚜껑 높이 최대값)이 가능해졌다 — 이 경우 곧은 벽 높이(H-chamfer-head)가 0 이하가
+            // 되어 몸체가 통째로 사라진다. 곧은 벽이 최소 5mm는 남도록 뚜껑 높이를 제한한다.
+            const head = Math.max(8.5, Math.min(p.head, H - chamfer - 5));
+            const maxdep = wall - 0.7 - 1 - TOLERANCE - 0.7;
+            const hasChamfer = chamfer > 0.001;
+
+            const DscrewRaw = Math.min(
+                D - 2 * (KNURL_DEPTH_PCT / 100) * maxdep - 1.4 - 2 - 2 * TOLERANCE,
+                D - wall - 1 - TOLERANCE
+            );
+            const Dscrew = Math.max(diameter + 1.4, DscrewRaw);
+
+            // 나사산 하나 — 몸체(돌출)/뚜껑(파냄, 살짝 더 큰 지름) 양쪽에서 재사용한다.
+            function cscrew(d, threadLen, neckHeight) {
+                const hh = Math.min(threadLen, neckHeight);
+                const part1 = track(ManifoldCore.rawCylinder(d, d, neckHeight - 0.25, THREAD_CIRCLE_SEGMENTS * 2));
+                const part2raw = track(ManifoldCore.rawCylinder(d, d - 0.5, 0.25, THREAD_CIRCLE_SEGMENTS * 2));
+                const part2 = track(part2raw.translate([0, 0, neckHeight - 0.25]));
+                const part3 = track(ManifoldCore.rawCylinder(d + 2, d, 1, THREAD_CIRCLE_SEGMENTS * 2));
+                let solid = track(ManifoldCore.union(part1, part2));
+                solid = track(ManifoldCore.union(solid, part3));
+
+                if (hh > 0.05) {
+                    const maskCone = track(ManifoldCore.rawCylinder(d + 2 * hh, d, hh, THREAD_CIRCLE_SEGMENTS * 2));
+                    const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS));
+                    const circleShifted = track(circle.translate([0.5, 0]));
+                    const twistDeg = -144 * hh;
+                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / 20), 6, 120);
+                    const ridge = track(ManifoldCore.extrudeTwist(circleShifted, hh, nDiv, twistDeg, [1, 1]));
+                    const threadPart = track(ManifoldCore.intersect(maskCone, ridge));
+                    solid = track(ManifoldCore.union(solid, threadPart));
+                }
+                return solid;
+            }
+
+            // 널링 그루브 — 1차(시계)/2차(반시계) 무늬를 각각 독립적으로 켜고 끌 수 있다.
+            // 둘 다 켜면 서로 반대 방향으로 꼬여 교차하는 다이아몬드 무늬가 된다. 몸체/뚜껑 공용.
+            function knurlGroove(R, totalHeight, centerZ, coverage) {
+                if (!p.knurl1On && !p.knurl2On) return null;
+                const angleRad = p.angle * Math.PI / 180;
+                const w = (KNURL_WIDTH_PCT / 100) * D;
+                const r = (KNURL_DEPTH_PCT / 100) * maxdep;
+                if (r <= 0.01 || w <= 0.01) return null;
+                const distFrac = p.distPct / 100;
+                const n = clamp(Math.round(2 * Math.PI * R / ((distFrac + 1) * 2 * w) * Math.cos(angleRad)), 3, MAX_KNURL_N);
+                const ellipseRY = w / Math.cos(angleRad);
+
+                function buildRing(dirSign) {
+                    let ring = null;
+                    for (let i = 0; i < n; i++) {
+                        const base = track(ManifoldCore.circleXS(1, KNURL_CIRCLE_SEGMENTS));
+                        const scaled = track(base.scale([r, ellipseRY]));
+                        const moved = track(scaled.translate([R + 0.02, 0]));
+                        const rotated = track(moved.rotate(i * 360 / n));
+                        ring = ring ? track(ring.add(rotated)) : rotated;
+                    }
+                    const twistDeg = dirSign * totalHeight * Math.tan(angleRad) / (2 * Math.PI * R) * 360;
+                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / 15), 6, 150);
+                    return track(ManifoldCore.extrudeTwist(ring, totalHeight, nDiv, twistDeg, [1, 1]));
+                }
+
+                let grooves = null;
+                if (p.knurl1On) grooves = buildRing(1);
+                if (p.knurl2On) {
+                    const secondary = buildRing(-1);
+                    grooves = grooves ? track(ManifoldCore.union(grooves, secondary)) : secondary;
+                }
+
+                if (coverage < 99.5) {
+                    const hh = totalHeight * coverage / 100 - 2 * maxdep;
+                    if (hh <= 0.5) return null;
+                    const maskCyl = track(ManifoldCore.rawCylinder(D * 2, D * 2, hh, 24));
+                    const maskPositioned = track(maskCyl.translate([0, 0, centerZ - hh / 2]));
+                    grooves = track(ManifoldCore.intersect(grooves, maskPositioned));
+                }
+                return grooves;
+            }
+
+            // ---- 몸체 ----
+            let bodyUnion = null;
+            if (hasChamfer) {
+                const bodyChamfer = track(ManifoldCore.rawCylinder(D - 2 * chamfer, D, chamfer, BODY_SEGMENTS));
+                bodyUnion = bodyChamfer;
+            }
+            const bodyWallRaw = track(ManifoldCore.rawCylinder(D, D, H - chamfer - head, BODY_SEGMENTS));
+            const bodyWall = track(bodyWallRaw.translate([0, 0, chamfer]));
+            bodyUnion = bodyUnion ? track(ManifoldCore.union(bodyUnion, bodyWall)) : bodyWall;
+
+            const neckHeight = Math.min(THREADLEN + 1.5, head - BOTTOMTOP);
+            const bodyThreadRaw = cscrew(Dscrew, THREADLEN, neckHeight);
+            const bodyThread = track(bodyThreadRaw.translate([0, 0, H - head]));
+            bodyUnion = track(ManifoldCore.union(bodyUnion, bodyThread));
+
+            const bodyHollowRaw = track(ManifoldCore.rawCylinder(diameter, diameter, height + 1, BODY_SEGMENTS));
+            const bodyHollow = track(bodyHollowRaw.translate([0, 0, BOTTOMTOP]));
+            let bodySolid = track(ManifoldCore.subtract(bodyUnion, bodyHollow));
+
+            const bodyGrooves = knurlGroove(D / 2, H, (H - head + chamfer) / 2, KNURL_COVERAGE_PCT);
+            if (bodyGrooves) bodySolid = track(ManifoldCore.subtract(bodySolid, bodyGrooves));
+
+            // ---- 뚜껑 ----
+            const lidWall = track(ManifoldCore.rawCylinder(D, D, head - chamfer, BODY_SEGMENTS));
+            let lidUnion = lidWall;
+            if (hasChamfer) {
+                const lidCapRaw = track(ManifoldCore.rawCylinder(D, D - 2 * chamfer, chamfer, BODY_SEGMENTS));
+                const lidCap = track(lidCapRaw.translate([0, 0, head - chamfer]));
+                lidUnion = track(ManifoldCore.union(lidUnion, lidCap));
+            }
+
+            const lidThreadRaw = cscrew(Dscrew + 2 * TOLERANCE, THREADLEN + 0.2, head - BOTTOMTOP);
+            const lidThread = track(lidThreadRaw.translate([0, 0, -0.01]));
+            let lidSolid = track(ManifoldCore.subtract(lidUnion, lidThread));
+
+            const lidGrooves = knurlGroove(D / 2, head, (head - chamfer) / 2, KNURL_COVERAGE_PCT);
+            if (lidGrooves) lidSolid = track(ManifoldCore.subtract(lidSolid, lidGrooves));
+
+            return { bodySolid: bodySolid, lidSolid: lidSolid, D: D, H: H, head: head };
+        }
+
+        function disposeCurrentThreeMesh() {
+            if (currentGroup) {
+                scene.remove(currentGroup);
+                currentGroup.traverse(function (obj) {
+                    if (obj.material) obj.material.dispose();
+                });
+                currentGroup = null;
+            }
+            if (currentBodyGeo) { currentBodyGeo.dispose(); currentBodyGeo = null; }
+            if (currentLidGeo) { currentLidGeo.dispose(); currentLidGeo = null; }
+        }
+
+        function updateModel() {
+            if (!manifoldReady) return;
+
+            const params = {
+                diameter: parseFloat(document.getElementById('diameter').value),
+                height: parseFloat(document.getElementById('height').value),
+                head: parseFloat(document.getElementById('head').value),
+                chamfer: parseFloat(document.getElementById('chamfer').value),
+                knurl1On: document.getElementById('knurl1On').checked,
+                knurl2On: document.getElementById('knurl2On').checked,
+                angle: parseFloat(document.getElementById('angle').value),
+                distPct: parseFloat(document.getElementById('distPct').value)
+            };
+            const colBody = document.getElementById('colBody').value;
+            const colLid = document.getElementById('colLid').value;
+
+            const scratch = [];
+            function track(m) { scratch.push(m); return m; }
+
+            let result;
+            try {
+                result = buildContainer(params, track);
+            } catch (err) {
+                console.error('보관통 생성 실패:', err);
+                scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+                return;
+            }
+
+            const bodyYUp = ManifoldCore.toYUp(result.bodySolid);
+            const lidYUp = ManifoldCore.toYUp(result.lidSolid);
+
+            const bodyBuf = ManifoldCore.toBufferGeometry(bodyYUp);
+            const lidBuf = ManifoldCore.toBufferGeometry(lidYUp);
+
+            scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+            bodyYUp.delete();
+            lidYUp.delete();
+
+            disposeCurrentThreeMesh();
+
+            currentBodyGeo = bodyBuf.geo; // 바닥(모따기 없는 쪽)이 y=0에 오는 원래 위치 그대로 둔다.
+            currentD = result.D;
+
+            // 뚜껑은 미리보기에서도 최종 STL 출력과 똑같이 "뒤집어서 몸체 옆 바닥에 놓인" 모습으로
+            // 보여준다 — 뒤집는 이유는 원본의 for_printing 레이아웃과 동일하게, 열리는 面이 위를
+            // 보게 해야 서포트 없이 그대로 출력할 수 있기 때문이다. 이 지오메트리를 미리보기와
+            // STL 내보내기(downloadSTL)가 그대로 공유한다.
+            const lidGeo = lidBuf.geo;
+            lidGeo.rotateX(Math.PI);
+            lidGeo.computeBoundingBox();
+            const minY = lidGeo.boundingBox.min.y;
+            lidGeo.translate(result.D + 15, -minY, 0);
+            currentLidGeo = lidGeo;
+
+            const bodyMesh = new THREE.Mesh(currentBodyGeo, new THREE.MeshStandardMaterial({
+                color: colBody, metalness: 0.15, roughness: 0.4, flatShading: true
+            }));
+            const lidMesh = new THREE.Mesh(currentLidGeo, new THREE.MeshStandardMaterial({
+                color: colLid, metalness: 0.15, roughness: 0.4, flatShading: true
+            }));
+
+            currentGroup = new THREE.Group();
+            currentGroup.add(bodyMesh);
+            currentGroup.add(lidMesh);
+            currentGroup.traverse(function (obj) { obj.castShadow = false; obj.receiveShadow = false; });
+            scene.add(currentGroup);
+        }
+
+        // 미리보기가 이미 "몸체 + 바닥에 뒤집어 놓인 뚜껑"(최종 출력용 배치) 그대로이므로,
+        // 화면에 보이는 currentGroup을 그대로 내보내면 된다 — exportSTL이 내부적으로 각 메시의
+        // 지오메트리를 복제해서 Z-up으로 바꾸므로 화면 표시용 원본은 건드리지 않는다.
+        function downloadSTL() {
+            if (!currentGroup) return;
+            ParametricCore.exportSTL(currentGroup, `보관통_${Math.round(currentD)}mm.stl`);
+        }
+
+        window.scheduleUpdate = scheduleUpdate;
+        window.downloadSTL = downloadSTL;
+
+        async function main() {
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            updateModel();
+        }
+        main();
     </script>
 </body>
 </html>

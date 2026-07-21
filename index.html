@@ -122,6 +122,30 @@
             };
         }
 
+        // 갤러리2(보석 만들기)의 실제 모양(뾰족한 파빌리온 + 뭉툭한 크라운)을 두 개의
+        // CylinderGeometry로 축소 재현한 미리보기 — 실제 디자인은 Manifold-3D로 결합하지만,
+        // 여기서는 홈 화면 카드용으로 가볍게 흉내만 낸다.
+        function gemPreview() {
+            return function (scene) {
+                const group = new THREE.Group();
+                const sides = 6;
+                const pavilionHeight = 1.0;
+                const crownHeight = 0.5;
+                const material = new THREE.MeshStandardMaterial({ color: 0x8e24aa, metalness: 0.15, roughness: 0.15, flatShading: true });
+
+                const pavilion = new THREE.Mesh(new THREE.CylinderGeometry(1, 0, pavilionHeight, sides), material);
+                pavilion.position.y = pavilionHeight / 2;
+                group.add(pavilion);
+
+                const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1, crownHeight, sides), material);
+                crown.position.y = pavilionHeight + crownHeight / 2;
+                group.add(crown);
+
+                scene.add(group);
+                return group;
+            };
+        }
+
         const designs = [
             {
                 title: '이름표 상자',
@@ -130,16 +154,16 @@
                 buildPreviewScene: nameplatePreview()
             },
             {
-                title: '갤러리2',
-                description: '준비 중인 디자인입니다',
+                title: '보석 만들기',
+                description: '면 개수와 비율을 조절해 나만의 보석을 만들어보세요',
                 url: 'designs/gallery-2.html',
-                buildPreviewScene: simplePolygonPreview(new THREE.DodecahedronGeometry(1.1, 0), 0x66bb6a, 1.1)
+                buildPreviewScene: gemPreview()
             },
             {
-                title: '갤러리3',
-                description: '준비 중인 디자인입니다',
+                title: '나사 뚜껑 통',
+                description: '돌려서 여닫는 나만의 보관통을 만들어보세요',
                 url: 'designs/gallery-3.html',
-                buildPreviewScene: simplePolygonPreview(new THREE.TorusKnotGeometry(0.65, 0.22, 64, 8), 0xab47bc, 0.8)
+                buildPreviewScene: simplePolygonPreview(new THREE.CylinderGeometry(0.85, 0.85, 1.6, 32), 0x42a5f5, 0.8)
             },
             {
                 title: '갤러리4',

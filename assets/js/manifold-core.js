@@ -81,9 +81,70 @@ window.ManifoldCore = (function () {
         return manifold.translate([0, y, 0]);
     }
 
+    // 반지름이 다른 두 원판을 잇는 원뿔대(윗면 반지름=radiusTop, 아랫면 반지름=radiusBottom)를
+    // 만든다. sides로 원 대신 N각형 단면(각기둥/각뿔대)도 만들 수 있다 — 갤러리2 보석 디자인의
+    // 면(facet) 개수 조절이 여기서 나온다. Manifold의 cylinder()는 로컬 Z축을 따라
+    // (아랫면 z=0, 윗면 z=height) 만들어지므로, extrudeContours와 동일하게 X축 -90도 회전으로
+    // 아랫면이 y=0, 윗면이 y=height인 three.js Y-up 좌표계로 맞춘다.
+    function cylinder(radiusBottom, radiusTop, height, sides) {
+        const c = Manifold.cylinder(height, radiusBottom, radiusTop, sides || 0, false);
+        const rotated = c.rotate([-90, 0, 0]);
+        c.delete();
+        return markAsOriginal(rotated);
+    }
+
     // ---------- 불리언 결합 ----------
     function union(a, b) {
         return a.add(b);
+    }
+
+    function subtract(a, b) {
+        return a.subtract(b);
+    }
+
+    function intersect(a, b) {
+        return a.intersect(b);
+    }
+
+    // ---------- 고급 원본(raw) API — 갤러리3(나사 뚜껑 통) 같이 회전 압출/꼬임 압출을 여러 번
+    // 조합해야 하는 디자인용. cuboid/cylinder/extrudeContours와 달리 originalID를 부여하지
+    // 않고, Manifold의 기본 좌표계(Z축이 "위") 그대로 반환한다 — 여러 조각을 OpenSCAD 원본
+    // 코드와 동일한 Z-up 좌표계에서 조합한 뒤, 마지막에 toYUp() 한 번만 호출해서 three.js
+    // Y-up으로 바꾸는 편이 매번 개별 조각을 회전시키는 것보다 원본 공식을 그대로 옮기기 쉽다.
+
+    // 아랫면 지름 dBottom(z=0), 윗면 지름 dTop(z=height)인 원기둥/원뿔대. Z-up 그대로.
+    function rawCylinder(dBottom, dTop, height, segments) {
+        return Manifold.cylinder(height, dBottom / 2, dTop / 2, segments || 0, false);
+    }
+
+    // 반지름 radius인 원 하나로 이루어진 2D 단면(CrossSection). OpenSCAD의 circle()에 대응.
+    function circleXS(radius, segments) {
+        return CrossSection.circle(radius, segments || 0);
+    }
+
+    // 2D 단면을 Z축 둘레로 revolveDegrees(기본 360도) 만큼 회전시켜 입체로 만든다.
+    // OpenSCAD의 rotate_extrude()에 대응.
+    function revolveXS(cross, segments, revolveDegrees) {
+        return Manifold.revolve(cross, segments || 0, revolveDegrees === undefined ? 360 : revolveDegrees);
+    }
+
+    // 2D 단면을 비틀며(twist) Z축 방향으로 압출한다. OpenSCAD의
+    // linear_extrude(height, twist=twistDegrees, slices=nDivisions)에 대응 — 나사산(cscrew)과
+    // 널링(knurl) 홈이 둘 다 이 방식(편심 원을 꼬아서 압출)으로 만들어진다.
+    function extrudeTwist(cross, height, nDivisions, twistDegrees, scaleTop) {
+        return cross.extrude(height, nDivisions || 0, twistDegrees || 0, scaleTop || [1, 1], false);
+    }
+
+    // Z축 둘레로 deg만큼 회전.
+    function rotateZ(manifold, deg) {
+        return manifold.rotate([0, 0, deg]);
+    }
+
+    // rawCylinder 등으로 Z-up 좌표계에서 조합한 최종 결과 하나를 three.js Y-up으로 바꾼다.
+    // cylinder()/extrudeContours()가 조각 하나하나에 매번 적용하는 것과 동일한 -90도 X축
+    // 회전을 최종 결과에 딱 한 번만 적용한다.
+    function toYUp(manifold) {
+        return manifold.rotate([-90, 0, 0]);
     }
 
     // ---------- Manifold → three.js 변환 ----------
@@ -163,9 +224,18 @@ window.ManifoldCore = (function () {
         ready: ready,
         markAsOriginal: markAsOriginal,
         cuboid: cuboid,
+        cylinder: cylinder,
         extrudeContours: extrudeContours,
         translateY: translateY,
         union: union,
+        subtract: subtract,
+        intersect: intersect,
+        rawCylinder: rawCylinder,
+        circleXS: circleXS,
+        revolveXS: revolveXS,
+        extrudeTwist: extrudeTwist,
+        rotateZ: rotateZ,
+        toYUp: toYUp,
         toBufferGeometry: toBufferGeometry,
         toThreeMesh: toThreeMesh,
         dispose: dispose

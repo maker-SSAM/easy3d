@@ -67,12 +67,12 @@
         const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
 
         const DEFAULTS = {
-            distance: 1.4, facesSegment: 20,
-            text1: 'HAPPY-MAKER', fontIndex1: DEFAULT_FONT_INDEX, size1: 12, t1ScaleX: 1.0, t1Spacing: 1.0, t1Offset: 0.0,
-            text2: 'MULTI-COLOR', fontIndex2: DEFAULT_FONT_INDEX, size2: 14, t2ScaleX: 1.0, t2Spacing: 1.0, t2Offset: 0.0,
-            text3: 'ALL-LANGUAGE', fontIndex3: DEFAULT_FONT_INDEX, size3: 10, t3ScaleX: 1.0, t3Spacing: 1.0, t3Offset: 0.0,
-            emojiLeft: '🦈', leftOffset: 0.6, emojiRight: '♥', rightOffset: 0.6,
-            baseOffset: 5, baseHeight: 4, cutAngle: 65, textRadius: 12,
+            distance: 1, facesSegment: 10, // facesSegment는 슬라이더를 되살릴 때를 위한 기본값(현재는 미사용, PREVIEW_FACES_SEGMENT 참고)
+            text1: '한글로 입력하는', fontIndex1: DEFAULT_FONT_INDEX, size1: 11, t1ScaleX: 1.0, t1Spacing: 1.0, t1Offset: 0.0,
+            text2: '네임플레이트', fontIndex2: FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf'), size2: 14, t2ScaleX: 1.0, t2Spacing: 1.0, t2Offset: 0.0,
+            text3: '스위핑&멀티컬러', fontIndex3: FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf'), size3: 10, t3ScaleX: 1.0, t3Spacing: 1.0, t3Offset: 0.0,
+            emojiLeft: '🦈', leftOffset: 0.5, emojiRight: '♥', rightOffset: 0.5,
+            baseOffset: 4, baseHeight: 3, cutAngle: 65, textRadius: 7,
             colText1: '#FF5733', colText2: '#33FF57', colText3: '#3357FF',
             colEmojiL: '#FFD700', colEmojiR: '#FF69B4', colBase: '#FFFFFF'
         };
@@ -82,13 +82,17 @@
             <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 평평한 바닥판 위에 텍스트 3줄과 이모지가 둥글게 돌출된 이름표입니다.</p>
 
             <div class="section-label">1. 기본 설정</div>
+            <!-- 곡선의 세밀한정도 슬라이더: three.js 렌더링에서 각짐이 잘 안 보여 UI에서 뺐다.
+                 되살리려면 이 줄의 주석을 풀고, readParams()/resetToDefaults()/updateModel()에
+                 남겨둔 관련 주석을 함께 복구할 것.
             <div class="control-group"><label>곡선의 세밀한정도: <span id="valFacesSegment">20</span></label><input type="range" id="facesSegment" min="4" max="60" step="1" value="20" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>줄간격: <span id="valDistance">1.4</span></label><input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1.4" oninput="scheduleUpdate()"></div>
+            -->
+            <div class="control-group"><label>줄간격: <span id="valDistance">1</span></label><input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1" oninput="scheduleUpdate()"></div>
 
             <div class="section-label">2. 텍스트 1</div>
             <div class="control-group">
                 <label>텍스트 1 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
-                <input type="text" id="text1" value="HAPPY-MAKER" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+                <input type="text" id="text1" value="한글로 입력하는" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
                 <label>텍스트 1 폰트 선택</label>
@@ -96,7 +100,7 @@
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
             </div>
-            <div class="control-group"><label>텍스트 1 크기: <span id="valSize1">12</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="12" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트 1 크기: <span id="valSize1">11</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="11" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>텍스트1 장평: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>텍스트1 자간: <span id="valT1Spacing">1.0</span></label><input type="range" id="t1Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>텍스트1 굵기: <span id="valT1Offset">0.0</span></label><input type="range" id="t1Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
@@ -104,12 +108,12 @@
             <div class="section-label">3. 텍스트 2</div>
             <div class="control-group">
                 <label>텍스트 2 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
-                <input type="text" id="text2" value="MULTI-COLOR" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+                <input type="text" id="text2" value="네임플레이트" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
                 <label>텍스트 2 폰트 선택</label>
                 <select id="font2Select" onchange="onFont2Change()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex2 ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
             </div>
             <div class="control-group"><label>텍스트 2 크기: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="50" step="0.5" value="14" oninput="scheduleUpdate()"></div>
@@ -120,12 +124,12 @@
             <div class="section-label">4. 텍스트 3</div>
             <div class="control-group">
                 <label>텍스트 3 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
-                <input type="text" id="text3" value="ALL-LANGUAGE" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+                <input type="text" id="text3" value="스위핑&amp;멀티컬러" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
                 <label>텍스트 3 폰트 선택</label>
                 <select id="font3Select" onchange="onFont3Change()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex3 ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
             </div>
             <div class="control-group"><label>텍스트 3 크기: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
@@ -138,18 +142,18 @@
                 <label>왼쪽 이모지</label>
                 <input type="text" id="emojiLeft" class="emoji-input" value="🦈" oninput="scheduleUpdate()">
             </div>
-            <div class="control-group"><label>왼쪽 이모지 위치: <span id="valLeftOffset">0.6</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>왼쪽 이모지 위치: <span id="valLeftOffset">0.5</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
             <div class="control-group">
                 <label>오른쪽 이모지</label>
                 <input type="text" id="emojiRight" class="emoji-input" value="♥" oninput="scheduleUpdate()">
             </div>
-            <div class="control-group"><label>오른쪽 이모지 위치: <span id="valRightOffset">0.6</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>오른쪽 이모지 위치: <span id="valRightOffset">0.5</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
 
             <div class="section-label">6. 바닥판 설정</div>
-            <div class="control-group"><label>바닥판 오프셋: <span id="valBaseOffset">5</span>mm</label><input type="range" id="baseOffset" min="0" max="15" step="0.5" value="5" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>바닥판 높이: <span id="valBaseHeight">4</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="4" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>바닥판 오프셋: <span id="valBaseOffset">4</span>mm</label><input type="range" id="baseOffset" min="0" max="15" step="0.5" value="4" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>바닥판 높이: <span id="valBaseHeight">3</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>회전체 각도: <span id="valCutAngle">65</span>°</label><input type="range" id="cutAngle" min="5" max="350" step="1" value="65" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>회전체 중심과의 거리: <span id="valTextRadius">12</span>mm</label><input type="range" id="textRadius" min="3" max="30" step="0.5" value="12" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>회전체 중심과의 거리: <span id="valTextRadius">7</span>mm</label><input type="range" id="textRadius" min="3" max="30" step="0.5" value="7" oninput="scheduleUpdate()"></div>
 
             <div class="section-label">7. 색상</div>
             <div class="color-row"><span>텍스트1</span><input type="color" id="colText1" value="#FF5733" oninput="scheduleUpdate()"></div>
@@ -205,7 +209,8 @@
         }
 
         function resetToDefaults() {
-            document.getElementById('facesSegment').value = DEFAULTS.facesSegment;
+            // facesSegment 슬라이더는 UI에서 뺐다 — 되살리면 여기도 원래대로
+            // document.getElementById('facesSegment').value = DEFAULTS.facesSegment; 를 복구할 것
             document.getElementById('distance').value = DEFAULTS.distance;
 
             document.getElementById('text1').value = DEFAULTS.text1;
@@ -254,11 +259,19 @@
         // curveSegments: 글자 곡선(폰트 윤곽선) 근사 해상도 — 순수 품질/성능 트레이드오프라
         // 사용자에게 직접 노출하지 않는다(갤러리4와 동일한 방침). 라이브 조작 중엔 낮게, STL
         // 내보낼 때만 인쇄 품질로 다시 계산한다.
-        // faces_segment/cutangle(회전체 스윕 해상도)는 원본 OpenSCAD처럼 사용자가 직접 조절하는
-        // 디자인 파라미터라서, 라이브 미리보기와 내보내기가 항상 같은 값을 쓴다(자동으로 낮추지
-        // 않음) — 사용자가 설정한 그대로 보여야 하기 때문.
+        // faces_segment(회전체 스윕 해상도)는 원래 원본 OpenSCAD처럼 사용자가 직접 조절하는
+        // 슬라이더였지만, three.js/Manifold 렌더링에서는 각짐이 잘 안 보여 조절 의미가 없어서
+        // UI에서 뺐다(curveSegments와 동일 방침으로 통일). 미리보기는 낮게 고정해 속도를 확보하고
+        // STL 내보낼 때만 인쇄 품질로 세밀하게 계산한다.
+        // 되살리려면: 아래 두 상수 대신 HTML의 주석 처리된 "곡선의 세밀한정도" 슬라이더
+        // (섹션 "1. 기본 설정")를 복구하고, readParams()의 facesSegment 줄을
+        // `parseFloat(document.getElementById('facesSegment').value)`로, resetToDefaults()의
+        // 해당 줄과 updateModel()의 valFacesSegment 표시 줄을 원래대로 되돌리면 된다
+        // (모두 이 파일 안에 주석으로 위치가 표시돼 있음).
         const PREVIEW_CURVE_SEGMENTS = 16;
         const EXPORT_CURVE_SEGMENTS = 48;
+        const PREVIEW_FACES_SEGMENT = 10;
+        const EXPORT_FACES_SEGMENT = 60;
 
         function contoursExtentX(contours) {
             let minX = Infinity, maxX = -Infinity;
@@ -524,7 +537,7 @@
                 rightOffset: parseFloat(document.getElementById('rightOffset').value),
 
                 distance: parseFloat(document.getElementById('distance').value),
-                facesSegment: parseFloat(document.getElementById('facesSegment').value),
+                facesSegment: PREVIEW_FACES_SEGMENT, // 되살리는 방법은 위 PREVIEW_FACES_SEGMENT 선언부 주석 참고
                 baseOffset: parseFloat(document.getElementById('baseOffset').value),
                 baseHeight: parseFloat(document.getElementById('baseHeight').value),
                 cutAngle: parseFloat(document.getElementById('cutAngle').value),
@@ -578,7 +591,9 @@
             const params = readParams();
 
             [
-                ['valFacesSegment', params.facesSegment], ['valDistance', params.distance],
+                // valFacesSegment 표시 줄은 슬라이더와 함께 뺐다 — 되살리면 여기 앞에
+                // ['valFacesSegment', params.facesSegment], 를 복구할 것
+                ['valDistance', params.distance],
                 ['valSize1', params.size1], ['valT1ScaleX', params.t1ScaleX], ['valT1Spacing', params.t1Spacing], ['valT1Offset', params.t1Offset],
                 ['valSize2', params.size2], ['valT2ScaleX', params.t2ScaleX], ['valT2Spacing', params.t2Spacing], ['valT2Offset', params.t2Offset],
                 ['valSize3', params.size3], ['valT3ScaleX', params.t3ScaleX], ['valT3Spacing', params.t3Spacing], ['valT3Offset', params.t3Offset],
@@ -617,6 +632,7 @@
         function downloadSTL() {
             if (!manifoldReady || !text1Font || !text2Font || !text3Font || !emojiFont) return;
             const params = readParams();
+            params.facesSegment = EXPORT_FACES_SEGMENT; // 미리보기용 저해상도 대신 인쇄 품질로 덮어쓴다
 
             let fused;
             try {

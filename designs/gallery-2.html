@@ -35,14 +35,14 @@
         // 가운데 띠(거들), 위쪽(뭉툭한 부분/크라운) 세 조각을 만들어 union으로 하나의 입체로 합친다.
         const shell = ParametricCore.mountEditorShell(document.body);
 
-        // "초기화" 버튼이 되돌릴 기본값 — 원본 OpenSCAD 디자인의 기본값과 동일
-        // (Diameter=30, Sides=6, Bottom_Height=30, Bottom_Cutoff_Percent=0, Middle_Height=0,
-        //  Top_Height=15, Top_Cutoff_Percent=50).
+        // "초기화" 버튼이 되돌릴 기본값. 원본 OpenSCAD 디자인의 기본값(Bottom_Height=30,
+        // Top_Height=15)에서 Bottom_Height=15, Top_Height=10으로 조정함 — 그 외 값은 원본과 동일
+        // (Diameter=30, Sides=6, Bottom_Cutoff_Percent=0, Middle_Height=0, Top_Cutoff_Percent=50).
         const DEFAULTS = {
             diameter: 30, sides: 6,
-            bottomHeight: 30, bottomCutoff: 0,
+            bottomHeight: 15, bottomCutoff: 0,
             middleHeight: 0,
-            topHeight: 15, topCutoff: 50,
+            topHeight: 10, topCutoff: 50,
             colGem: '#8e24aa'
         };
 
@@ -53,12 +53,12 @@
             <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
             <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>아래쪽 높이 (뾰족한 부분): <span id="valBottomHeight">30</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="30" oninput="updateModel()"></div>
+            <div class="control-group"><label>아래쪽 높이 (뾰족한 부분): <span id="valBottomHeight">15</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="15" oninput="updateModel()"></div>
             <div class="control-group"><label>아래쪽 자르기 비율: <span id="valBottomCutoff">0</span>%</label><input type="range" id="bottomCutoff" min="0" max="100" value="0" oninput="updateModel()"></div>
 
             <div class="control-group"><label>가운데 띠 높이: <span id="valMiddleHeight">0</span>mm</label><input type="range" id="middleHeight" min="0" max="40" value="0" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>위쪽 높이 (뭉툭한 부분): <span id="valTopHeight">15</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="15" oninput="updateModel()"></div>
+            <div class="control-group"><label>위쪽 높이 (뭉툭한 부분): <span id="valTopHeight">10</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="10" oninput="updateModel()"></div>
             <div class="control-group"><label>위쪽 자르기 비율: <span id="valTopCutoff">50</span>%</label><input type="range" id="topCutoff" min="0" max="100" value="50" oninput="updateModel()"></div>
 
             <div class="color-row"><span>보석 색</span><input type="color" id="colGem" value="#8e24aa" oninput="updateModel()"></div>
@@ -105,6 +105,7 @@
         }
 
         function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
             if (!currentGroup) return;
             scene.remove(currentGroup);
             currentGroup.traverse(obj => {
@@ -204,6 +205,7 @@
             currentGroup = new THREE.Group();
             currentGroup.add(threeMesh);
             scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
         function downloadSTL() {

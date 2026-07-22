@@ -172,6 +172,7 @@
         }
 
         function disposeCurrentMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
             if (!currentMesh) return;
             scene.remove(currentMesh);
             currentMesh.geometry.dispose();
@@ -219,6 +220,7 @@
             currentMesh = meshFromSolid(solid, p.col);
             solid.delete();
             scene.add(currentMesh);
+            ParametricCore.updateDimensionOverlay(scene, currentMesh);
         }
 
         function downloadSTL() {

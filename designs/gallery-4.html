@@ -432,6 +432,7 @@
         }
 
         function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
             if (!currentGroup) return;
             scene.remove(currentGroup);
             currentGroup.traverse(function (obj) {
@@ -552,6 +553,7 @@
                 currentMeshes[mesh.userData.layerName] = mesh;
             });
             scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
             lastGeometryFingerprint = fingerprint;
         }
 

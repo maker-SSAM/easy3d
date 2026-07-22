@@ -282,6 +282,7 @@
         }
 
         function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
             if (currentGroup) {
                 scene.remove(currentGroup);
                 currentGroup.traverse(function (obj) {
@@ -359,6 +360,7 @@
             currentGroup.add(lidMesh);
             currentGroup.traverse(function (obj) { obj.castShadow = false; obj.receiveShadow = false; });
             scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
         // 미리보기가 이미 "몸체 + 바닥에 뒤집어 놓인 뚜껑"(최종 출력용 배치) 그대로이므로,

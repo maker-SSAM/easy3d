@@ -169,10 +169,22 @@ window.ParametricCore = (function () {
             pmremGenerator.dispose();
         }
 
-        scene.add(new THREE.GridHelper(300, 30, 0x888888, 0xbbbbbb));
+        const gridHelper = new THREE.GridHelper(300, 30, 0x888888, 0xbbbbbb);
+        // 치수선(바닥 높이=y=0 근처를 지나는 가로/세로 선)과 그리드가 같은 y=0 평면에 겹쳐서,
+        // depthTest:true인 치수선이 그리드 격자선에 부분적으로 가려 끊겨 보이는 문제가 있었다.
+        // depthWrite만 끄면 그리드는 여전히 모델(불투명 메시)에는 정상적으로 가려지면서
+        // (모델 쪽 depth 기록에는 영향 안 줌), 그리드 자신의 depth는 기록하지 않아 나중에
+        // 그려지는 치수선을 가리지 않는다.
+        gridHelper.material.depthWrite = false;
+        scene.add(gridHelper);
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShadowMaterial({ opacity: 0 }));
         floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
+        // opacity:0이라 눈에는 안 보이지만, depthWrite 기본값(true)이 살아있으면 depth buffer에는
+        // 여전히 기록된다 — 치수선(updateDimensionOverlay)이 depthTest:true로 바뀐 뒤로, 바닥
+        // 높이(y=0) 아래로 내려가는 치수선 눈금/숫자 라벨이 이 안 보이는 바닥판에 가려 사라지는
+        // 문제가 생겼다. 바닥은 그림자만 받으면 되고 depth buffer에 낄 이유가 없으므로 끈다.
+        floor.material.depthWrite = false;
         scene.add(floor);
 
         function onWindowResize() {
@@ -243,6 +255,140 @@ window.ParametricCore = (function () {
         controls.reset();
         camera.position.set(position[0], position[1], position[2]);
         controls.update();
+    }
+
+    // 작업 중인 모델 옆에 가로(X)/세로(깊이, Z)/높이(Y) 치수선을 그려 보여준다. 모든 갤러리가
+    // 공유하는 단일 오버레이 그룹(dimensionOverlayGroup)을 이 모듈이 직접 들고 있다가, 모델이
+    // 갱신될 때마다(updateModel 안에서 scene.add(currentGroup) 직후) updateDimensionOverlay를
+    // 다시 부르면 이전 오버레이를 지우고 새 바운딩박스 기준으로 다시 그린다. 페이지당 스크립트가
+    // 하나씩만 돌기 때문에 모듈 전역 변수 하나로 충분하다.
+    let dimensionOverlayGroup = null;
+
+    // three.js에는 내장 텍스트가 없어서, 캔버스에 숫자를 그려 텍스처로 만든 뒤 항상 카메라를
+    // 보는 Sprite에 입힌다(CSS2DRenderer를 새로 얹는 대신 기존 스크립트 구성 그대로 쓰기 위함).
+    // worldHeight는 스프라이트의 월드 공간 크기(mm 단위) — 모델 크기에 비례해서 정해준다.
+    function makeDimensionLabel(text, worldHeight) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.font = 'bold 56px sans-serif';
+        ctx.fillStyle = '#e53935';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        // depthTest를 켜서, 라벨보다 카메라에 더 가까운 모델 표면이 있으면 실제로 가려지게 한다
+        // (시점을 돌렸을 때 모델 뒤로 넘어간 치수선이 그대로 비쳐 보이면 비현실적이라는 피드백 반영).
+        const material = new THREE.SpriteMaterial({ map: texture, depthTest: true, depthWrite: false, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        sprite.renderOrder = 999;
+        const aspect = canvas.width / canvas.height;
+        sprite.scale.set(worldHeight * aspect, worldHeight, 1);
+        return sprite;
+    }
+
+    // 바운딩박스 바깥에 가로/세로/높이 치수선 3개를 그린다. 각 치수선은 모델 모서리에서
+    // 뻗어나온 옅은 보조선(extension line) + 실제 치수를 나타내는 선 + 양 끝 눈금(tick) +
+    // 반올림한 mm 숫자 라벨로 구성된다(제도 도면의 치수선 표기 방식과 동일).
+    function buildDimensionAnnotations(box) {
+        const group = new THREE.Group();
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 1);
+        // 카메라 기본 시점이 이 여백까지 감안해서 넓게 잡혀있지 않다 — 꽃병처럼 키가 큰
+        // 모델에서는 여백을 너무 넉넉히 주면 라벨이 화면 밖으로 나갈 수 있어, 최대한
+        // 타이트하게 잡는다(그래도 아주 큰 모델은 화면을 축소해야 라벨이 다 보일 수 있음).
+        const gap = maxDim * 0.08 + 2.5; // 모델 표면에서 치수선까지 띄우는 거리
+        const tick = maxDim * 0.015 + 0.6; // 치수선 양 끝 눈금 길이의 절반
+        const labelSize = Math.max(maxDim * 0.07, 4); // 숫자 라벨의 월드 공간 높이
+        const lineColor = 0xe53935;
+        // depthTest를 켜서 모델에 가려지는 부분은 실제로 안 보이게 한다(라벨과 동일한 이유).
+        const lineMat = new THREE.LineBasicMaterial({ color: lineColor, depthTest: true, transparent: true });
+        const extMat = new THREE.LineBasicMaterial({ color: lineColor, opacity: 0.4, transparent: true, depthTest: true });
+
+        function line(a, b, mat) {
+            const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const obj = new THREE.Line(geo, mat || lineMat);
+            obj.renderOrder = 998;
+            group.add(obj);
+        }
+
+        function label(text, pos) {
+            const sprite = makeDimensionLabel(text, labelSize);
+            sprite.position.copy(pos);
+            group.add(sprite);
+        }
+
+        // 가로(X): 모델 앞쪽(Z 최대면, 기본 ISO 카메라에서 가까운 쪽) 바닥 높이에 띄운다.
+        // Z 최소면(카메라에서 먼 쪽, 뒤쪽)에 두면 처음 보이는 화면 기준으로 모델 뒤에 숨어
+        // 잘 안 보인다는 피드백을 반영해 앞쪽으로 옮겼다.
+        {
+            const ly = box.min.y, lz = box.max.z + gap;
+            const p1 = new THREE.Vector3(box.min.x, ly, lz);
+            const p2 = new THREE.Vector3(box.max.x, ly, lz);
+            line(p1, p2);
+            line(new THREE.Vector3(p1.x, ly - tick, lz), new THREE.Vector3(p1.x, ly + tick, lz));
+            line(new THREE.Vector3(p2.x, ly - tick, lz), new THREE.Vector3(p2.x, ly + tick, lz));
+            line(new THREE.Vector3(box.min.x, box.min.y, box.max.z), p1, extMat);
+            line(new THREE.Vector3(box.max.x, box.min.y, box.max.z), p2, extMat);
+            label(Math.round(size.x) + 'mm', new THREE.Vector3((box.min.x + box.max.x) / 2, ly, lz + labelSize * 0.5));
+        }
+
+        // 세로/깊이(Z): 모델 오른쪽(X 최대면) 바닥 높이에 띄운다.
+        {
+            const lx = box.max.x + gap, ly = box.min.y;
+            const p1 = new THREE.Vector3(lx, ly, box.min.z);
+            const p2 = new THREE.Vector3(lx, ly, box.max.z);
+            line(p1, p2);
+            line(new THREE.Vector3(lx, ly - tick, p1.z), new THREE.Vector3(lx, ly + tick, p1.z));
+            line(new THREE.Vector3(lx, ly - tick, p2.z), new THREE.Vector3(lx, ly + tick, p2.z));
+            line(new THREE.Vector3(box.max.x, box.min.y, box.min.z), p1, extMat);
+            line(new THREE.Vector3(box.max.x, box.min.y, box.max.z), p2, extMat);
+            label(Math.round(size.z) + 'mm', new THREE.Vector3(lx + labelSize * 0.5, ly, (box.min.z + box.max.z) / 2));
+        }
+
+        // 높이(Y): 모델 뒤쪽 왼쪽 모서리(X 최소, Z 최대)에 세로로 띄운다.
+        {
+            const lx = box.min.x - gap, lz = box.max.z + gap;
+            const p1 = new THREE.Vector3(lx, box.min.y, lz);
+            const p2 = new THREE.Vector3(lx, box.max.y, lz);
+            line(p1, p2);
+            line(new THREE.Vector3(lx - tick, p1.y, lz), new THREE.Vector3(lx + tick, p1.y, lz));
+            line(new THREE.Vector3(lx - tick, p2.y, lz), new THREE.Vector3(lx + tick, p2.y, lz));
+            line(new THREE.Vector3(box.min.x, box.min.y, box.max.z), p1, extMat);
+            line(new THREE.Vector3(box.min.x, box.max.y, box.max.z), p2, extMat);
+            label(Math.round(size.y) + 'mm', new THREE.Vector3(lx - labelSize * 0.5, (box.min.y + box.max.y) / 2, lz));
+        }
+
+        return group;
+    }
+
+    function clearDimensionOverlay() {
+        if (!dimensionOverlayGroup) return;
+        if (dimensionOverlayGroup.parent) dimensionOverlayGroup.parent.remove(dimensionOverlayGroup);
+        dimensionOverlayGroup.traverse(function (obj) {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (obj.material.map) obj.material.map.dispose();
+                obj.material.dispose();
+            }
+        });
+        dimensionOverlayGroup = null;
+    }
+
+    // targetObject(현재 화면에 있는 모델 그룹/메시)의 바운딩박스를 기준으로 치수선을 다시 그린다.
+    // targetObject가 없으면(모델이 비워졌으면) 기존 치수선만 지우고 끝낸다. 갤러리 쪽에서는
+    // updateModel()이 scene.add(currentGroup) 직후 이 함수를 부르고, disposeCurrentThreeMesh()
+    // 안에서도 (targetObject 없이) 불러서 모델이 사라질 때 치수선도 같이 지운다.
+    function updateDimensionOverlay(scene, targetObject) {
+        clearDimensionOverlay();
+        if (!targetObject) return;
+        const box = new THREE.Box3().setFromObject(targetObject);
+        if (box.isEmpty()) return;
+        dimensionOverlayGroup = buildDimensionAnnotations(box);
+        scene.add(dimensionOverlayGroup);
     }
 
     function exportSTL(modelGroup, filename) {
@@ -359,6 +505,7 @@ window.ParametricCore = (function () {
         setupResizer: setupResizer,
         bindViewCube: bindViewCube,
         resetCameraTo: resetCameraTo,
+        updateDimensionOverlay: updateDimensionOverlay,
         exportSTL: exportSTL,
         mountLightTuningPanel: mountLightTuningPanel
     };

@@ -177,14 +177,14 @@
                 buildPreviewScene: simplePolygonPreview(new THREE.ConeGeometry(1.0, 1.7, 5), 0xffa726, 0.85)
             },
             {
-                title: '갤러리5',
-                description: '준비 중인 디자인입니다',
+                title: '멀티컬러 오가닉 이름표',
+                description: '3줄 텍스트와 이모지가 돌출된 나만의 이름표를 만들어보세요',
                 url: 'designs/gallery-5.html',
                 buildPreviewScene: simplePolygonPreview(new THREE.OctahedronGeometry(1.15, 0), 0x26c6da, 1.15)
             },
             {
-                title: '갤러리6',
-                description: '준비 중인 디자인입니다',
+                title: '물결무늬 꽃병',
+                description: '사인파로 물결치는 벽면의 나만의 꽃병을 만들어보세요',
                 url: 'designs/gallery-6.html',
                 buildPreviewScene: simplePolygonPreview(new THREE.TetrahedronGeometry(1.25, 0), 0x5c6bc0, 1.0)
             }
@@ -631,7 +631,13 @@
                 });
             });
         }
-        upgradeRealPreviews();
+
+        // 임시 조치: 개발 단계에서는 갤러리↔메인화면을 자주 오가는데, upgradeRealPreviews()가
+        // 매번 갤러리1~4 실제 모델을 Manifold-3D로 처음부터 다시 계산해서(특히 갤러리3
+        // 나사산) 메인화면 복귀가 느려지는 원인이었다. 완성 단계에서 이 부분을 "미리 구운
+        // 정적 프리뷰 파일 로드" 방식으로 교체할 예정이라, 그 전까지는 호출을 꺼두고
+        // 위쪽의 가벼운 placeholder 도형(nameplatePreview/gemPreview 등)만 보여준다.
+        // upgradeRealPreviews();
     </script>
 </body>
 </html>

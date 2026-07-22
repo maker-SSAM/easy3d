@@ -74,10 +74,68 @@ window.FontCore = (function () {
         return fontCache[file];
     }
 
+    // 글자 하나의 윤곽선(x=0 기준 로컬 좌표, 즉 그 글자의 자간/배치와 무관한 순수 모양)을
+    // (폰트파일, 글자, 크기, 곡선세그먼트) 키로 캐싱한다. 텍스트를 다루는 여러 갤러리(자간/장평
+    // 조정 슬라이더가 있는 페이지들)가 공유해서 쓴다 — 자간/장평처럼 "배치(위치)"만 바뀌고
+    // 글자 "모양" 자체는 그대로인 경우, opentype.js로 패스를 다시 뽑고 곡선을 다시 근사하는
+    // 비용(글자 수가 많을수록, 특히 획이 복잡한 한글/한자일수록 커짐)을 반복하지 않기 위함.
+    // 캐시된 배열은 절대 직접 변형하지 않는다(다른 호출이 같은 캐시를 계속 재사용하므로) —
+    // buildCenteredContours()가 쓸 때마다 새 배열로 복제해서 위치를 옮긴다.
+    const glyphShapeCache = new Map();
+
+    function getGlyphShape(fontFile, font, ch, size, curveSegments) {
+        const key = fontFile + '|' + ch + '|' + size + '|' + curveSegments;
+        let cached = glyphShapeCache.get(key);
+        if (cached) return cached;
+
+        const glyph = font.charToGlyph(ch);
+        if (!glyph) {
+            cached = { contours: [], advance: 0 };
+        } else {
+            const path = glyph.getPath(0, 0, size); // x=0 기준 로컬 윤곽선
+            cached = {
+                contours: extractGlyphContours(path.commands || [], curveSegments),
+                advance: glyph.advanceWidth / font.unitsPerEm * size
+            };
+        }
+        glyphShapeCache.set(key, cached);
+        return cached;
+    }
+
+    // 텍스트 한 줄 전체의 글자 윤곽선을 (x=0,y=0 중심 정렬해서) 뽑아낸다 — OpenSCAD
+    // text()의 halign="center", valign="center"에 대응(가로뿐 아니라 세로도 중심 정렬).
+    // curveSegments: 곡선 하나를 몇 개의 직선 조각으로 근사할지 — 호출부(미리보기/내보내기)가
+    // 원하는 해상도를 넘겨준다.
+    function buildCenteredContours(text, font, fontFile, size, spacingMultiplier, curveSegments) {
+        const contours = [];
+        let currentX = 0;
+        Array.from(text).forEach(function (ch) {
+            const glyphShape = getGlyphShape(fontFile, font, ch, size, curveSegments);
+            glyphShape.contours.forEach(function (localPts) {
+                // 캐시된 로컬 좌표를 그대로 쓰지 않고 새 배열로 복제하면서 현재 위치로 옮긴다.
+                contours.push(localPts.map(function (p) { return [p[0] + currentX, p[1]]; }));
+            });
+            currentX += glyphShape.advance * spacingMultiplier;
+        });
+        if (!contours.length) return contours;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        contours.forEach(function (pts) {
+            pts.forEach(function (p) {
+                if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+                if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+            });
+        });
+        const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+        contours.forEach(function (pts) { pts.forEach(function (p) { p[0] -= cx; p[1] -= cy; }); });
+        return contours;
+    }
+
     return {
         loadFont: loadFont,
         getFont: getFont,
         isPointInPolygon: isPointInPolygon,
-        extractGlyphContours: extractGlyphContours
+        extractGlyphContours: extractGlyphContours,
+        getGlyphShape: getGlyphShape,
+        buildCenteredContours: buildCenteredContours
     };
 })();

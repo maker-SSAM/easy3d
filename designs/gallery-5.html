@@ -2,49 +2,660 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리5 (준비 중) - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리5 - 멀티컬러 오가닉 이름표 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     <script src="../assets/js/core.js"></script>
+    <!-- 폰트 → 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱 공용 모듈 (갤러리4와 공유) -->
+    <script src="../assets/js/font-core.js"></script>
+    <!-- 2D 윤곽선(offset/rotate/revolve) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
+         로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
+         ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <script type="module" src="../assets/js/manifold-core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: #333; }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
+        .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
+        .emoji-input { width: 100%; box-sizing: border-box; font-size: 1.2em; text-align: center; padding: 6px; }
+    </style>
 </head>
 <body>
 
-    <script>
-        // 갤러리5 자리를 표시만 해두는 임시 페이지. 실제 파라메트릭 디자인이
-        // 완성되면 이 파일의 컨트롤 UI + 모델링 로직을 nameplate-box.html처럼 채운다.
+    <script type="module">
+        // 갤러리5: 멀티컬러 오가닉 보더 이름표. 사용자가 준 OpenSCAD 디자인("Multi-Color Organic
+        // Border Nameplate")을 이 프로젝트의 three.js + Manifold-3D 스택으로 포팅했다.
+        //
+        // 원본의 핵심 구조: 평평한 바닥판(linear_extrude) 위에 텍스트 3줄 + 이모지 2개가
+        // "회전체 돌출(bend_engine)" 기법으로 도드라진다 — 각 글자의 2D 윤곽선을 text_radius만큼
+        // 밀어낸 뒤 rotate_extrude(각도=cutangle)로 스윕해서, 평평한 압출이 아니라 둥글게
+        // 부풀어 오른(엠보싱) 입체로 만든다. Manifold-3D의 Manifold.revolve()가 OpenSCAD의
+        // rotate_extrude()와 동일한 의미라서(ManifoldCore.revolveXS, 갤러리3 나사산에서 이미 사용
+        // 중), 원본의 회전 체인을 그대로 옮길 수 있었다.
+        //
+        // 원본 대비 바꾼 부분:
+        //   - 글씨체: 임의의 구글 폰트 이름(font1/2/3) 대신, 갤러리1/4와 동일한 우리 폰트 10종
+        //     목록/순서를 그대로 씀 (텍스트 1/2/3 각각 독립적으로 선택 가능)
+        //   - 이모지 폰트: 갤러리4와 동일하게 NotoEmoji-SemiBold.ttf로 고정
+        //
+        // 주의(구현자 노트): bend_engine의 5단계 회전(-90도 → text_radius만큼 이동 → revolve →
+        // (90-cutangle)도 회전 → -90도 회전)은 OpenSCAD 소스를 그대로 기계적으로 옮긴 것이다.
+        // 실제 브라우저 렌더링으로 검증하지 못했으므로(이 세션은 WebGL을 직접 못 봄), 글자가
+        // 뒤집히거나 엉뚱한 방향으로 튀어나오면 아래 bendEmboss()의 회전 부호/순서부터 의심할 것.
         const shell = ParametricCore.mountEditorShell(document.body);
 
+        const FONT_OPTIONS = [
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
+        ];
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
+        const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
+
+        const DEFAULTS = {
+            distance: 1.4, facesSegment: 20,
+            text1: 'HAPPY-MAKER', fontIndex1: DEFAULT_FONT_INDEX, size1: 12, t1ScaleX: 1.0, t1Spacing: 1.0, t1Offset: 0.0,
+            text2: 'MULTI-COLOR', fontIndex2: DEFAULT_FONT_INDEX, size2: 14, t2ScaleX: 1.0, t2Spacing: 1.0, t2Offset: 0.0,
+            text3: 'ALL-LANGUAGE', fontIndex3: DEFAULT_FONT_INDEX, size3: 10, t3ScaleX: 1.0, t3Spacing: 1.0, t3Offset: 0.0,
+            emojiLeft: '🦈', leftOffset: 0.6, emojiRight: '♥', rightOffset: 0.6,
+            baseOffset: 5, baseHeight: 4, cutAngle: 65, textRadius: 12,
+            colText1: '#FF5733', colText2: '#33FF57', colText3: '#3357FF',
+            colEmojiL: '#FFD700', colEmojiR: '#FF69B4', colBase: '#FFFFFF'
+        };
+
         shell.controlsBodyEl.innerHTML = `
-            <h3>갤러리5</h3>
-            <p style="font-size: 0.9em; color: #666; line-height: 1.6;">
-                🚧 아직 준비 중인 디자인이에요.<br>
-                조금만 기다려 주세요!
-            </p>
+            <h3>이름표 설정</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 평평한 바닥판 위에 텍스트 3줄과 이모지가 둥글게 돌출된 이름표입니다.</p>
+
+            <div class="section-label">1. 기본 설정</div>
+            <div class="control-group"><label>곡선의 세밀한정도: <span id="valFacesSegment">20</span></label><input type="range" id="facesSegment" min="4" max="60" step="1" value="20" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>줄간격: <span id="valDistance">1.4</span></label><input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1.4" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">2. 텍스트 1</div>
+            <div class="control-group">
+                <label>텍스트 1 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <input type="text" id="text1" value="HAPPY-MAKER" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+            </div>
+            <div class="control-group">
+                <label>텍스트 1 폰트 선택</label>
+                <select id="font1Select" onchange="onFont1Change()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="control-group"><label>텍스트 1 크기: <span id="valSize1">12</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="12" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트1 장평: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트1 자간: <span id="valT1Spacing">1.0</span></label><input type="range" id="t1Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트1 굵기: <span id="valT1Offset">0.0</span></label><input type="range" id="t1Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">3. 텍스트 2</div>
+            <div class="control-group">
+                <label>텍스트 2 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <input type="text" id="text2" value="MULTI-COLOR" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+            </div>
+            <div class="control-group">
+                <label>텍스트 2 폰트 선택</label>
+                <select id="font2Select" onchange="onFont2Change()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="control-group"><label>텍스트 2 크기: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="50" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트2 장평: <span id="valT2ScaleX">1.0</span></label><input type="range" id="t2ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트2 자간: <span id="valT2Spacing">1.0</span></label><input type="range" id="t2Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트2 굵기: <span id="valT2Offset">0.0</span></label><input type="range" id="t2Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">4. 텍스트 3</div>
+            <div class="control-group">
+                <label>텍스트 3 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <input type="text" id="text3" value="ALL-LANGUAGE" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+            </div>
+            <div class="control-group">
+                <label>텍스트 3 폰트 선택</label>
+                <select id="font3Select" onchange="onFont3Change()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="control-group"><label>텍스트 3 크기: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트3 장평: <span id="valT3ScaleX">1.0</span></label><input type="range" id="t3ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트3 자간: <span id="valT3Spacing">1.0</span></label><input type="range" id="t3Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트3 굵기: <span id="valT3Offset">0.0</span></label><input type="range" id="t3Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">5. 이모지</div>
+            <div class="control-group">
+                <label>왼쪽 이모지</label>
+                <input type="text" id="emojiLeft" class="emoji-input" value="🦈" oninput="scheduleUpdate()">
+            </div>
+            <div class="control-group"><label>왼쪽 이모지 위치: <span id="valLeftOffset">0.6</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group">
+                <label>오른쪽 이모지</label>
+                <input type="text" id="emojiRight" class="emoji-input" value="♥" oninput="scheduleUpdate()">
+            </div>
+            <div class="control-group"><label>오른쪽 이모지 위치: <span id="valRightOffset">0.6</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.6" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">6. 바닥판 설정</div>
+            <div class="control-group"><label>바닥판 오프셋: <span id="valBaseOffset">5</span>mm</label><input type="range" id="baseOffset" min="0" max="15" step="0.5" value="5" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>바닥판 높이: <span id="valBaseHeight">4</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="4" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>회전체 각도: <span id="valCutAngle">65</span>°</label><input type="range" id="cutAngle" min="5" max="350" step="1" value="65" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>회전체 중심과의 거리: <span id="valTextRadius">12</span>mm</label><input type="range" id="textRadius" min="3" max="30" step="0.5" value="12" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label">7. 색상</div>
+            <div class="color-row"><span>텍스트1</span><input type="color" id="colText1" value="#FF5733" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>텍스트2</span><input type="color" id="colText2" value="#33FF57" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>텍스트3</span><input type="color" id="colText3" value="#3357FF" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>왼쪽 이모지</span><input type="color" id="colEmojiL" value="#FFD700" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>오른쪽 이모지</span><input type="color" id="colEmojiR" value="#FF69B4" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>바닥판</span><input type="color" id="colBase" value="#FFFFFF" oninput="scheduleUpdate()"></div>
+        `;
+
+        shell.controlsFooterEl.innerHTML = `
+            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
         `;
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
         });
         const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
-        ParametricCore.bindViewCube(shell.cubeButtons, viewer.camera, viewer.controls);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
 
-        const placeholderMesh = new THREE.Mesh(
-            new THREE.OctahedronGeometry(42, 0),
-            new THREE.MeshStandardMaterial({ color: 0x26c6da, roughness: 0.25 })
-        );
-        placeholderMesh.position.y = 42;
-        placeholderMesh.castShadow = true;
-        placeholderMesh.receiveShadow = true;
-        scene.add(placeholderMesh);
+        let currentGroup = null;
+        let currentMeshes = {}; // 층 이름(text1/text2/text3/emojiL/emojiR/base) -> THREE.Mesh
+        let lastGeometryFingerprint = null; // 색상만 바뀐 건지 판별하는 캐시 키
+        let manifoldReady = false;
+        let text1Font = null, text2Font = null, text3Font = null, emojiFont = null;
+        let updateTimer = null;
 
-        (function spinPlaceholder() {
-            placeholderMesh.rotation.y += 0.006;
-            placeholderMesh.rotation.x += 0.002;
-            requestAnimationFrame(spinPlaceholder);
-        })();
+        function scheduleUpdate() {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 100);
+        }
+
+        function onTextKeydown(event) {
+            if (event.key === 'Enter') scheduleUpdate();
+        }
+
+        function onFont1Change() {
+            const idx = document.getElementById('font1Select').value;
+            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) { text1Font = font; updateModel(); });
+        }
+        function onFont2Change() {
+            const idx = document.getElementById('font2Select').value;
+            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) { text2Font = font; updateModel(); });
+        }
+        function onFont3Change() {
+            const idx = document.getElementById('font3Select').value;
+            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) { text3Font = font; updateModel(); });
+        }
+
+        function resetToDefaults() {
+            document.getElementById('facesSegment').value = DEFAULTS.facesSegment;
+            document.getElementById('distance').value = DEFAULTS.distance;
+
+            document.getElementById('text1').value = DEFAULTS.text1;
+            document.getElementById('font1Select').value = DEFAULTS.fontIndex1;
+            document.getElementById('size1').value = DEFAULTS.size1;
+            document.getElementById('t1ScaleX').value = DEFAULTS.t1ScaleX;
+            document.getElementById('t1Spacing').value = DEFAULTS.t1Spacing;
+            document.getElementById('t1Offset').value = DEFAULTS.t1Offset;
+
+            document.getElementById('text2').value = DEFAULTS.text2;
+            document.getElementById('font2Select').value = DEFAULTS.fontIndex2;
+            document.getElementById('size2').value = DEFAULTS.size2;
+            document.getElementById('t2ScaleX').value = DEFAULTS.t2ScaleX;
+            document.getElementById('t2Spacing').value = DEFAULTS.t2Spacing;
+            document.getElementById('t2Offset').value = DEFAULTS.t2Offset;
+
+            document.getElementById('text3').value = DEFAULTS.text3;
+            document.getElementById('font3Select').value = DEFAULTS.fontIndex3;
+            document.getElementById('size3').value = DEFAULTS.size3;
+            document.getElementById('t3ScaleX').value = DEFAULTS.t3ScaleX;
+            document.getElementById('t3Spacing').value = DEFAULTS.t3Spacing;
+            document.getElementById('t3Offset').value = DEFAULTS.t3Offset;
+
+            document.getElementById('emojiLeft').value = DEFAULTS.emojiLeft;
+            document.getElementById('leftOffset').value = DEFAULTS.leftOffset;
+            document.getElementById('emojiRight').value = DEFAULTS.emojiRight;
+            document.getElementById('rightOffset').value = DEFAULTS.rightOffset;
+
+            document.getElementById('baseOffset').value = DEFAULTS.baseOffset;
+            document.getElementById('baseHeight').value = DEFAULTS.baseHeight;
+            document.getElementById('cutAngle').value = DEFAULTS.cutAngle;
+            document.getElementById('textRadius').value = DEFAULTS.textRadius;
+
+            document.getElementById('colText1').value = DEFAULTS.colText1;
+            document.getElementById('colText2').value = DEFAULTS.colText2;
+            document.getElementById('colText3').value = DEFAULTS.colText3;
+            document.getElementById('colEmojiL').value = DEFAULTS.colEmojiL;
+            document.getElementById('colEmojiR').value = DEFAULTS.colEmojiR;
+            document.getElementById('colBase').value = DEFAULTS.colBase;
+
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            onFont1Change(); onFont2Change(); onFont3Change(); // 폰트를 다시 로드하면서 모델도 재생성
+        }
+
+        // ---------- 실제 모델링 ----------
+        // curveSegments: 글자 곡선(폰트 윤곽선) 근사 해상도 — 순수 품질/성능 트레이드오프라
+        // 사용자에게 직접 노출하지 않는다(갤러리4와 동일한 방침). 라이브 조작 중엔 낮게, STL
+        // 내보낼 때만 인쇄 품질로 다시 계산한다.
+        // faces_segment/cutangle(회전체 스윕 해상도)는 원본 OpenSCAD처럼 사용자가 직접 조절하는
+        // 디자인 파라미터라서, 라이브 미리보기와 내보내기가 항상 같은 값을 쓴다(자동으로 낮추지
+        // 않음) — 사용자가 설정한 그대로 보여야 하기 때문.
+        const PREVIEW_CURVE_SEGMENTS = 16;
+        const EXPORT_CURVE_SEGMENTS = 48;
+
+        function contoursExtentX(contours) {
+            let minX = Infinity, maxX = -Infinity;
+            contours.forEach(function (pts) {
+                pts.forEach(function (p) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; });
+            });
+            return minX > maxX ? 0 : (maxX - minX);
+        }
+
+        // 텍스트1/2/3 + 이모지L/R + 바닥판 외곽선의 "2D 도형"만 만들어서 돌려준다. 회전체
+        // 돌출(bend)과 바닥판 압출은 여기 포함되지 않는다 — 회전체 각도/반지름/세그먼트나
+        // 바닥판 높이 같은 슬라이더는 이 2D 도형에 전혀 영향을 주지 않으므로, 그런 경우엔
+        // 이 결과를 캐시해서 재사용하고 돌출/압출 단계만 다시 하면 된다(아래 shapeCache 참고).
+        function buildShapes(p, curveSegments) {
+            const scratch = [];
+            function track(m) { scratch.push(m); return m; }
+
+            const c1 = p.text1 ? FontCore.buildCenteredContours(p.text1, p.font1, p.font1File, p.size1, p.t1Spacing, curveSegments) : [];
+            const c2 = p.text2 ? FontCore.buildCenteredContours(p.text2, p.font2, p.font2File, p.size2, p.t2Spacing, curveSegments) : [];
+            const c3 = p.text3 ? FontCore.buildCenteredContours(p.text3, p.font3, p.font3File, p.size3, p.t3Spacing, curveSegments) : [];
+
+            // textmetrics()에 대응 — offset(굵기) 적용 전, 장평만 곱한 원시 폭.
+            const width1 = contoursExtentX(c1) * p.t1ScaleX;
+            const width2 = contoursExtentX(c2) * p.t2ScaleX;
+            const width3 = contoursExtentX(c3) * p.t3ScaleX;
+            const textwidth = Math.max(width1, width2, width3);
+
+            // 원본 auto-calc 구간 그대로: 줄 간격/이모지 y위치 계산.
+            const distance12 = (p.size1 / 2 + p.size2 / 2) * p.distance;
+            const distance23 = (p.size2 / 2 + p.size3 / 2) * p.distance;
+            const distLine12 = (p.text2 === '' && p.text3 === '') ? 0 : distance12;
+            const distLine23 = (p.text3 === '') ? 0 : distance23;
+            const specialcharsize = (p.text1 !== '' ? p.size1 : 0) + (p.text2 !== '' ? p.size2 : 0) + (p.text3 !== '' ? p.size3 : 0);
+            let specialcharY = 0;
+            if (p.text1 !== '' && p.text2 !== '' && p.text3 === '') specialcharY = distLine12 / 2;
+            else if (p.text1 === '' && p.text2 !== '' && p.text3 !== '') specialcharY = distLine23 / 2;
+            else if (p.text1 !== '' && p.text3 !== '') specialcharY = (distLine12 + distLine23) / 2;
+
+            // 각 줄: offset(굵기) → scale(장평) → translate(줄 쌓기 위치) 순서로 적용
+            // (OpenSCAD 원본의 t*_2d 모듈과 동일한 순서 — offset이 scale보다 먼저 적용된다).
+            function lineXS(contours, offsetAmt, scaleX, y) {
+                if (!contours.length) return null;
+                let xs = track(ManifoldCore.contoursToXS(contours));
+                if (Math.abs(offsetAmt) > 0.001) xs = track(xs.offset(offsetAmt));
+                if (Math.abs(scaleX - 1) > 0.001) xs = track(xs.scale([scaleX, 1]));
+                if (y) xs = track(xs.translate([0, y]));
+                return xs;
+            }
+
+            const text1XS = lineXS(c1, p.t1Offset, p.t1ScaleX, distLine23 + distLine12);
+            const text2XS = lineXS(c2, p.t2Offset, p.t2ScaleX, distLine23);
+            const text3XS = lineXS(c3, p.t3Offset, p.t3ScaleX, 0);
+
+            function emojiXS(text, side) {
+                if (!text) return null;
+                const contours = FontCore.buildCenteredContours(text, p.emojiFont, EMOJI_FONT_FILE, specialcharsize * 0.8, 1, curveSegments);
+                if (!contours.length) return null;
+                let xs = track(ManifoldCore.contoursToXS(contours));
+                const dist = specialcharsize * (side === 'L' ? p.leftOffset : p.rightOffset);
+                const tx = side === 'L' ? -(textwidth / 2 + dist) : (textwidth / 2 + dist);
+                xs = track(xs.translate([tx, specialcharY]));
+                return xs;
+            }
+            const emojiLXS = emojiXS(p.emojiLeft, 'L');
+            const emojiRXS = emojiXS(p.emojiRight, 'R');
+
+            // 바닥판 외곽선: 모든 텍스트+이모지 footprint를 union한 뒤 base_offset만큼 부풀림.
+            let masterXS = null;
+            [text1XS, text2XS, text3XS, emojiLXS, emojiRXS].forEach(function (xs) {
+                if (!xs) return;
+                masterXS = masterXS ? track(masterXS.add(xs)) : xs;
+            });
+            const baseXS = masterXS ? track(masterXS.offset(p.baseOffset)) : null;
+
+            // 최종 결과로 쓸 것들은 scratch(중간 산출물 정리 목록)에서 빼둔다 — 캐시로 살아남아야
+            // 하므로 여기서 지우면 안 된다. 무효화될 때 disposeShapes()가 대신 지운다.
+            const keep = new Set([text1XS, text2XS, text3XS, emojiLXS, emojiRXS, baseXS].filter(Boolean));
+            scratch.forEach(function (m) { if (m && !keep.has(m) && typeof m.delete === 'function') m.delete(); });
+
+            return { text1XS: text1XS, text2XS: text2XS, text3XS: text3XS, emojiLXS: emojiLXS, emojiRXS: emojiRXS, baseXS: baseXS };
+        }
+
+        function disposeShapes(shapes) {
+            if (!shapes) return;
+            ['text1XS', 'text2XS', 'text3XS', 'emojiLXS', 'emojiRXS', 'baseXS'].forEach(function (key) {
+                const xs = shapes[key];
+                if (xs && typeof xs.delete === 'function') xs.delete();
+            });
+        }
+
+        let shapeCache = null; // { fingerprint, shapes } — 라이브 미리보기 전용 2D 도형 캐시
+
+        function getPreviewShapes(p, shapeFp) {
+            if (shapeCache && shapeCache.fingerprint === shapeFp) return shapeCache.shapes;
+            if (shapeCache) disposeShapes(shapeCache.shapes);
+            shapeCache = null;
+            let shapes;
+            try {
+                shapes = buildShapes(p, PREVIEW_CURVE_SEGMENTS);
+            } catch (err) {
+                console.error('이름표 도형 생성 실패:', err);
+                return null;
+            }
+            if (shapes) shapeCache = { fingerprint: shapeFp, shapes: shapes };
+            return shapes;
+        }
+
+        // OpenSCAD bend_engine 포팅 — 2D 도형에 "회전체 돌출(엠보싱)" 효과를 준다. 원본의
+        // 4단계 회전을 순서 그대로 옮긴다:
+        //   A) 자식 2D 도형을 Z축 기준 -90도 회전
+        //   B) (반지름 방향이 된) X축으로 text_radius만큼 이동
+        //   C) rotate_extrude(angle=cutangle) → revolveXS로 스윕
+        //   D) 결과 솔리드를 Z축 기준 (90-cutangle)도 회전
+        //   E) 결과 솔리드를 Y축 기준 -90도 회전
+        // 전부 OpenSCAD와 동일한 Z-up 좌표계에서 진행하고(갤러리3의 나사산과 같은 방식),
+        // 바닥판과 합쳐지는 마지막 단계에서만 한 번씩 Y-up으로 바꾼다(finalizeLayer).
+        function bendEmboss(xs2D, p) {
+            if (!xs2D) return null;
+            const revolveSegments = Math.max(3, Math.round(p.facesSegment * 360 / p.cutAngle));
+            const rotA = xs2D.rotate(-90);
+            const transB = rotA.translate([p.textRadius, 0]);
+            rotA.delete();
+            const swept = ManifoldCore.revolveXS(transB, revolveSegments, p.cutAngle);
+            transB.delete();
+            const rotD = swept.rotate([0, 0, 90 - p.cutAngle]);
+            swept.delete();
+            const rotE = rotD.rotate([0, -90, 0]);
+            rotD.delete();
+            return rotE; // 여전히 Z-up
+        }
+
+        // 바닥판: 평평하게 linear_extrude(원본 OpenSCAD와 동일하게 Z-up 그대로 압출 — 갤러리1/4의
+        // extrudeXS()처럼 자동으로 Y-up 회전을 시키지 않는다) 후 원본과 동일하게 위치시킨다.
+        function buildBaseSolid(baseXS, p) {
+            if (!baseXS) return null;
+            const extruded = baseXS.extrude(p.baseHeight);
+            const positioned = extruded.translate([0, p.textRadius, -p.baseHeight]);
+            extruded.delete();
+            return positioned; // 여전히 Z-up
+        }
+
+        // 원본의 바깥쪽 translate([0,0,baseheight])(텍스트+바닥판 공통)를 적용한 뒤, three.js
+        // Y-up으로 최종 변환한다.
+        function finalizeLayer(zUpSolid, p) {
+            if (!zUpSolid) return null;
+            const shifted = zUpSolid.translate([0, 0, p.baseHeight]);
+            zUpSolid.delete();
+            const yUp = ManifoldCore.toYUp(shifted);
+            shifted.delete();
+            return yUp;
+        }
+
+        function meshFromSolid(solid, color) {
+            if (!solid) return null;
+            const buf = ManifoldCore.toBufferGeometry(solid);
+            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({
+                color: color, metalness: 0.2, roughness: 0.45, envMapIntensity: 0.55
+            }));
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            return mesh;
+        }
+
+        // 라이브 미리보기용: union 없이 층마다(텍스트1/2/3, 이모지L/R, 바닥판) 독립된
+        // THREE.Mesh를 만든다. 2D 도형은 캐시에서 가져오고(모양이 안 바뀌었으면 재사용),
+        // 돌출/압출/위치는 매번 새로 한다.
+        function buildPreviewMeshes(p, shapeFp) {
+            const shapes = getPreviewShapes(p, shapeFp);
+            if (!shapes) return null;
+
+            const layerDefs = [
+                { name: 'text1', build: function () { return bendEmboss(shapes.text1XS, p); }, color: p.colText1 },
+                { name: 'text2', build: function () { return bendEmboss(shapes.text2XS, p); }, color: p.colText2 },
+                { name: 'text3', build: function () { return bendEmboss(shapes.text3XS, p); }, color: p.colText3 },
+                { name: 'emojiL', build: function () { return bendEmboss(shapes.emojiLXS, p); }, color: p.colEmojiL },
+                { name: 'emojiR', build: function () { return bendEmboss(shapes.emojiRXS, p); }, color: p.colEmojiR },
+                { name: 'base', build: function () { return buildBaseSolid(shapes.baseXS, p); }, color: p.colBase }
+            ];
+
+            const meshes = [];
+            layerDefs.forEach(function (def) {
+                const zUp = def.build();
+                if (!zUp) return;
+                const yUp = finalizeLayer(zUp, p);
+                const mesh = meshFromSolid(yUp, def.color);
+                if (yUp) yUp.delete();
+                if (!mesh) return;
+                mesh.userData.layerName = def.name;
+                meshes.push(mesh);
+            });
+
+            return meshes.length ? meshes : null;
+        }
+
+        // STL 내보내기 전용: 부품을 진짜로 하나의 매니폴드로 union한다. 미리보기 캐시와는
+        // 무관하게 매번 새로(인쇄 품질로) 만든다. STL은 색 정보가 없으므로 부품별 색상 매핑
+        // 없이 union만 한다.
+        function buildFusedSolid(p) {
+            const shapes = buildShapes(p, EXPORT_CURVE_SEGMENTS);
+            if (!shapes) return null;
+
+            const parts = [];
+            [
+                bendEmboss(shapes.text1XS, p), bendEmboss(shapes.text2XS, p), bendEmboss(shapes.text3XS, p),
+                bendEmboss(shapes.emojiLXS, p), bendEmboss(shapes.emojiRXS, p), buildBaseSolid(shapes.baseXS, p)
+            ].forEach(function (zUp) {
+                const finalized = finalizeLayer(zUp, p);
+                if (finalized) parts.push(finalized);
+            });
+
+            disposeShapes(shapes);
+            if (!parts.length) return null;
+
+            let fused = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+                const merged = ManifoldCore.union(fused, parts[i]);
+                fused.delete();
+                parts[i].delete();
+                fused = merged;
+            }
+            return fused;
+        }
+
+        function disposeCurrentThreeMesh() {
+            if (!currentGroup) return;
+            scene.remove(currentGroup);
+            currentGroup.traverse(function (obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                else if (obj.material) obj.material.dispose();
+            });
+            currentGroup = null;
+            currentMeshes = {};
+        }
+
+        function readParams() {
+            return {
+                text1: document.getElementById('text1').value || '',
+                font1: text1Font, font1File: FONT_OPTIONS[document.getElementById('font1Select').value].file,
+                size1: parseFloat(document.getElementById('size1').value),
+                t1ScaleX: parseFloat(document.getElementById('t1ScaleX').value),
+                t1Spacing: parseFloat(document.getElementById('t1Spacing').value),
+                t1Offset: parseFloat(document.getElementById('t1Offset').value),
+
+                text2: document.getElementById('text2').value || '',
+                font2: text2Font, font2File: FONT_OPTIONS[document.getElementById('font2Select').value].file,
+                size2: parseFloat(document.getElementById('size2').value),
+                t2ScaleX: parseFloat(document.getElementById('t2ScaleX').value),
+                t2Spacing: parseFloat(document.getElementById('t2Spacing').value),
+                t2Offset: parseFloat(document.getElementById('t2Offset').value),
+
+                text3: document.getElementById('text3').value || '',
+                font3: text3Font, font3File: FONT_OPTIONS[document.getElementById('font3Select').value].file,
+                size3: parseFloat(document.getElementById('size3').value),
+                t3ScaleX: parseFloat(document.getElementById('t3ScaleX').value),
+                t3Spacing: parseFloat(document.getElementById('t3Spacing').value),
+                t3Offset: parseFloat(document.getElementById('t3Offset').value),
+
+                emojiFont: emojiFont,
+                emojiLeft: document.getElementById('emojiLeft').value || '',
+                leftOffset: parseFloat(document.getElementById('leftOffset').value),
+                emojiRight: document.getElementById('emojiRight').value || '',
+                rightOffset: parseFloat(document.getElementById('rightOffset').value),
+
+                distance: parseFloat(document.getElementById('distance').value),
+                facesSegment: parseFloat(document.getElementById('facesSegment').value),
+                baseOffset: parseFloat(document.getElementById('baseOffset').value),
+                baseHeight: parseFloat(document.getElementById('baseHeight').value),
+                cutAngle: parseFloat(document.getElementById('cutAngle').value),
+                textRadius: parseFloat(document.getElementById('textRadius').value),
+
+                colText1: document.getElementById('colText1').value,
+                colText2: document.getElementById('colText2').value,
+                colText3: document.getElementById('colText3').value,
+                colEmojiL: document.getElementById('colEmojiL').value,
+                colEmojiR: document.getElementById('colEmojiR').value,
+                colBase: document.getElementById('colBase').value
+            };
+        }
+
+        // 2D 도형(모양)에 영향을 주는 값들만 뽑아 지문을 만든다 — 이 값이 이전과 같으면
+        // buildShapes()를 다시 돌릴 필요 없이 캐시된 2D 도형을 재사용해도 된다는 뜻이다.
+        // 회전체 각도/반지름/세그먼트, 바닥판 높이, 색상은 일부러 뺐다 — 그 값들은 2D 모양
+        // 자체가 아니라 "돌출/압출" 단계에만 영향을 준다(gallery-4의 두께류와 같은 개념).
+        function shapeFingerprint(p) {
+            return JSON.stringify({
+                text1: p.text1, font1File: p.font1File, size1: p.size1, t1ScaleX: p.t1ScaleX, t1Spacing: p.t1Spacing, t1Offset: p.t1Offset,
+                text2: p.text2, font2File: p.font2File, size2: p.size2, t2ScaleX: p.t2ScaleX, t2Spacing: p.t2Spacing, t2Offset: p.t2Offset,
+                text3: p.text3, font3File: p.font3File, size3: p.size3, t3ScaleX: p.t3ScaleX, t3Spacing: p.t3Spacing, t3Offset: p.t3Offset,
+                emojiLeft: p.emojiLeft, leftOffset: p.leftOffset, emojiRight: p.emojiRight, rightOffset: p.rightOffset,
+                distance: p.distance, baseOffset: p.baseOffset
+            });
+        }
+
+        // 색상은 지오메트리(모양)에 전혀 영향을 주지 않으므로, shapeFingerprint에 돌출/압출
+        // 관련 값만 더해서 전체 지오메트리 지문을 만든다 — 이 값이 이전과 같으면 색상만 바뀐
+        // 것이므로 Manifold-3D 재계산 없이 기존 메시의 재질 색만 바꾸고 끝낸다.
+        function geometryFingerprint(p) {
+            return shapeFingerprint(p) + '|' + JSON.stringify({
+                textRadius: p.textRadius, cutAngle: p.cutAngle, facesSegment: p.facesSegment, baseHeight: p.baseHeight
+            });
+        }
+
+        const LAYER_COLOR_KEYS = { text1: 'colText1', text2: 'colText2', text3: 'colText3', emojiL: 'colEmojiL', emojiR: 'colEmojiR', base: 'colBase' };
+
+        function applyColorsOnly(params) {
+            Object.keys(LAYER_COLOR_KEYS).forEach(function (name) {
+                const mesh = currentMeshes[name];
+                if (!mesh) return;
+                mesh.material.color.set(params[LAYER_COLOR_KEYS[name]]);
+            });
+        }
+
+        function updateModel() {
+            if (!manifoldReady || !text1Font || !text2Font || !text3Font || !emojiFont) return;
+
+            const params = readParams();
+
+            [
+                ['valFacesSegment', params.facesSegment], ['valDistance', params.distance],
+                ['valSize1', params.size1], ['valT1ScaleX', params.t1ScaleX], ['valT1Spacing', params.t1Spacing], ['valT1Offset', params.t1Offset],
+                ['valSize2', params.size2], ['valT2ScaleX', params.t2ScaleX], ['valT2Spacing', params.t2Spacing], ['valT2Offset', params.t2Offset],
+                ['valSize3', params.size3], ['valT3ScaleX', params.t3ScaleX], ['valT3Spacing', params.t3Spacing], ['valT3Offset', params.t3Offset],
+                ['valLeftOffset', params.leftOffset], ['valRightOffset', params.rightOffset],
+                ['valBaseOffset', params.baseOffset], ['valBaseHeight', params.baseHeight],
+                ['valCutAngle', params.cutAngle], ['valTextRadius', params.textRadius]
+            ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
+
+            const fingerprint = geometryFingerprint(params);
+            if (currentGroup && fingerprint === lastGeometryFingerprint) {
+                applyColorsOnly(params);
+                return;
+            }
+
+            let meshes;
+            try {
+                meshes = buildPreviewMeshes(params, shapeFingerprint(params));
+            } catch (err) {
+                console.error('이름표 미리보기 생성 실패:', err);
+                meshes = null;
+            }
+
+            disposeCurrentThreeMesh();
+            if (!meshes) return;
+
+            currentGroup = new THREE.Group();
+            currentMeshes = {};
+            meshes.forEach(function (mesh) {
+                currentGroup.add(mesh);
+                currentMeshes[mesh.userData.layerName] = mesh;
+            });
+            scene.add(currentGroup);
+            lastGeometryFingerprint = fingerprint;
+        }
+
+        function downloadSTL() {
+            if (!manifoldReady || !text1Font || !text2Font || !text3Font || !emojiFont) return;
+            const params = readParams();
+
+            let fused;
+            try {
+                fused = buildFusedSolid(params);
+            } catch (err) {
+                console.error('STL 생성 실패:', err);
+                return;
+            }
+            if (!fused) return;
+
+            const buf = ManifoldCore.toBufferGeometry(fused);
+            fused.delete();
+
+            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: params.colBase }));
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            const filename = (params.text1 || params.text2 || params.text3 || 'nameplate') + '_nameplate.stl';
+            ParametricCore.exportSTL(exportGroup, filename);
+
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        }
+
+        window.scheduleUpdate = scheduleUpdate;
+        window.onTextKeydown = onTextKeydown;
+        window.onFont1Change = onFont1Change;
+        window.onFont2Change = onFont2Change;
+        window.onFont3Change = onFont3Change;
+        window.downloadSTL = downloadSTL;
+
+        async function main() {
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            FontCore.loadFont(EMOJI_FONT_FILE, function (font) { emojiFont = font; updateModel(); });
+            onFont1Change();
+            onFont2Change();
+            onFont3Change();
+        }
+        main();
     </script>
 </body>
 </html>

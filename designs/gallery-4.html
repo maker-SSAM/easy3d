@@ -156,6 +156,8 @@
         shell.resetBtn.onclick = function () { resetToDefaults(); };
 
         let currentGroup = null;
+        let currentMeshes = {}; // 층 이름(base/outline/border/text/emojiL/emojiR) -> THREE.Mesh
+        let lastGeometryFingerprint = null; // 색상만 바뀐 건지 판별하는 캐시 키
         let manifoldReady = false;
         let textFont = null;
         let emojiFont = null;
@@ -216,36 +218,24 @@
             onFontChange(); // 폰트를 다시 로드하면서 모델도 재생성
         }
 
-        // 텍스트 한 줄 전체의 글자 윤곽선을 (x=0,y=0 중심 정렬해서) 뽑아낸다 — OpenSCAD
-        // text()의 halign="center", valign="center"에 대응(가로뿐 아니라 세로도 중심 정렬).
-        function buildCenteredContours(text, font, size, spacingMultiplier) {
-            const contours = [];
-            let currentX = 0;
-            Array.from(text).forEach(function (ch) {
-                const glyph = font.charToGlyph(ch);
-                if (!glyph) return;
-                const path = glyph.getPath(currentX, 0, size);
-                FontCore.extractGlyphContours(path.commands || [], 48).forEach(function (c) { contours.push(c); });
-                currentX += (glyph.advanceWidth / font.unitsPerEm * size) * spacingMultiplier;
-            });
-            if (!contours.length) return contours;
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            contours.forEach(function (pts) {
-                pts.forEach(function (p) {
-                    if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
-                    if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
-                });
-            });
-            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-            contours.forEach(function (pts) { pts.forEach(function (p) { p[0] -= cx; p[1] -= cy; }); });
-            return contours;
-        }
+        // 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱은 font-core.js의
+        // FontCore.buildCenteredContours()가 담당한다 (갤러리5와 공유하기 위해 그쪽으로 옮김).
 
         // ---------- 실제 모델링 ----------
-        function buildKeychain(p, track) {
-            // 1. 메인 텍스트 2D 단면 — offset(font_weight)으로 굵기 조절 후 X축으로 늘리기/줄이기.
+        // curveSegments는 호출부(미리보기/내보내기)가 원하는 곡선 해상도를 넘겨준다.
+        const PREVIEW_CURVE_SEGMENTS = 16; // 라이브 조작 중 — 카드가 작아서 이 정도로도 충분히 매끈해 보임
+        const EXPORT_CURVE_SEGMENTS = 48;  // STL 내보낼 때 — 실제 인쇄 품질
+
+        // 텍스트/이모지/바닥판/외곽선/테두리/구멍의 "2D 도형"만 만들어서 돌려준다. 압출(두께)과
+        // Y 위치는 여기 포함되지 않는다 — 바닥판 두께 같은 슬라이더는 이 2D 도형에 전혀 영향을
+        // 주지 않으므로(높이만 바뀔 뿐 모양은 그대로), 그런 경우엔 이 결과를 캐시해서 재사용하고
+        // 압출만 다시 하면 된다(아래 shapeCache/getPreviewShapes 참고).
+        function buildShapes(p, curveSegments) {
+            const scratch = []; // 최종 결과에 안 남는 중간 산출물만 여기 담아 정리한다
+            function track(m) { scratch.push(m); return m; }
+
             let textXS = null;
-            const textContours = buildCenteredContours(p.text, p.textFont, p.fontSize, p.spacing);
+            const textContours = FontCore.buildCenteredContours(p.text, p.textFont, p.fontFile, p.fontSize, p.spacing, curveSegments);
             if (textContours.length) {
                 textXS = track(ManifoldCore.contoursToXS(textContours));
                 if (Math.abs(p.fontWeight) > 0.001) textXS = track(textXS.offset(p.fontWeight));
@@ -257,7 +247,7 @@
 
             function buildEmojiXS(text, scale, mirror, offsetDist, side) {
                 if (!text || !text.length) return null;
-                const contours = buildCenteredContours(text, p.emojiFont, p.fontSize, 1);
+                const contours = FontCore.buildCenteredContours(text, p.emojiFont, EMOJI_FONT_FILE, p.fontSize, 1, curveSegments);
                 if (!contours.length) return null;
                 let xs = track(ManifoldCore.contoursToXS(contours));
                 if (Math.abs(scale - 1) > 0.001) xs = track(xs.scale([scale, scale]));
@@ -286,6 +276,116 @@
 
             if (!masterWithRing) return null; // 텍스트/이모지/키링 모두 없음
 
+            // 2층: 글자 외곽선 (텍스트+이모지만, 키링 링은 제외)
+            const outlineXS = masterXS ? track(masterXS.offset(p.outlineW)) : null;
+
+            // 1층: 바닥판 (텍스트+이모지+키링 링을 넉넉하게 offset)
+            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
+            const baseXS = track(masterWithRing.offset(baseOffsetAmt));
+
+            // 3층: 테두리 링 (바깥 offset - 안쪽 offset)
+            const borderOuterXS = track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW));
+            const borderInnerXS = track(masterWithRing.offset(p.outlineW + p.innerMargin));
+            const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
+
+            let holeXS = null;
+            if (p.keyringOn) {
+                holeXS = track(ManifoldCore.circleXS(p.keyringHoleSize / 2, 48));
+                holeXS = track(holeXS.translate([p.keyringX, p.keyringY]));
+            }
+
+            // 최종적으로 돌려줄 도형들은 scratch(중간 산출물 정리 목록)에서 빼둔다 — 캐시로
+            // 살아남아야 하므로 여기서 지우면 안 된다. 무효화될 때 disposeShapes()가 대신 지운다.
+            const keep = new Set([textXS, emojiLXS, emojiRXS, outlineXS, baseXS, borderRingXS, holeXS].filter(Boolean));
+            scratch.forEach(function (m) { if (m && !keep.has(m) && typeof m.delete === 'function') m.delete(); });
+
+            return { textXS: textXS, emojiLXS: emojiLXS, emojiRXS: emojiRXS, outlineXS: outlineXS, baseXS: baseXS, borderRingXS: borderRingXS, holeXS: holeXS };
+        }
+
+        function disposeShapes(shapes) {
+            if (!shapes) return;
+            ['textXS', 'emojiLXS', 'emojiRXS', 'outlineXS', 'baseXS', 'borderRingXS', 'holeXS'].forEach(function (key) {
+                const xs = shapes[key];
+                if (xs && typeof xs.delete === 'function') xs.delete();
+            });
+        }
+
+        // 라이브 미리보기 전용 2D 도형 캐시. shapeFingerprint(색·두께 제외 지오메트리 값)가
+        // 이전과 같으면 여기 있는 걸 그대로 재사용하고, 다르면 새로 만들어서 갈아끼운다.
+        let shapeCache = null; // { fingerprint, shapes }
+
+        function getPreviewShapes(p, shapeFp) {
+            if (shapeCache && shapeCache.fingerprint === shapeFp) return shapeCache.shapes;
+            if (shapeCache) disposeShapes(shapeCache.shapes);
+            shapeCache = null;
+            let shapes;
+            try {
+                shapes = buildShapes(p, PREVIEW_CURVE_SEGMENTS);
+            } catch (err) {
+                console.error('키링 도형 생성 실패:', err);
+                return null;
+            }
+            if (shapes) shapeCache = { fingerprint: shapeFp, shapes: shapes };
+            return shapes;
+        }
+
+        // 라이브 미리보기용: union 없이 층마다 독립된 THREE.Mesh를 만든다. 2D 도형은 캐시에서
+        // 가져오고(모양이 안 바뀌었으면 재사용), 압출/구멍 절단만 매번 새로 한다. 키링 구멍
+        // 원기둥은 층마다 새로 만들지 않고 한 번만 만들어서 재사용한다.
+        function buildPreviewMeshes(p, shapeFp) {
+            const shapes = getPreviewShapes(p, shapeFp);
+            if (!shapes) return null;
+
+            const layerDefs = [
+                { name: 'base', xs: shapes.baseXS, height: p.baseThick, color: p.colBase, skipY: true },
+                { name: 'outline', xs: shapes.outlineXS, height: p.outlineThick, color: p.colOutline },
+                { name: 'border', xs: shapes.borderRingXS, height: p.borderThick, color: p.colBorder },
+                { name: 'text', xs: shapes.textXS, height: p.textThick, color: p.colText },
+                { name: 'emojiL', xs: shapes.emojiLXS, height: p.textThick, color: p.colEmojiL },
+                { name: 'emojiR', xs: shapes.emojiRXS, height: p.textThick, color: p.colEmojiR }
+            ];
+
+            const owned = []; // 이번 호출에서 새로 압출한 3D 솔리드 — 캐시된 2D shapes와는 별개, 다 쓰면 정리
+            function own(m) { owned.push(m); return m; }
+
+            let holeCylPositioned = null;
+            if (shapes.holeXS) {
+                const holeCyl = own(ManifoldCore.extrudeXS(shapes.holeXS, p.baseThick + p.borderThick + 2));
+                holeCylPositioned = own(ManifoldCore.translateY(holeCyl, -1));
+            }
+
+            const meshes = [];
+            layerDefs.forEach(function (def) {
+                if (!def.xs) return;
+                let solid = own(ManifoldCore.extrudeXS(def.xs, def.height));
+                if (!def.skipY) solid = own(ManifoldCore.translateY(solid, p.baseThick));
+
+                const idToColor = new Map([[solid.originalID(), def.color]]);
+                let finalSolid = solid;
+                let cutResult = null;
+                if (holeCylPositioned) {
+                    idToColor.set(holeCylPositioned.originalID(), def.color); // 구멍 안쪽 벽면도 같은 층 색으로
+                    cutResult = ManifoldCore.subtract(solid, holeCylPositioned);
+                    finalSolid = cutResult;
+                }
+                const mesh = ManifoldCore.toThreeMesh(finalSolid, idToColor, def.color);
+                mesh.castShadow = false;
+                mesh.receiveShadow = false;
+                mesh.userData.layerName = def.name;
+                meshes.push(mesh);
+                if (cutResult) cutResult.delete();
+            });
+
+            owned.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+            return meshes.length ? meshes : null;
+        }
+
+        // STL 내보내기 전용: 부품을 진짜로 하나의 매니폴드로 union하고, 구멍을 전체 높이로
+        // 한 번에 관통시킨다. 미리보기 캐시와는 무관하게 매번 새로(인쇄 품질로) 만든다.
+        function buildFusedSolid(p, track) {
+            const shapes = buildShapes(p, EXPORT_CURVE_SEGMENTS);
+            if (!shapes) return null;
+
             const idToColor = new Map();
             const parts = [];
 
@@ -297,45 +397,34 @@
                 parts.push(positioned);
             }
 
-            // 1층: 바닥판 (텍스트+이모지+키링 링을 넉넉하게 offset)
-            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
-            const baseXS = track(masterWithRing.offset(baseOffsetAmt));
-            const baseSolid = track(ManifoldCore.extrudeXS(baseXS, p.baseThick));
-            idToColor.set(baseSolid.originalID(), p.colBase);
-            parts.push(baseSolid); // 바닥판은 y=0에서 시작하므로 별도 translateY 불필요
+            if (shapes.baseXS) {
+                const baseSolid = track(ManifoldCore.extrudeXS(shapes.baseXS, p.baseThick));
+                idToColor.set(baseSolid.originalID(), p.colBase);
+                parts.push(baseSolid); // y=0에서 시작하므로 별도 translateY 불필요
+            }
+            extrudeAndStack(shapes.outlineXS, p.outlineThick, p.colOutline);
+            extrudeAndStack(shapes.borderRingXS, p.borderThick, p.colBorder);
+            extrudeAndStack(shapes.textXS, p.textThick, p.colText);
+            extrudeAndStack(shapes.emojiLXS, p.textThick, p.colEmojiL);
+            extrudeAndStack(shapes.emojiRXS, p.textThick, p.colEmojiR);
 
-            // 2층: 글자 외곽선 (텍스트+이모지만, 키링 링은 제외)
-            if (masterXS) {
-                const outlineXS = track(masterXS.offset(p.outlineW));
-                extrudeAndStack(outlineXS, p.outlineThick, p.colOutline);
+            let holeCylPositioned = null;
+            if (shapes.holeXS) {
+                const holeCyl = track(ManifoldCore.extrudeXS(shapes.holeXS, p.baseThick + p.borderThick + 2));
+                // 빼내는 도구(원기둥)도 markAsOriginal()로 실제 originalID를 갖고 있어서, 빼고 난
+                // 뒤 구멍 안쪽 벽면(도구 자신의 표면이 그대로 드러난 부분)에 그 ID가 남는다 —
+                // 색을 안 정해주면 기본 회색(fallback)으로 보이므로 바닥판 색과 맞춰둔다.
+                idToColor.set(holeCyl.originalID(), p.colBase);
+                holeCylPositioned = track(ManifoldCore.translateY(holeCyl, -1));
             }
 
-            // 3층: 테두리 링 (바깥 offset - 안쪽 offset)
-            const borderOuterXS = track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW));
-            const borderInnerXS = track(masterWithRing.offset(p.outlineW + p.innerMargin));
-            const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
-            extrudeAndStack(borderRingXS, p.borderThick, p.colBorder);
-
-            // 4층: 텍스트 + 이모지(각각 다른 색)
-            extrudeAndStack(textXS, p.textThick, p.colText);
-            extrudeAndStack(emojiLXS, p.textThick, p.colEmojiL);
-            extrudeAndStack(emojiRXS, p.textThick, p.colEmojiR);
+            disposeShapes(shapes); // 2D 도형은 압출이 다 끝났으니 이제 정리해도 된다(3D 솔리드는 아직 필요)
 
             let fused = parts[0];
             for (let i = 1; i < parts.length; i++) {
                 fused = track(ManifoldCore.union(fused, parts[i]));
             }
-
-            // 최종 절단: 키링 구멍을 전체 높이로 관통시킨다.
-            if (p.keyringOn) {
-                let holeXS = track(ManifoldCore.circleXS(p.keyringHoleSize / 2, 48));
-                holeXS = track(holeXS.translate([p.keyringX, p.keyringY]));
-                const holeCyl = track(ManifoldCore.extrudeXS(holeXS, p.baseThick + p.borderThick + 2));
-                // 빼내는 도구(원기둥)도 markAsOriginal()로 실제 originalID를 갖고 있어서, 빼고 난
-                // 뒤 구멍 안쪽 벽면(도구 자신의 표면이 그대로 드러난 부분)에 그 ID가 남는다 —
-                // 색을 안 정해주면 기본 회색(fallback)으로 보이므로 바닥판 색과 맞춰둔다.
-                idToColor.set(holeCyl.originalID(), p.colBase);
-                const holeCylPositioned = track(ManifoldCore.translateY(holeCyl, -1));
+            if (holeCylPositioned) {
                 fused = track(ManifoldCore.subtract(fused, holeCylPositioned));
             }
 
@@ -351,14 +440,14 @@
                 else if (obj.material) obj.material.dispose();
             });
             currentGroup = null;
+            currentMeshes = {};
         }
 
-        function updateModel() {
-            if (!manifoldReady || !textFont || !emojiFont) return;
-
-            const params = {
+        function readParams() {
+            return {
                 text: document.getElementById('inputText').value || '',
                 textFont: textFont, emojiFont: emojiFont,
+                fontFile: FONT_OPTIONS[document.getElementById('fontSelect').value].file,
                 fontSize: parseFloat(document.getElementById('fontSize').value),
                 fontWeight: parseFloat(document.getElementById('fontWeight').value),
                 spacing: parseFloat(document.getElementById('spacing').value),
@@ -391,6 +480,46 @@
                 colEmojiL: document.getElementById('colEmojiL').value,
                 colEmojiR: document.getElementById('colEmojiR').value
             };
+        }
+
+        // 2D 도형(모양)에 영향을 주는 값들만 뽑아 지문을 만든다 — 이 값이 이전과 같으면
+        // buildShapes()를 다시 돌릴 필요 없이 캐시된 2D 도형을 재사용해도 된다는 뜻이다.
+        // 두께(baseThick 등)와 색상은 일부러 뺐다 — 그 값들은 2D 모양에 전혀 영향을 안 준다.
+        function shapeFingerprint(p) {
+            return JSON.stringify({
+                text: p.text, fontFile: p.fontFile,
+                fontSize: p.fontSize, fontWeight: p.fontWeight, spacing: p.spacing, narrowWiden: p.narrowWiden,
+                emojiL: p.emojiL, emojiLScale: p.emojiLScale, emojiLOffset: p.emojiLOffset, emojiLMirror: p.emojiLMirror,
+                emojiR: p.emojiR, emojiRScale: p.emojiRScale, emojiROffset: p.emojiROffset, emojiRMirror: p.emojiRMirror,
+                outlineW: p.outlineW, borderW: p.borderW, innerMargin: p.innerMargin, outerMargin: p.outerMargin,
+                keyringOn: p.keyringOn, keyringX: p.keyringX, keyringY: p.keyringY, keyringHoleSize: p.keyringHoleSize, keyringRim: p.keyringRim
+            });
+        }
+
+        // 색상은 지오메트리(모양)에 전혀 영향을 주지 않으므로, shapeFingerprint에 두께류만
+        // 더해서 전체 지오메트리 지문을 만든다 — 이 값이 이전과 같으면 색상만 바뀐 것이므로
+        // Manifold-3D 재계산 없이 기존 메시의 재질 색만 바꾸고 끝낸다.
+        function geometryFingerprint(p) {
+            return shapeFingerprint(p) + '|' + JSON.stringify({
+                baseThick: p.baseThick, outlineThick: p.outlineThick, borderThick: p.borderThick, textThick: p.textThick
+            });
+        }
+
+        const LAYER_COLOR_KEYS = { base: 'colBase', outline: 'colOutline', border: 'colBorder', text: 'colText', emojiL: 'colEmojiL', emojiR: 'colEmojiR' };
+
+        function applyColorsOnly(params) {
+            Object.keys(LAYER_COLOR_KEYS).forEach(function (name) {
+                const mesh = currentMeshes[name];
+                if (!mesh) return;
+                const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                mats.forEach(function (m) { m.color.set(params[LAYER_COLOR_KEYS[name]]); });
+            });
+        }
+
+        function updateModel() {
+            if (!manifoldReady || !textFont || !emojiFont) return;
+
+            const params = readParams();
 
             [
                 ['valFontSize', params.fontSize], ['valFontWeight', params.fontWeight],
@@ -405,40 +534,57 @@
                 ['valBorderThick', params.borderThick], ['valTextThick', params.textThick]
             ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
 
+            const fingerprint = geometryFingerprint(params);
+            if (currentGroup && fingerprint === lastGeometryFingerprint) {
+                applyColorsOnly(params);
+                return;
+            }
+
+            const meshes = buildPreviewMeshes(params, shapeFingerprint(params));
+
+            disposeCurrentThreeMesh();
+            if (!meshes) return;
+
+            currentGroup = new THREE.Group();
+            currentMeshes = {};
+            meshes.forEach(function (mesh) {
+                currentGroup.add(mesh);
+                currentMeshes[mesh.userData.layerName] = mesh;
+            });
+            scene.add(currentGroup);
+            lastGeometryFingerprint = fingerprint;
+        }
+
+        function downloadSTL() {
+            if (!manifoldReady || !textFont || !emojiFont) return;
+            const params = readParams();
+
             const scratch = [];
             function track(m) { scratch.push(m); return m; }
 
             let result;
             try {
-                result = buildKeychain(params, track);
+                result = buildFusedSolid(params, track);
             } catch (err) {
-                console.error('키링 생성 실패:', err);
+                console.error('STL 생성 실패:', err);
                 scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
                 return;
             }
-
-            disposeCurrentThreeMesh();
-
             if (!result) {
                 scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
                 return;
             }
 
-            const threeMesh = ManifoldCore.toThreeMesh(result.fused, result.idToColor);
-            threeMesh.castShadow = false;
-            threeMesh.receiveShadow = false;
-
+            const mesh = ManifoldCore.toThreeMesh(result.fused, result.idToColor);
             scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
 
-            currentGroup = new THREE.Group();
-            currentGroup.add(threeMesh);
-            scene.add(currentGroup);
-        }
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            const textValue = params.text || 'keyring';
+            ParametricCore.exportSTL(exportGroup, `${textValue}_keyring.stl`);
 
-        function downloadSTL() {
-            if (!currentGroup) return;
-            const textValue = document.getElementById('inputText').value || 'keyring';
-            ParametricCore.exportSTL(currentGroup, `${textValue}_keyring.stl`);
+            mesh.geometry.dispose();
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
         }
 
         window.scheduleUpdate = scheduleUpdate;

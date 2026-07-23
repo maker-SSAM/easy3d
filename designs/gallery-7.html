@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>갤러리7 - 클리커 뚜껑 만들기 - 초등 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script src="../assets/js/core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: #333; }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <script type="module">
+        // 갤러리7: 클리커 뚜껑 STL을 그대로 불러와 보여주는 화면. 지금은 색만 바꿔볼 수
+        // 있는 뷰어지만, 다음 단계에서 뚜껑 개수 늘리기 + 글씨 새기기가 여기에 추가될
+        // 예정이다 — 몸체(갤러리1)는 "배치"에만 집중하고, 뚜껑은 이 화면에서 "꾸미기"에
+        // 집중하도록 갤러리를 나눴다.
+        const shell = ParametricCore.mountEditorShell(document.body);
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3>클리커 뚜껑 만들기</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">
+                뚜껑을 마우스로 돌려보고 색을 바꿔서 STL로 내려받을 수 있어요.
+            </p>
+            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#ff7043" oninput="updateColors()"></div>
+        `;
+
+        shell.controlsFooterEl.innerHTML = `
+            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
+        `;
+
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        shell.resetBtn.onclick = function () {
+            document.getElementById('colCap').value = '#ff7043';
+            updateColors();
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+        };
+
+        let currentGroup = null;
+        let capMesh = null;
+
+        // 뚜껑 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
+        // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
+        // (Y-up -> Z-up)과 반대 방향으로 한 번 돌려서 불러온다. 그 다음 가로/세로를
+        // 원점(0,0) 중심으로 맞추고, 바닥(y=0)에 닿도록 세운다.
+        function normalizeGeometry(geo) {
+            geo.rotateX(-Math.PI / 2);
+            geo.computeBoundingBox();
+            const box = geo.boundingBox;
+            const cx = (box.min.x + box.max.x) / 2;
+            const cz = (box.min.z + box.max.z) / 2;
+            geo.translate(-cx, -box.min.y, -cz);
+            geo.computeBoundingBox();
+            return geo;
+        }
+
+        function updateColors() {
+            const capColor = document.getElementById('colCap').value;
+            if (capMesh) capMesh.material.color.set(capColor);
+        }
+
+        function buildModel(capGeo) {
+            normalizeGeometry(capGeo);
+
+            capMesh = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.05 }));
+            capMesh.castShadow = true;
+            capMesh.receiveShadow = true;
+            updateColors();
+
+            currentGroup = new THREE.Group();
+            currentGroup.add(capMesh);
+            scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
+        }
+
+        function downloadSTL() {
+            if (!currentGroup) return;
+            ParametricCore.exportSTL(currentGroup, '클리커_뚜껑.stl');
+        }
+
+        window.updateColors = updateColors;
+        window.downloadSTL = downloadSTL;
+
+        const loader = new THREE.STLLoader();
+        loader.load('../assets/models/clicker_cap.stl', function (geo) { buildModel(geo); });
+    </script>
+</body>
+</html>

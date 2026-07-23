@@ -27,12 +27,14 @@ import Module from 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.min.
 window.ManifoldCore = (function () {
     let Manifold = null;
     let CrossSection = null;
+    let MeshCtor = null;
 
     // 페이지 코드가 await 할 수 있는 WASM 초기화 완료 Promise.
     const ready = Module().then(function (wasm) {
         wasm.setup();
         Manifold = wasm.Manifold;
         CrossSection = wasm.CrossSection;
+        MeshCtor = wasm.Mesh;
     });
 
     // ---------- 도형 생성 (three.js와 동일한 Y-up 좌표계로 직접 만든다) ----------
@@ -79,6 +81,27 @@ window.ManifoldCore = (function () {
 
     function translateY(manifold, y) {
         return manifold.translate([0, y, 0]);
+    }
+
+    function translate(manifold, x, y, z) {
+        return manifold.translate([x, y, z]);
+    }
+
+    // three.js BufferGeometry(예: STLLoader가 읽어들인 원본 삼각형 데이터)를 Manifold로
+    // 변환한다. STL은 삼각형마다 정점을 따로 갖는 "삼각형 수프"라, 이웃한 면끼리 같은
+    // 위치의 정점이라도 서로 다른 인덱스를 쓴다 — Manifold는 완전히 닫힌(watertight)
+    // 2-매니폴드를 요구하므로, Mesh.merge()로 같은 위치의 정점들을 자동 용접해 이어붙인
+    // 뒤에야 Manifold로 만들 수 있다(갤러리1의 "몸체를 여러 개 배치해 하나로 합치기"
+    // 기능에서, 고정 STL 부품을 union의 입력으로 쓰기 위해 필요).
+    function fromGeometry(geometry) {
+        const geo = geometry.index ? geometry.toNonIndexed() : geometry;
+        const posAttr = geo.attributes.position;
+        const vertProperties = Float32Array.from(posAttr.array);
+        const triVerts = new Uint32Array(posAttr.count);
+        for (let i = 0; i < triVerts.length; i++) triVerts[i] = i;
+        const meshObj = new MeshCtor({ numProp: 3, vertProperties: vertProperties, triVerts: triVerts });
+        meshObj.merge();
+        return Manifold.ofMesh(meshObj);
     }
 
     // font-core.js의 윤곽선으로 2D 단면(CrossSection)만 만들고 압출하지 않는다. extrudeContours와
@@ -333,6 +356,8 @@ window.ManifoldCore = (function () {
         contoursToXS: contoursToXS,
         extrudeXS: extrudeXS,
         translateY: translateY,
+        translate: translate,
+        fromGeometry: fromGeometry,
         union: union,
         subtract: subtract,
         intersect: intersect,

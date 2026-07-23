@@ -39,15 +39,15 @@
         // 텍스트나 여러 파츠가 없는 단일 색상 단일 솔리드 디자인이라, 갤러리4/5의
         // "레이어 분리 + 모양/두께 캐시 분리" 같은 최적화 장치는 필요 없다 — 슬라이더가
         // 바뀔 때마다 프로파일을 다시 계산해서 한 번에 revolve하면 충분히 가볍다. 세로/가로
-        // 분할 수(slices/circleSegments, 원본의 $fn)는 갤러리2/3/5의 면(facet) 개수 슬라이더와
-        // 같은 방침으로 사용자가 직접 조절하는 디자인 파라미터로 노출한다(미리보기/내보내기
-        // 해상도를 자동으로 낮추지 않음).
+        // 분할 수(slices/circleSegments, 원본의 $fn)는 순수 품질/성능 트레이드오프라 갤러리2의
+        // 면(facet) 개수 슬라이더(그 자체가 디자인 요소)와는 다르게 취급한다 — 사용자에게
+        // 슬라이더로 노출하지 않고, 미리보기는 낮은 해상도로 빠르게, STL 다운로드할 때만
+        // 인쇄 품질로 다시 계산한다(갤러리4/5/7/8과 동일한 방침).
         const shell = ParametricCore.mountEditorShell(document.body);
 
         const DEFAULTS = {
             height: 100, radius: 25, wallThickness: 2, baseThickness: 2.4,
             scaleTop: 0.7, waves: 1, waveAmplitude: 8, waveStartAngle: 0,
-            slices: 100, circleSegments: 180,
             col: '#4fc3f7'
         };
 
@@ -67,11 +67,7 @@
             <div class="control-group"><label>물결 진폭: <span id="valWaveAmplitude">8</span>mm</label><input type="range" id="waveAmplitude" min="0" max="25" step="0.1" value="8" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>물결 시작 각도: <span id="valWaveStartAngle">0</span>°</label><input type="range" id="waveStartAngle" min="0" max="360" step="1" value="0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">3. 해상도</div>
-            <div class="control-group"><label>세로 분할 수: <span id="valSlices">100</span></label><input type="range" id="slices" min="4" max="300" step="1" value="100" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>가로 분할 수(원 둘레): <span id="valCircleSegments">180</span></label><input type="range" id="circleSegments" min="3" max="180" step="1" value="180" oninput="scheduleUpdate()"></div>
-
-            <div class="section-label">4. 색상</div>
+            <div class="section-label">3. 색상</div>
             <div class="color-row"><span>꽃병</span><input type="color" id="col" value="#4fc3f7" oninput="scheduleUpdate()"></div>
         `;
 
@@ -108,31 +104,38 @@
             document.getElementById('waves').value = DEFAULTS.waves;
             document.getElementById('waveAmplitude').value = DEFAULTS.waveAmplitude;
             document.getElementById('waveStartAngle').value = DEFAULTS.waveStartAngle;
-            document.getElementById('slices').value = DEFAULTS.slices;
-            document.getElementById('circleSegments').value = DEFAULTS.circleSegments;
             document.getElementById('col').value = DEFAULTS.col;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
             updateModel();
         }
 
         // ---------- 실제 모델링 ----------
+        // 세로/가로 분할 수(slices/circleSegments)는 순수 품질/성능 트레이드오프라 슬라이더로
+        // 노출하지 않는다 — 미리보기는 낮게 고정해 속도를 확보하고, 다운로드할 때만 잠깐
+        // 인쇄 품질로 다시 계산한다(갤러리4/5/7/8과 동일한 방침). EXPORT 값은 원래 이 갤러리가
+        // 쓰던 기본값(slices=100, circleSegments=180) 그대로라 인쇄 품질은 이전과 동일하다.
+        const PREVIEW_SLICES = 30;
+        const EXPORT_SLICES = 100;
+        const PREVIEW_CIRCLE_SEGMENTS = 48;
+        const EXPORT_CIRCLE_SEGMENTS = 180;
+
         // 원본 draw_profile()의 point 생성 로직을 그대로 옮긴 것 — i=0..slices는 안쪽 벽(아래→위),
         // i=slices+1..slices*2+1은 바깥쪽 벽(위→아래)을 그려서 벽 두께만큼의 리본 모양 폐곡선을
         // 만든다. offset()이 테이퍼(선형)+사인파를 더해 물결치는 반지름을 만든다.
-        function buildProfileContours(p) {
-            const slicesPerMm = p.slices / p.height;
+        function buildProfileContours(p, slices) {
+            const slicesPerMm = slices / p.height;
             const offsetPerMm = (p.scaleTop - 1) * p.radius / p.height;
 
             function offsetAt(y) {
                 const wavePhaseDeg = (y / p.height) * (360 * p.waves) + p.waveStartAngle;
                 return y * offsetPerMm + Math.sin(wavePhaseDeg * Math.PI / 180) * p.waveAmplitude;
             }
-            function xAt(i) { return i > p.slices ? p.wallThickness : 0; }
-            function yAt(i) { return i > p.slices ? p.height - ((i - p.slices - 1) / slicesPerMm) : i / slicesPerMm; }
+            function xAt(i) { return i > slices ? p.wallThickness : 0; }
+            function yAt(i) { return i > slices ? p.height - ((i - slices - 1) / slicesPerMm) : i / slicesPerMm; }
 
             const shiftX = p.radius - p.wallThickness; // 원본의 translate([radius-wall_thickness,0,0])
             const wallPoints = [];
-            for (let i = 0; i <= p.slices * 2 + 1; i++) {
+            for (let i = 0; i <= slices * 2 + 1; i++) {
                 const y = yAt(i);
                 const x = xAt(i) + offsetAt(y);
                 wallPoints.push([x + shiftX, y]);
@@ -149,11 +152,11 @@
 
         // 여러 폐곡선을 한 CrossSection에 함께 넣으면(NonZero 규칙) 자동으로 합쳐진다 — 글자
         // 윤곽선(자모별 여러 하위경로)을 다룰 때와 동일한 방식이라 별도 union 호출이 필요 없다.
-        function buildVaseSolid(p) {
-            const contours = buildProfileContours(p);
+        function buildVaseSolid(p, slices, circleSegments) {
+            const contours = buildProfileContours(p, slices);
             const xs = ManifoldCore.contoursToXS(contours);
             if (!xs) return null;
-            const revolved = ManifoldCore.revolveXS(xs, p.circleSegments, 360);
+            const revolved = ManifoldCore.revolveXS(xs, circleSegments, 360);
             xs.delete();
             const yUp = ManifoldCore.toYUp(revolved);
             revolved.delete();
@@ -190,8 +193,6 @@
                 waves: parseFloat(document.getElementById('waves').value),
                 waveAmplitude: parseFloat(document.getElementById('waveAmplitude').value),
                 waveStartAngle: parseFloat(document.getElementById('waveStartAngle').value),
-                slices: parseInt(document.getElementById('slices').value, 10),
-                circleSegments: parseInt(document.getElementById('circleSegments').value, 10),
                 col: document.getElementById('col').value
             };
         }
@@ -202,13 +203,12 @@
 
             [
                 ['valHeight', p.height], ['valRadius', p.radius], ['valWallThickness', p.wallThickness], ['valBaseThickness', p.baseThickness],
-                ['valScaleTop', p.scaleTop], ['valWaves', p.waves], ['valWaveAmplitude', p.waveAmplitude], ['valWaveStartAngle', p.waveStartAngle],
-                ['valSlices', p.slices], ['valCircleSegments', p.circleSegments]
+                ['valScaleTop', p.scaleTop], ['valWaves', p.waves], ['valWaveAmplitude', p.waveAmplitude], ['valWaveStartAngle', p.waveStartAngle]
             ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
 
             let solid;
             try {
-                solid = buildVaseSolid(p);
+                solid = buildVaseSolid(p, PREVIEW_SLICES, PREVIEW_CIRCLE_SEGMENTS);
             } catch (err) {
                 console.error('꽃병 생성 실패:', err);
                 solid = null;
@@ -229,7 +229,7 @@
 
             let solid;
             try {
-                solid = buildVaseSolid(p);
+                solid = buildVaseSolid(p, EXPORT_SLICES, EXPORT_CIRCLE_SEGMENTS);
             } catch (err) {
                 console.error('STL 생성 실패:', err);
                 return;

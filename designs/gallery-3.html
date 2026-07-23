@@ -52,11 +52,40 @@
         // 마스크로 단순화했다(끝부분이 부드럽게 사라지는 대신 살짝 딱 끊기는 정도의 차이).
         const shell = ParametricCore.mountEditorShell(document.body);
 
-        // ---- 성능을 위한 해상도 상수 (원본 $fn=96보다 낮춰서 실시간 슬라이더 조작이 버벅이지 않게 함) ----
-        const BODY_SEGMENTS = 48;
-        const THREAD_CIRCLE_SEGMENTS = 20;
-        const KNURL_CIRCLE_SEGMENTS = 10;
-        const MAX_KNURL_N = 60;
+        // ---- 해상도 상수 (원본 $fn=96보다 낮춤) — 미리보기/내보내기 자동 분리(갤러리4~8과
+        // 동일한 방침). 나사산/그립 무늬는 꼬임 압출을 여러 번 계산해야 해서 이 갤러리들 중
+        // 가장 무겁다 — 예전엔 항상 이 상수들(=원래 export 값)로 계산해서 슬라이더를 움직일
+        // 때마다 매번 무거운 계산을 했었다. 지금은 setQuality()가 슬라이더 조작 중엔 'preview'로
+        // 낮췄다가, STL 다운로드 직전에만 'export'(=원래 값 그대로, 인쇄 품질 변화 없음)로
+        // 바꿔서 다시 계산한다. let으로 선언해서 buildContainer/cscrew/knurlGroove가 클로저로
+        // 참조하는 값이 setQuality() 호출 시점마다 바뀌게 한다.
+        let BODY_SEGMENTS, THREAD_CIRCLE_SEGMENTS, KNURL_CIRCLE_SEGMENTS, MAX_KNURL_N;
+        let THREAD_TWIST_DIVISOR, THREAD_TWIST_MAX_NDIV, KNURL_TWIST_DIVISOR, KNURL_TWIST_MAX_NDIV;
+
+        const QUALITY_PRESETS = {
+            preview: {
+                bodySegments: 32, threadCircleSegments: 12, knurlCircleSegments: 6, maxKnurlN: 36,
+                threadTwistDivisor: 34, threadTwistMaxNDiv: 60, knurlTwistDivisor: 26, knurlTwistMaxNDiv: 70
+            },
+            // export 값은 원래 이 갤러리가 항상 쓰던 값 그대로라, 다운로드되는 STL의 인쇄
+            // 품질은 이전과 완전히 동일하다.
+            export: {
+                bodySegments: 48, threadCircleSegments: 20, knurlCircleSegments: 10, maxKnurlN: 60,
+                threadTwistDivisor: 20, threadTwistMaxNDiv: 120, knurlTwistDivisor: 15, knurlTwistMaxNDiv: 150
+            }
+        };
+
+        function setQuality(mode) {
+            const q = QUALITY_PRESETS[mode];
+            BODY_SEGMENTS = q.bodySegments;
+            THREAD_CIRCLE_SEGMENTS = q.threadCircleSegments;
+            KNURL_CIRCLE_SEGMENTS = q.knurlCircleSegments;
+            MAX_KNURL_N = q.maxKnurlN;
+            THREAD_TWIST_DIVISOR = q.threadTwistDivisor;
+            THREAD_TWIST_MAX_NDIV = q.threadTwistMaxNDiv;
+            KNURL_TWIST_DIVISOR = q.knurlTwistDivisor;
+            KNURL_TWIST_MAX_NDIV = q.knurlTwistMaxNDiv;
+        }
 
         // ---- 원본 기본값 그대로 고정한 값 (슬라이더로 노출하지 않음) ----
         const BOTTOMTOP = 1;      // 바닥/뚜껑 벽 두께
@@ -189,7 +218,7 @@
                     const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS));
                     const circleShifted = track(circle.translate([0.5, 0]));
                     const twistDeg = -144 * hh;
-                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / 20), 6, 120);
+                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / THREAD_TWIST_DIVISOR), 6, THREAD_TWIST_MAX_NDIV);
                     const ridge = track(ManifoldCore.extrudeTwist(circleShifted, hh, nDiv, twistDeg, [1, 1]));
                     const threadPart = track(ManifoldCore.intersect(maskCone, ridge));
                     solid = track(ManifoldCore.union(solid, threadPart));
@@ -219,7 +248,7 @@
                         ring = ring ? track(ring.add(rotated)) : rotated;
                     }
                     const twistDeg = dirSign * totalHeight * Math.tan(angleRad) / (2 * Math.PI * R) * 360;
-                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / 15), 6, 150);
+                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / KNURL_TWIST_DIVISOR), 6, KNURL_TWIST_MAX_NDIV);
                     return track(ManifoldCore.extrudeTwist(ring, totalHeight, nDiv, twistDeg, [1, 1]));
                 }
 
@@ -294,10 +323,8 @@
             if (currentLidGeo) { currentLidGeo.dispose(); currentLidGeo = null; }
         }
 
-        function updateModel() {
-            if (!manifoldReady) return;
-
-            const params = {
+        function readParams() {
+            return {
                 diameter: parseFloat(document.getElementById('diameter').value),
                 height: parseFloat(document.getElementById('height').value),
                 head: parseFloat(document.getElementById('head').value),
@@ -307,9 +334,13 @@
                 angle: parseFloat(document.getElementById('angle').value),
                 distPct: parseFloat(document.getElementById('distPct').value)
             };
-            const colBody = document.getElementById('colBody').value;
-            const colLid = document.getElementById('colLid').value;
+        }
 
+        // buildContainer() 결과(Manifold 솔리드)를 three.js 지오메트리로 바꾸고, 뚜껑을
+        // "뒤집어서 몸체 옆 바닥에 놓인" 최종 출력 배치까지 만들어둔다. updateModel(미리보기)과
+        // downloadSTL(내보내기)이 이 함수를 각자 다른 해상도(setQuality)로 호출해서 공유한다 —
+        // 실패하면 예외를 그대로 던지므로 호출부에서 각자 에러 메시지를 남기고 처리한다.
+        function buildGeometries(params) {
             const scratch = [];
             function track(m) { scratch.push(m); return m; }
 
@@ -317,9 +348,8 @@
             try {
                 result = buildContainer(params, track);
             } catch (err) {
-                console.error('보관통 생성 실패:', err);
                 scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
-                return;
+                throw err;
             }
 
             const bodyYUp = ManifoldCore.toYUp(result.bodySolid);
@@ -332,21 +362,39 @@
             bodyYUp.delete();
             lidYUp.delete();
 
-            disposeCurrentThreeMesh();
-
-            currentBodyGeo = bodyBuf.geo; // 바닥(모따기 없는 쪽)이 y=0에 오는 원래 위치 그대로 둔다.
-            currentD = result.D;
+            const bodyGeo = bodyBuf.geo; // 바닥(모따기 없는 쪽)이 y=0에 오는 원래 위치 그대로 둔다.
 
             // 뚜껑은 미리보기에서도 최종 STL 출력과 똑같이 "뒤집어서 몸체 옆 바닥에 놓인" 모습으로
             // 보여준다 — 뒤집는 이유는 원본의 for_printing 레이아웃과 동일하게, 열리는 面이 위를
-            // 보게 해야 서포트 없이 그대로 출력할 수 있기 때문이다. 이 지오메트리를 미리보기와
-            // STL 내보내기(downloadSTL)가 그대로 공유한다.
+            // 보게 해야 서포트 없이 그대로 출력할 수 있기 때문이다.
             const lidGeo = lidBuf.geo;
             lidGeo.rotateX(Math.PI);
             lidGeo.computeBoundingBox();
             const minY = lidGeo.boundingBox.min.y;
             lidGeo.translate(result.D + 15, -minY, 0);
-            currentLidGeo = lidGeo;
+
+            return { bodyGeo: bodyGeo, lidGeo: lidGeo, D: result.D };
+        }
+
+        function updateModel() {
+            if (!manifoldReady) return;
+            const params = readParams();
+            const colBody = document.getElementById('colBody').value;
+            const colLid = document.getElementById('colLid').value;
+
+            setQuality('preview');
+            let g;
+            try {
+                g = buildGeometries(params);
+            } catch (err) {
+                console.error('보관통 생성 실패:', err);
+                return;
+            }
+
+            disposeCurrentThreeMesh();
+            currentBodyGeo = g.bodyGeo;
+            currentLidGeo = g.lidGeo;
+            currentD = g.D;
 
             const bodyMesh = new THREE.Mesh(currentBodyGeo, new THREE.MeshStandardMaterial({
                 color: colBody, metalness: 0.15, roughness: 0.4, envMapIntensity: 0.55
@@ -363,12 +411,33 @@
             ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
-        // 미리보기가 이미 "몸체 + 바닥에 뒤집어 놓인 뚜껑"(최종 출력용 배치) 그대로이므로,
-        // 화면에 보이는 currentGroup을 그대로 내보내면 된다 — exportSTL이 내부적으로 각 메시의
-        // 지오메트리를 복제해서 Z-up으로 바꾸므로 화면 표시용 원본은 건드리지 않는다.
+        // 미리보기와 달리, 다운로드할 때는 setQuality('export')로 나사산/그립 무늬를 인쇄
+        // 품질로 다시 계산한다 — 슬라이더를 움직이는 동안엔 이 무거운 계산을 피하기 위함
+        // (갤러리4~8과 동일한 방침). 화면에 보이는 미리보기(currentGroup)는 건드리지 않는다.
         function downloadSTL() {
-            if (!currentGroup) return;
-            ParametricCore.exportSTL(currentGroup, `보관통_${Math.round(currentD)}mm.stl`);
+            if (!manifoldReady) return;
+            const params = readParams();
+
+            setQuality('export');
+            let g;
+            try {
+                g = buildGeometries(params);
+            } catch (err) {
+                console.error('STL 생성 실패:', err);
+                return;
+            }
+
+            const bodyMesh = new THREE.Mesh(g.bodyGeo, new THREE.MeshBasicMaterial());
+            const lidMesh = new THREE.Mesh(g.lidGeo, new THREE.MeshBasicMaterial());
+            const exportGroup = new THREE.Group();
+            exportGroup.add(bodyMesh);
+            exportGroup.add(lidMesh);
+            ParametricCore.exportSTL(exportGroup, `보관통_${Math.round(g.D)}mm.stl`);
+
+            g.bodyGeo.dispose();
+            g.lidGeo.dispose();
+            bodyMesh.material.dispose();
+            lidMesh.material.dispose();
         }
 
         window.scheduleUpdate = scheduleUpdate;

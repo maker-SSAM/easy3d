@@ -149,6 +149,12 @@ window.ManifoldCore = (function () {
         return a.intersect(b);
     }
 
+    // 여러 Manifold의 볼록 껍질(convex hull)을 한 번에 계산한다. OpenSCAD의 hull()에 대응
+    // (갤러리8 꽃병처럼 서로 다른 높이/모양의 두 조각을 매끄러운 곡면으로 이어붙일 때 쓴다).
+    function hullOf(manifolds) {
+        return Manifold.hull(manifolds);
+    }
+
     // ---------- 고급 원본(raw) API — 갤러리3(나사 뚜껑 통) 같이 회전 압출/꼬임 압출을 여러 번
     // 조합해야 하는 디자인용. cuboid/cylinder/extrudeContours와 달리 originalID를 부여하지
     // 않고, Manifold의 기본 좌표계(Z축이 "위") 그대로 반환한다 — 여러 조각을 OpenSCAD 원본
@@ -174,8 +180,15 @@ window.ManifoldCore = (function () {
     // 2D 단면을 비틀며(twist) Z축 방향으로 압출한다. OpenSCAD의
     // linear_extrude(height, twist=twistDegrees, slices=nDivisions)에 대응 — 나사산(cscrew)과
     // 널링(knurl) 홈이 둘 다 이 방식(편심 원을 꼬아서 압출)으로 만들어진다.
+    // scaleTop: manifold-3d의 .d.ts는 Vec2([x,y] 배열)와 number(균일 배율) 둘 다 받는다고
+    // 돼 있지만, 실제로 겪은 문제 — 숫자 하나만 그대로 넘기면 X/Y가 비대칭으로 깨져서
+    // (갤러리8 꽃병에서 발견: 위로 갈수록 넓어져야 할 다각형이 한쪽 축만 거의 안 늘어나
+    // 뾰족한 원뿔처럼 나왔다) 항상 [x,y] 배열로 정규화해서 넘긴다.
     function extrudeTwist(cross, height, nDivisions, twistDegrees, scaleTop) {
-        return cross.extrude(height, nDivisions || 0, twistDegrees || 0, scaleTop || [1, 1], false);
+        let scale = scaleTop;
+        if (scale === undefined || scale === null) scale = [1, 1];
+        else if (typeof scale === 'number') scale = [scale, scale];
+        return cross.extrude(height, nDivisions || 0, twistDegrees || 0, scale, false);
     }
 
     // Z축 둘레로 deg만큼 회전.
@@ -361,6 +374,7 @@ window.ManifoldCore = (function () {
         union: union,
         subtract: subtract,
         intersect: intersect,
+        hullOf: hullOf,
         rawCylinder: rawCylinder,
         circleXS: circleXS,
         revolveXS: revolveXS,

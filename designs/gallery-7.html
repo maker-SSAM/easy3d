@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리7 - 클리커 뚜껑 만들기 - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리7 - 클리커 뚜껑 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -10,28 +10,100 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     <script src="../assets/js/core.js"></script>
+    <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
+    <script src="../assets/js/font-core.js"></script>
+    <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
+         쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도
+         type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: #333; }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .cap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 168px; margin-bottom: 8px; }
+        .cap-grid input {
+            aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
+            border: 2px solid #ccc; border-radius: 4px; text-align: center; font-size: 0.85em;
+        }
+        .cap-grid input.filled { background: #fff3ee; border-color: #ff7043; }
     </style>
 </head>
 <body>
 
     <script type="module">
-        // 갤러리7: 클리커 뚜껑 STL을 그대로 불러와 보여주는 화면. 지금은 색만 바꿔볼 수
-        // 있는 뷰어지만, 다음 단계에서 뚜껑 개수 늘리기 + 글씨 새기기가 여기에 추가될
-        // 예정이다 — 몸체(갤러리1)는 "배치"에만 집중하고, 뚜껑은 이 화면에서 "꾸미기"에
-        // 집중하도록 갤러리를 나눴다.
+        // 갤러리7: 클리커 뚜껑을 4x4 격자 위에 배치한다. 갤러리1(몸체)과 같은 칸 간격
+        // (GRID_PITCH)을 써서 몸체 칸과 같은 자리에 놓이게 맞추되, 뚜껑은 몸체와 달리
+        // 낱개로 뗐다 붙이는 부품이라 서로 겹치거나 붙으면 안 된다 — 그래서 갤러리1처럼
+        // union으로 합치지 않고, 칸마다 독립된 솔리드로 남겨둔다.
+        //
+        // 배치 방식도 몸체와 다르다: 켜고 끄는 버튼이 아니라 칸마다 직접 글씨를 입력하는
+        // 칸으로 만들었다 — 칸이 비어있으면 그 자리에 뚜껑이 없고, 글씨를 넣으면 그 자리에
+        // 글씨가 새겨진 뚜껑이 생긴다. 글씨체/크기/굵기/돌출 높이/색은 모든 뚜껑에 공통으로
+        // 적용되는 설정이고, 칸마다 다른 건 글씨 내용뿐이다.
+        //
+        // 뚜껑은 속이 빈 얇은 쉘 구조다(레이캐스팅으로 실측: 윗면 중앙 두께 약 1.5mm).
+        // 그래서 글자를 뚜껑 속으로 너무 깊이 파묻으면(예전 버전의 EMBED_DEPTH=3mm) 쉘을
+        // 뚫고 안쪽 빈 공간까지 튀어나와, 뚜껑을 뒤집어 보면 글자가 밑면으로도 삐져나온
+        // 것처럼 보이는 문제가 있었다 — 실제로 겪은 문제. 윗면 자체는 평평하므로, 아주
+        // 얇게만(EMBED_DEPTH) 겹쳐서 이음매를 확실히 하고 나머지는 전부 표면 위로
+        // 도드라지게(PROTRUDE_HEIGHT, 사용자가 슬라이더로 조절) 압출한다.
         const shell = ParametricCore.mountEditorShell(document.body);
+
+        const FONT_OPTIONS = [
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
+        ];
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
+
+        // ---------- 격자 ----------
+        const GRID_SIZE = 4;
+        // 갤러리1(몸체)과 정확히 같은 값 — 몸체 칸과 같은 자리에 뚜껑이 오도록 맞춘다.
+        // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
+        // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
+        const GRID_PITCH = 23.5; // mm
+        const DEFAULT_GRID_INDEX = 5; // 4x4 중 (row1,col1) 한 칸만 기본으로 채워둔다
+
+        // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
+        const DEFAULTS = {
+            fontIndex: DEFAULT_FONT_INDEX,
+            fontSize: 14, fontWeight: 0, protrudeHeight: 0.6,
+            colCap: '#ff7043', colText: '#ffffff'
+        };
+        function defaultCapText(idx) { return idx === DEFAULT_GRID_INDEX ? '백' : ''; }
 
         shell.controlsBodyEl.innerHTML = `
             <h3>클리커 뚜껑 만들기</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">
-                뚜껑을 마우스로 돌려보고 색을 바꿔서 STL로 내려받을 수 있어요.
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 16px;">
+                아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
+                뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#ff7043" oninput="updateColors()"></div>
+            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">뚜껑 배치 및 글씨 (4×4)</label>
+            <div id="capGrid" class="cap-grid"></div>
+            <p style="font-size: 0.8em; color: #999; margin: 0 0 20px;">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
+
+            <div class="control-group">
+                <label>글씨체 선택</label>
+                <select id="fontSelect" onchange="onFontChange()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="control-group"><label>텍스트 크기: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>텍스트 돌출 높이: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+
+            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#ff7043" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>글자 색</span><input type="color" id="colText" value="#ffffff" oninput="scheduleUpdate()"></div>
         `;
 
         shell.controlsFooterEl.innerHTML = `
@@ -47,14 +119,45 @@
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
         ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
-        shell.resetBtn.onclick = function () {
-            document.getElementById('colCap').value = '#ff7043';
-            updateColors();
+
+        function capInputs() { return document.querySelectorAll('#capGrid input'); }
+
+        function buildGridUI() {
+            const container = document.getElementById('capGrid');
+            container.innerHTML = '';
+            for (let idx = 0; idx < GRID_SIZE * GRID_SIZE; idx++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = defaultCapText(idx);
+                if (input.value) input.classList.add('filled');
+                input.onkeydown = function (event) { if (event.key === 'Enter') scheduleUpdate(); };
+                input.onblur = function () {
+                    input.classList.toggle('filled', input.value.trim().length > 0);
+                    scheduleUpdate();
+                };
+                container.appendChild(input);
+            }
+        }
+        buildGridUI();
+
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
+
+        function resetToDefaults() {
+            buildGridUI();
+            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
+            document.getElementById('fontSize').value = DEFAULTS.fontSize;
+            document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
+            document.getElementById('protrudeHeight').value = DEFAULTS.protrudeHeight;
+            document.getElementById('colCap').value = DEFAULTS.colCap;
+            document.getElementById('colText').value = DEFAULTS.colText;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-        };
+            onFontChange(); // 폰트를 다시 로드하면서 위 값들을 반영해 모델도 재생성한다
+        }
 
         let currentGroup = null;
-        let capMesh = null;
+        let manifoldReady = false;
+        let updateTimer = null;
+        let textFont = null;
 
         // 뚜껑 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
         // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
@@ -71,35 +174,177 @@
             return geo;
         }
 
-        function updateColors() {
-            const capColor = document.getElementById('colCap').value;
-            if (capMesh) capMesh.material.color.set(capColor);
+        function scheduleUpdate() {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 100);
         }
 
-        function buildModel(capGeo) {
-            normalizeGeometry(capGeo);
+        function onFontChange() {
+            const idx = document.getElementById('fontSelect').value;
+            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) {
+                textFont = font;
+                updateModel();
+            });
+        }
 
-            capMesh = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.05 }));
-            capMesh.castShadow = true;
-            capMesh.receiveShadow = true;
-            updateColors();
+        let capGeoNormalized = null; // 원본 뚜껑 STL(정규화 완료)
+        let capTemplate = null; // 뚜껑을 Manifold로 변환해둔 것(부품 색 구분용 originalID 부여) — 매번 다시 만들지 않고 재사용
+        let capTopY = 0; // 뚜껑 윗면의 y 높이 — 글자를 그 위에 얹을 기준
 
+        // 글자가 뚜껑의 윗면 어디에 놓이든 확실히 이어붙도록, 글자 아랫부분을 뚜껑
+        // 속으로 조금 파묻고(EMBED_DEPTH) 그보다 더 위로 도드라지게(PROTRUDE_HEIGHT) 만든다.
+        // 윗면이 평평해서 이 정도만 겹쳐도 충분하다 — 실측한 윗면 쉘 두께(1.5mm)보다
+        // 확실히 얕게 잡아서, 아무리 깊이 겹쳐도 뚜껑 속 빈 공간까지 뚫고 들어가지 않는다.
+        const EMBED_DEPTH = 0.4; // mm, 뚜껑 속으로 겹쳐 넣는 깊이(이음매 보강용, 조절 불가)
+        const PREVIEW_CURVE_SEGMENTS = 24;
+        const EXPORT_CURVE_SEGMENTS = 48;
+
+        function buildTextSolid(text, fontSize, fontWeight, protrudeHeight, fontFile, curveSegments) {
+            if (!textFont || !text.trim()) return null;
+            const contours = FontCore.buildCenteredContours(text, textFont, fontFile, fontSize, 1.0, curveSegments);
+            if (!contours.length) return null;
+
+            let xs = ManifoldCore.contoursToXS(contours);
+            if (Math.abs(fontWeight) > 0.001) {
+                const widened = xs.offset(fontWeight);
+                xs.delete();
+                xs = widened;
+            }
+            const raised = ManifoldCore.extrudeXS(xs, EMBED_DEPTH + protrudeHeight);
+            xs.delete();
+            // originalID()는 translate/rotate로 만든 새 Manifold 객체에서는 다시 -1을
+            // 돌려준다(실제로 겪은 문제 — 겉보기엔 위치만 옮긴 것 같아도, ID 조회는
+            // 변형 전 객체에서 미리 해둬야 한다). 그래서 이동시키기 전에 먼저 읽어둔다.
+            const id = raised.originalID();
+            const positioned = ManifoldCore.translateY(raised, capTopY - EMBED_DEPTH);
+            raised.delete();
+            return { solid: positioned, id: id };
+        }
+
+        // 글씨가 채워진 칸 하나에 대해 "뚜껑+글자"를 합친 THREE.Mesh 하나를 만든다.
+        // 격자 위치(x,z)로 지오메트리 자체를 옮겨둔다 — exportSTL()이 mesh.position이 아니라
+        // geometry만 보고 내보내기 때문에, 반드시 geometry.translate()로 위치를 새겨둬야 한다.
+        function buildOneCap(text, x, z, params, curveSegments) {
+            const idToColor = new Map([[capTemplate.originalID(), params.capColor]]);
+            let textResult;
+            try {
+                textResult = buildTextSolid(text, params.fontSize, params.fontWeight, params.protrudeHeight, params.fontFile, curveSegments);
+            } catch (err) {
+                console.error('글자 새기기 실패:', err);
+                textResult = null;
+            }
+
+            let fused = capTemplate;
+            if (textResult) {
+                idToColor.set(textResult.id, params.textColor);
+                fused = ManifoldCore.union(capTemplate, textResult.solid);
+            }
+
+            const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.capColor, { roughness: 0.4, metalness: 0.05, envMapIntensity: 0.55 });
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.geometry.translate(x, 0, z);
+
+            if (textResult) {
+                textResult.solid.delete();
+                fused.delete();
+            }
+            return mesh;
+        }
+
+        function readGlobalParams() {
+            return {
+                fontSize: parseFloat(document.getElementById('fontSize').value),
+                fontWeight: parseFloat(document.getElementById('fontWeight').value),
+                protrudeHeight: parseFloat(document.getElementById('protrudeHeight').value),
+                fontFile: FONT_OPTIONS[document.getElementById('fontSelect').value].file,
+                capColor: document.getElementById('colCap').value,
+                textColor: document.getElementById('colText').value
+            };
+        }
+
+        // 글씨가 채워진 칸마다 뚜껑을 하나씩 만들어 격자 위치에 놓는다. 몸체(갤러리1)와
+        // 달리 union으로 서로 합치지 않는다 — 뚜껑은 낱개 부품이라 붙어있으면 안 된다.
+        function buildCapMeshes(curveSegments) {
+            const params = readGlobalParams();
+            const half = (GRID_SIZE - 1) / 2;
+            const meshes = [];
+            capInputs().forEach(function (input, idx) {
+                const text = input.value || '';
+                if (!text.trim()) return;
+                const row = Math.floor(idx / GRID_SIZE);
+                const col = idx % GRID_SIZE;
+                const x = (col - half) * GRID_PITCH;
+                const z = (row - half) * GRID_PITCH;
+                meshes.push(buildOneCap(text, x, z, params, curveSegments));
+            });
+            return meshes;
+        }
+
+        function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
+            if (!currentGroup) return;
+            scene.remove(currentGroup);
+            currentGroup.traverse(function (obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                else if (obj.material) obj.material.dispose();
+            });
+            currentGroup = null;
+        }
+
+        function updateModel() {
+            if (!manifoldReady || !capTemplate) return;
+
+            document.getElementById('valFontSize').innerText = document.getElementById('fontSize').value;
+            document.getElementById('valFontWeight').innerText = document.getElementById('fontWeight').value;
+            document.getElementById('valProtrudeHeight').innerText = document.getElementById('protrudeHeight').value;
+
+            const meshes = buildCapMeshes(PREVIEW_CURVE_SEGMENTS);
+            disposeCurrentThreeMesh();
             currentGroup = new THREE.Group();
-            currentGroup.add(capMesh);
+            meshes.forEach(function (m) { currentGroup.add(m); });
             scene.add(currentGroup);
             ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
         function downloadSTL() {
-            if (!currentGroup) return;
-            ParametricCore.exportSTL(currentGroup, '클리커_뚜껑.stl');
+            if (!manifoldReady || !capTemplate) return;
+            const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
+            if (!meshes.length) return;
+            const exportGroup = new THREE.Group();
+            meshes.forEach(function (m) { exportGroup.add(m); });
+            ParametricCore.exportSTL(exportGroup, '클리커_뚜껑_세트.stl');
+            meshes.forEach(function (m) {
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
+                else m.material.dispose();
+            });
         }
 
-        window.updateColors = updateColors;
+        window.scheduleUpdate = scheduleUpdate;
+        window.onFontChange = onFontChange;
         window.downloadSTL = downloadSTL;
 
         const loader = new THREE.STLLoader();
-        loader.load('../assets/models/clicker_cap.stl', function (geo) { buildModel(geo); });
+        loader.load('../assets/models/clicker_cap.stl', function (geo) {
+            capGeoNormalized = normalizeGeometry(geo);
+            capTopY = capGeoNormalized.boundingBox.max.y;
+            tryInit();
+        });
+
+        function tryInit() {
+            if (!manifoldReady || !capGeoNormalized || capTemplate) return;
+            capTemplate = ManifoldCore.markAsOriginal(ManifoldCore.fromGeometry(capGeoNormalized));
+            onFontChange(); // 기본 폰트 로드 후 첫 모델 생성
+        }
+
+        async function main() {
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            tryInit();
+        }
+        main();
     </script>
 </body>
 </html>

@@ -114,9 +114,9 @@
         // 노출하지 않는다 — 미리보기는 낮게 고정해 속도를 확보하고, 다운로드할 때만 잠깐
         // 인쇄 품질로 다시 계산한다(갤러리4/5/7/8과 동일한 방침). EXPORT 값은 원래 이 갤러리가
         // 쓰던 기본값(slices=100, circleSegments=180) 그대로라 인쇄 품질은 이전과 동일하다.
-        const PREVIEW_SLICES = 30;
+        const PREVIEW_SLICES = 50;
         const EXPORT_SLICES = 100;
-        const PREVIEW_CIRCLE_SEGMENTS = 48;
+        const PREVIEW_CIRCLE_SEGMENTS = 90;
         const EXPORT_CIRCLE_SEGMENTS = 180;
 
         // 원본 draw_profile()의 point 생성 로직을 그대로 옮긴 것 — i=0..slices는 안쪽 벽(아래→위),
@@ -145,7 +145,13 @@
             if (p.baseThickness > 0) {
                 // 원본의 square([radius+x(0)+offset(0), base_thickness]) — x(0)은 항상 0.
                 const baseWidth = p.radius + offsetAt(0);
-                contours.push([[0, 0], [baseWidth, 0], [baseWidth, p.baseThickness], [0, p.baseThickness]]);
+                // 점 순서가 중요하다 — wallPoints(안쪽 벽 아래→위, 바깥쪽 벽 위→아래)는 시계
+                // 방향으로 감기는데, 이 사각형을 반시계 방향([0,0]→[baseWidth,0]→...)으로 그리면
+                // CrossSection의 NonZero 규칙 아래 둘이 겹치는 영역(벽 두께만큼의 바닥 테두리)의
+                // 감김 수가 서로 상쇄돼(+1과 -1) 그 자리에 도넛 모양의 빈 틈이 생긴다 — 실제로
+                // 겪은 문제, 바닥에서 보면 벽과 바닥판이 안 이어져 있는 것처럼 보였다. 두 폐곡선을
+                // 같은(시계) 방향으로 감아야 겹치는 부분이 하나의 solid로 합쳐진다.
+                contours.push([[0, 0], [0, p.baseThickness], [baseWidth, p.baseThickness], [baseWidth, 0]]);
             }
             return contours;
         }
@@ -250,6 +256,9 @@
 
         window.scheduleUpdate = scheduleUpdate;
         window.downloadSTL = downloadSTL;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentMesh; };
 
         async function main() {
             await ManifoldCore.ready;

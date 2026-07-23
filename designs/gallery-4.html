@@ -60,19 +60,19 @@
             { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
             { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
         ];
-        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf');
         const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
 
         const DEFAULTS = {
-            text: 'HELLO', fontIndex: DEFAULT_FONT_INDEX,
-            fontSize: 10, fontWeight: 0, spacing: 1.0, narrowWiden: 0,
-            emojiL: '🦈', emojiLScale: 1.0, emojiLOffset: 0, emojiLMirror: false,
-            emojiR: '♥', emojiRScale: 1.0, emojiROffset: 0, emojiRMirror: false,
+            text: '이름표', fontIndex: DEFAULT_FONT_INDEX,
+            fontSize: 12, fontWeight: 0, spacing: 1.0, narrowWiden: 0,
+            emojiL: '', emojiLScale: 1.0, emojiLOffset: 0, emojiLMirror: false,
+            emojiR: '♠', emojiRScale: 0.9, emojiROffset: 4.5, emojiRMirror: false,
             outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
-            keyringOn: true, keyringX: 0, keyringY: 15, keyringHoleSize: 3.5, keyringRim: 1.0,
+            keyringOn: true, keyringX: -21, keyringY: -0.5, keyringHoleSize: 3.5, keyringRim: 1.0,
             baseThick: 3.0, outlineThick: 0.4, borderThick: 0.6, textThick: 0.8,
             colBase: '#ffffff', colOutline: '#ff9a5b', colBorder: '#000000',
-            colText: '#ff5703', colEmojiL: '#ff0000', colEmojiR: '#00ff6f'
+            colText: '#ff5703', colEmojiL: '#ff0000', colEmojiR: '#ff2424'
         };
 
         shell.controlsBodyEl.innerHTML = `
@@ -82,7 +82,7 @@
             <div class="section-label">1. 텍스트</div>
             <div class="control-group">
                 <label>텍스트 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
-                <input type="text" id="inputText" value="HELLO" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+                <input type="text" id="inputText" value="이름표" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
                 <label>글씨체 선택</label>
@@ -90,27 +90,29 @@
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
             </div>
-            <div class="control-group"><label>글자 크기: <span id="valFontSize">10</span></label><input type="range" id="fontSize" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="50" step="0.5" value="12" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>글자 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>자간: <span id="valSpacing">1.0</span></label><input type="range" id="spacing" min="0.5" max="2.0" step="0.05" value="1.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>글자 폭(좁게/넓게): <span id="valNarrowWiden">0</span></label><input type="range" id="narrowWiden" min="-50" max="50" step="1" value="0" oninput="scheduleUpdate()"></div>
 
             <div class="section-label">2. 이모지</div>
-            <div class="control-group">
-                <label>왼쪽 이모지</label>
-                <input type="text" id="emojiL" class="emoji-input" value="🦈" oninput="scheduleUpdate()">
+            <div style="display:none">
+                <div class="control-group">
+                    <label>왼쪽 이모지</label>
+                    <input type="text" id="emojiL" class="emoji-input" value="" oninput="scheduleUpdate()">
+                </div>
+                <div class="control-group"><label>왼쪽 이모지 크기: <span id="valEmojiLScale">1.0</span></label><input type="range" id="emojiLScale" min="0.2" max="3" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+                <div class="control-group"><label>왼쪽 이모지 간격: <span id="valEmojiLOffset">0</span></label><input type="range" id="emojiLOffset" min="-20" max="20" step="0.5" value="0" oninput="scheduleUpdate()"></div>
+                <div class="check-row"><input type="checkbox" id="emojiLMirror" onchange="scheduleUpdate()"><label for="emojiLMirror">왼쪽 이모지 좌우 반전</label></div>
             </div>
-            <div class="control-group"><label>왼쪽 이모지 크기: <span id="valEmojiLScale">1.0</span></label><input type="range" id="emojiLScale" min="0.2" max="3" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>왼쪽 이모지 간격: <span id="valEmojiLOffset">0</span></label><input type="range" id="emojiLOffset" min="-20" max="20" step="0.5" value="0" oninput="scheduleUpdate()"></div>
-            <div class="check-row"><input type="checkbox" id="emojiLMirror" onchange="scheduleUpdate()"><label for="emojiLMirror">왼쪽 이모지 좌우 반전</label></div>
 
             <div class="control-group">
-                <label>오른쪽 이모지</label>
-                <input type="text" id="emojiR" class="emoji-input" value="♥" oninput="scheduleUpdate()">
+                <label>이모지</label>
+                <input type="text" id="emojiR" class="emoji-input" value="♠" oninput="scheduleUpdate()">
             </div>
-            <div class="control-group"><label>오른쪽 이모지 크기: <span id="valEmojiRScale">1.0</span></label><input type="range" id="emojiRScale" min="0.2" max="3" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>오른쪽 이모지 간격: <span id="valEmojiROffset">0</span></label><input type="range" id="emojiROffset" min="-20" max="20" step="0.5" value="0" oninput="scheduleUpdate()"></div>
-            <div class="check-row"><input type="checkbox" id="emojiRMirror" onchange="scheduleUpdate()"><label for="emojiRMirror">오른쪽 이모지 좌우 반전</label></div>
+            <div class="control-group"><label>이모지 크기: <span id="valEmojiRScale">0.9</span></label><input type="range" id="emojiRScale" min="0.2" max="3" step="0.1" value="0.9" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>이모지 간격: <span id="valEmojiROffset">4.5</span></label><input type="range" id="emojiROffset" min="-20" max="20" step="0.5" value="4.5" oninput="scheduleUpdate()"></div>
+            <div class="check-row"><input type="checkbox" id="emojiRMirror" onchange="scheduleUpdate()"><label for="emojiRMirror">이모지 좌우 반전</label></div>
 
             <div class="section-label">3. 디자인 디테일</div>
             <div class="control-group"><label>글자 외곽선 두께: <span id="valOutlineW">0.3</span>mm</label><input type="range" id="outlineW" min="0" max="2" step="0.05" value="0.3" oninput="scheduleUpdate()"></div>
@@ -120,8 +122,8 @@
 
             <div class="section-label">4. 키링 구멍</div>
             <div class="check-row"><input type="checkbox" id="keyringOn" checked onchange="scheduleUpdate()"><label for="keyringOn">키링 구멍 사용</label></div>
-            <div class="control-group"><label>구멍 X 위치: <span id="valKeyringX">0</span>mm</label><input type="range" id="keyringX" min="-40" max="40" step="0.5" value="0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>구멍 Y 위치: <span id="valKeyringY">15</span>mm</label><input type="range" id="keyringY" min="-40" max="40" step="0.5" value="15" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>구멍 X 위치: <span id="valKeyringX">-21</span>mm</label><input type="range" id="keyringX" min="-40" max="40" step="0.5" value="-21" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>구멍 Y 위치: <span id="valKeyringY">-0.5</span>mm</label><input type="range" id="keyringY" min="-40" max="40" step="0.5" value="-0.5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>구멍 지름: <span id="valKeyringHoleSize">3.5</span>mm</label><input type="range" id="keyringHoleSize" min="2" max="8" step="0.5" value="3.5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>구멍 테두리 두께: <span id="valKeyringRim">1.0</span>mm</label><input type="range" id="keyringRim" min="0.5" max="3" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
 
@@ -136,8 +138,8 @@
             <div class="color-row"><span>외곽선</span><input type="color" id="colOutline" value="#ff9a5b" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span>테두리</span><input type="color" id="colBorder" value="#000000" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span>텍스트</span><input type="color" id="colText" value="#ff5703" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>왼쪽 이모지</span><input type="color" id="colEmojiL" value="#ff0000" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>오른쪽 이모지</span><input type="color" id="colEmojiR" value="#00ff6f" oninput="scheduleUpdate()"></div>
+            <div class="color-row" style="display:none"><span>왼쪽 이모지</span><input type="color" id="colEmojiL" value="#ff0000" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>이모지</span><input type="color" id="colEmojiR" value="#ff2424" oninput="scheduleUpdate()"></div>
         `;
 
         shell.controlsFooterEl.innerHTML = `
@@ -593,6 +595,9 @@
         window.onTextKeydown = onTextKeydown;
         window.onFontChange = onFontChange;
         window.downloadSTL = downloadSTL;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentGroup; };
 
         async function main() {
             await ManifoldCore.ready;

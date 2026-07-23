@@ -49,7 +49,7 @@
         const shell = ParametricCore.mountEditorShell(document.body);
 
         const DEFAULTS = {
-            baseDiameter: 80, topDiameter: 80, height: 115,
+            baseDiameter: 80, topDiameter: 80, height: 100,
             crossection: 6, twist: 90, wallThickness: 3,
             col: '#ff5050'
         };
@@ -61,7 +61,7 @@
             <div class="section-label">1. 크기</div>
             <div class="control-group"><label>아랫지름: <span id="valBaseDiameter">80</span>mm</label><input type="range" id="baseDiameter" min="20" max="200" step="1" value="80" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>윗지름: <span id="valTopDiameter">80</span>mm</label><input type="range" id="topDiameter" min="20" max="300" step="1" value="80" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>높이: <span id="valHeight">115</span>mm</label><input type="range" id="height" min="20" max="300" step="1" value="115" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>높이: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="20" max="300" step="1" value="100" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>벽 두께: <span id="valWallThickness">3</span>mm</label><input type="range" id="wallThickness" min="0.8" max="10" step="0.1" value="3" oninput="scheduleUpdate()"></div>
 
             <div class="section-label">2. 단면 모양</div>
@@ -249,6 +249,9 @@
 
         window.scheduleUpdate = scheduleUpdate;
         window.downloadSTL = downloadSTL;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentMesh; };
 
         async function main() {
             await ManifoldCore.ready;

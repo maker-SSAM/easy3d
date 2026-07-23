@@ -65,7 +65,7 @@
             { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
             { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
         ];
-        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf');
 
         // ---------- 격자 ----------
         const GRID_SIZE = 5;
@@ -73,15 +73,17 @@
         // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
         // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
         const GRID_PITCH = 23.5; // mm
-        const DEFAULT_GRID_INDEX = 12; // 5x5 중 정중앙(row2,col2) 한 칸만 기본으로 채워둔다
+        // 갤러리1(몸체) 기본 배치와 같은 ㄱ자 모양(row1의 col1·col2, row2의 col2)에 각각
+        // 글씨를 채워서 기본으로 보여준다.
+        const DEFAULT_CAP_TEXT = { 6: '클', 7: '리', 12: '커' };
 
         // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
         const DEFAULTS = {
             fontIndex: DEFAULT_FONT_INDEX,
             fontSize: 14, fontWeight: 0, protrudeHeight: 0.6,
-            colCap: '#ff7043', colText: '#ffffff'
+            colCap: '#b4b4b4', colText: '#000000'
         };
-        function defaultCapText(idx) { return idx === DEFAULT_GRID_INDEX ? '백' : ''; }
+        function defaultCapText(idx) { return DEFAULT_CAP_TEXT[idx] || ''; }
 
         shell.controlsBodyEl.innerHTML = `
             <h3>클리커 뚜껑 만들기</h3>
@@ -103,8 +105,8 @@
             <div class="control-group"><label>텍스트 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>텍스트 돌출 높이: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
 
-            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#ff7043" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>글자 색</span><input type="color" id="colText" value="#ffffff" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#b4b4b4" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span>글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
         `;
 
         shell.controlsFooterEl.innerHTML = `
@@ -326,6 +328,9 @@
         window.scheduleUpdate = scheduleUpdate;
         window.onFontChange = onFontChange;
         window.downloadSTL = downloadSTL;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentGroup; };
 
         const loader = new THREE.STLLoader();
         loader.load('../assets/models/clicker_cap.stl', function (geo) {

@@ -103,24 +103,26 @@
             };
         }
 
-        // 갤러리1(이름표 상자)의 실제 디자인 색상(상자 파랑/글자 노랑)을 그대로 축소해서
-        // 미리보기로 보여준다 — 상자 위에 작은 블록을 얹어 "글자가 돌출된 이름표" 느낌만 표현.
-        function nameplatePreview() {
+        // 갤러리1(뚜껑 달린 보관함)의 실제 디자인 색상(몸체 베이지/뚜껑 주황)을 그대로
+        // 축소해서 미리보기로 보여준다 — 몸체 위에 둥근 뚜껑을 얹은 형태만 흉내낸다.
+        // 실제 디자인은 고정된 STL 파일 두 개를 그대로 조립한 것이라 여기서도 진짜
+        // 모델로 교체하지 않고 이 가벼운 흉내용 도형만 계속 쓴다.
+        function lidBoxPreview() {
             return function (scene) {
                 const group = new THREE.Group();
-                const box = new THREE.Mesh(
-                    new THREE.BoxGeometry(2.2, 0.7, 1.3),
-                    new THREE.MeshStandardMaterial({ color: 0x1e88e5, metalness: 0.2, roughness: 0.45, flatShading: true })
+                const base = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.8, 1.2, 1.8),
+                    new THREE.MeshStandardMaterial({ color: 0xd7ccc8, metalness: 0.1, roughness: 0.5, flatShading: true })
                 );
-                box.position.y = 0.35;
-                group.add(box);
+                base.position.y = 0.6;
+                group.add(base);
 
-                const text = new THREE.Mesh(
-                    new THREE.BoxGeometry(1.4, 0.22, 0.5),
-                    new THREE.MeshStandardMaterial({ color: 0xffca28, metalness: 0.2, roughness: 0.45, flatShading: true })
+                const cap = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+                    new THREE.MeshStandardMaterial({ color: 0xff7043, metalness: 0.1, roughness: 0.4, flatShading: true })
                 );
-                text.position.y = 0.7 + 0.11;
-                group.add(text);
+                cap.position.y = 1.2;
+                group.add(cap);
 
                 scene.add(group);
                 return group;
@@ -153,10 +155,10 @@
 
         const designs = [
             {
-                title: '이름표 상자',
-                description: '글자를 새긴 나만의 이름표를 만들어보세요',
+                title: '뚜껑 달린 보관함',
+                description: '몸체와 뚜껑을 돌려보고 완성된 모양 그대로 STL로 내려받아보세요',
                 url: 'designs/gallery-1.html',
-                buildPreviewScene: nameplatePreview()
+                buildPreviewScene: lidBoxPreview()
             },
             {
                 title: '보석 만들기',
@@ -293,56 +295,9 @@
         async function upgradeRealPreviews() {
             await ManifoldCore.ready;
 
-            // ---- 갤러리1: 이름표 상자 (텍스트 "테스트", 60x60x20 상자, Paperlogy 폰트) ----
-            FontCore.loadFont('Paperlogy-8ExtraBold.ttf', function (font) {
-                try {
-                    function buildContours(text, f, size) {
-                        const contours = [];
-                        let currentX = 0;
-                        Array.from(text).forEach(function (ch) {
-                            const glyph = f.charToGlyph(ch);
-                            if (!glyph) return;
-                            const path = glyph.getPath(currentX, 0, size);
-                            FontCore.extractGlyphContours(path.commands || [], 48).forEach(function (c) { contours.push(c); });
-                            currentX += glyph.advanceWidth / f.unitsPerEm * size;
-                        });
-                        if (!contours.length) return contours;
-                        let minX = Infinity, maxX = -Infinity;
-                        contours.forEach(function (pts) { pts.forEach(function (p) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; }); });
-                        const centerX = (minX + maxX) / 2;
-                        contours.forEach(function (pts) { pts.forEach(function (p) { p[0] -= centerX; }); });
-                        return contours;
-                    }
-
-                    const box = ManifoldCore.cuboid(60, 20, 60);
-                    const idToColor = new Map([[box.originalID(), '#1e88e5']]);
-                    const toDispose = [box];
-                    let fused = box;
-
-                    const contours = buildContours('테스트', font, 12);
-                    if (contours.length) {
-                        const text = ManifoldCore.extrudeContours(contours, 4);
-                        toDispose.push(text);
-                        idToColor.set(text.originalID(), '#ffca28');
-                        const positioned = ManifoldCore.translateY(text, 20);
-                        toDispose.push(positioned);
-                        fused = ManifoldCore.union(box, positioned);
-                        toDispose.push(fused);
-                    }
-
-                    const mesh = ManifoldCore.toThreeMesh(fused, idToColor);
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                    ManifoldCore.dispose.apply(ManifoldCore, toDispose);
-
-                    const group = new THREE.Group();
-                    group.add(mesh);
-                    group.scale.setScalar(0.035);
-                    swapPreviewGroup(0, group);
-                } catch (err) {
-                    console.error('갤러리1 미리보기 생성 실패:', err);
-                }
-            });
+            // 갤러리1(뚜껑 달린 보관함)은 Manifold-3D로 계산하는 파라메트릭 모델이 아니라
+            // 고정된 STL 파일 두 개를 그대로 불러와 보여주는 화면이라, 여기서 진짜 모델로
+            // 교체하지 않는다 — 카드에는 위쪽의 가벼운 흉내용 도형(lidBoxPreview)이 계속 보인다.
 
             // ---- 갤러리2: 보석 (지름30/6면, 아래높이30·자르기0%, 가운데0, 위높이15·자르기50%) ----
             try {

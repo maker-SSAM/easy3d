@@ -19,12 +19,13 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: #333; }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
-        .body-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 168px; margin-bottom: 8px; }
+        .body-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
         .body-grid button {
             aspect-ratio: 1; padding: 0; border: 2px solid #ccc; border-radius: 4px;
             background: #fff; cursor: pointer;
         }
-        .body-grid button.active { background: #8d6e63; border-color: #5d4037; }
+        /* 사이즈 등 다른 슬라이더와 같은 계열의 파랑(core.css의 홈 버튼/뷰큐브 호버 색과 통일) */
+        .body-grid button.active { background: #2196f3; border-color: #1976d2; }
     </style>
 </head>
 <body>
@@ -42,7 +43,7 @@
                 아래 격자에서 빈칸을 클릭하면 그 자리에 몸체가 생기고, 다시 클릭하면 없어져요.
                 선택한 칸들은 서로 이어붙은 하나의 모양으로 합쳐져요.
             </p>
-            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">몸체 배치 (4×4)</label>
+            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">몸체 배치 (5×5)</label>
             <div id="bodyGrid" class="body-grid"></div>
             <p style="font-size: 0.8em; color: #999; margin: 0 0 20px;">칸 수가 많아질수록 합치는 데 시간이 조금 더 걸려요.</p>
             <div class="color-row"><span>몸체 색</span><input type="color" id="colBase" value="#d7ccc8" oninput="updateColors()"></div>
@@ -63,12 +64,12 @@
         ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
 
         // ---------- 격자 상태 ----------
-        const GRID_SIZE = 4;
+        const GRID_SIZE = 5;
         // 몸체 하나의 가로/세로 폭(약 25mm)보다 살짝 작게 잡아서, 이웃한 칸끼리 아주 살짝
         // 겹치게 한다 — 참고용으로 받은 겹친 예시 STL(Name Clicker Base (Ribbed).stl)을
         // 실측해서 얻은 간격이다. 겹친 부분은 Manifold union이 하나의 입체로 이어붙인다.
         const GRID_PITCH = 23.5; // mm
-        const DEFAULT_GRID_INDEX = 5; // 4x4 중 (row1,col1) 한 칸만 기본으로 켜둔다
+        const DEFAULT_GRID_INDEX = 12; // 5x5 중 정중앙(row2,col2) 한 칸만 기본으로 켜둔다
         let gridState = new Array(GRID_SIZE * GRID_SIZE).fill(false);
         gridState[DEFAULT_GRID_INDEX] = true;
 

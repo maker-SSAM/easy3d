@@ -23,12 +23,13 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: #333; }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
-        .cap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 168px; margin-bottom: 8px; }
+        .cap-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
         .cap-grid input {
             aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
             border: 2px solid #ccc; border-radius: 4px; text-align: center; font-size: 0.85em;
         }
-        .cap-grid input.filled { background: #fff3ee; border-color: #ff7043; }
+        /* 갤러리1과 같은 계열의 파랑이되, 칸 안에 글씨가 보여야 하니 배경은 옅게(투명도) 처리 */
+        .cap-grid input.filled { background: rgba(33, 150, 243, 0.18); border-color: #1976d2; }
     </style>
 </head>
 <body>
@@ -67,12 +68,12 @@
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
 
         // ---------- 격자 ----------
-        const GRID_SIZE = 4;
+        const GRID_SIZE = 5;
         // 갤러리1(몸체)과 정확히 같은 값 — 몸체 칸과 같은 자리에 뚜껑이 오도록 맞춘다.
         // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
         // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
         const GRID_PITCH = 23.5; // mm
-        const DEFAULT_GRID_INDEX = 5; // 4x4 중 (row1,col1) 한 칸만 기본으로 채워둔다
+        const DEFAULT_GRID_INDEX = 12; // 5x5 중 정중앙(row2,col2) 한 칸만 기본으로 채워둔다
 
         // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
         const DEFAULTS = {
@@ -88,7 +89,7 @@
                 아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
                 뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">뚜껑 배치 및 글씨 (4×4)</label>
+            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">뚜껑 배치 및 글씨 (5×5)</label>
             <div id="capGrid" class="cap-grid"></div>
             <p style="font-size: 0.8em; color: #999; margin: 0 0 20px;">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
 

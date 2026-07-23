@@ -112,6 +112,8 @@
             <h3>보관통 설정</h3>
             <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
 
+            <div class="check-row"><input type="checkbox" id="assembledView" onchange="scheduleUpdate()"><label for="assembledView">조립된 모습 보기 (화면 미리보기 전용, STL 파일엔 영향 없음)</label></div>
+
             <div class="control-group"><label>안지름: <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="100" step="1" value="30" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>안쪽 높이: <span id="valHeight">50</span>mm</label><input type="range" id="height" min="20" max="150" step="1" value="50" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>뚜껑 높이: <span id="valHead">10</span>mm</label><input type="range" id="head" min="10" max="50" step="1" value="10" oninput="scheduleUpdate()"></div>
@@ -167,6 +169,7 @@
         }
 
         function resetToDefaults() {
+            document.getElementById('assembledView').checked = false;
             document.getElementById('diameter').value = DEFAULTS.diameter;
             document.getElementById('height').value = DEFAULTS.height;
             document.getElementById('head').value = DEFAULTS.head;
@@ -336,10 +339,12 @@
             };
         }
 
-        // buildContainer() 결과(Manifold 솔리드)를 three.js 지오메트리로 바꾸고, 뚜껑을
-        // "뒤집어서 몸체 옆 바닥에 놓인" 최종 출력 배치까지 만들어둔다. updateModel(미리보기)과
-        // downloadSTL(내보내기)이 이 함수를 각자 다른 해상도(setQuality)로 호출해서 공유한다 —
-        // 실패하면 예외를 그대로 던지므로 호출부에서 각자 에러 메시지를 남기고 처리한다.
+        // buildContainer() 결과(Manifold 솔리드)를 three.js 지오메트리로 바꾼다. 뚜껑 위치는
+        // 여기서 정하지 않고(뒤집힌 채로 y=0에 두는 원래 위치 그대로 반환) 호출부가
+        // positionLidForPrint()/positionLidForAssembled() 중 하나를 골라 적용한다.
+        // updateModel(미리보기)과 downloadSTL(내보내기)이 이 함수를 각자 다른 해상도
+        // (setQuality)로 호출해서 공유한다 — 실패하면 예외를 그대로 던지므로 호출부에서
+        // 각자 에러 메시지를 남기고 처리한다.
         function buildGeometries(params) {
             const scratch = [];
             function track(m) { scratch.push(m); return m; }
@@ -362,18 +367,27 @@
             bodyYUp.delete();
             lidYUp.delete();
 
-            const bodyGeo = bodyBuf.geo; // 바닥(모따기 없는 쪽)이 y=0에 오는 원래 위치 그대로 둔다.
+            // bodyGeo: 바닥(모따기 없는 쪽)이 y=0에 오는 원래 위치 그대로 둔다.
+            // lidGeo: 아직 위치를 정하지 않은 원래 상태(열리는 面=나사산 쪽이 y=0) 그대로 둔다.
+            return { bodyGeo: bodyBuf.geo, lidGeo: lidBuf.geo, D: result.D, H: result.H, head: result.head };
+        }
 
-            // 뚜껑은 미리보기에서도 최종 STL 출력과 똑같이 "뒤집어서 몸체 옆 바닥에 놓인" 모습으로
-            // 보여준다 — 뒤집는 이유는 원본의 for_printing 레이아웃과 동일하게, 열리는 面이 위를
-            // 보게 해야 서포트 없이 그대로 출력할 수 있기 때문이다.
-            const lidGeo = lidBuf.geo;
+        // 출력용 배치: 뚜껑을 뒤집어서(열리는 面이 위로 오게) 몸체 옆 바닥에 놓는다 — 원본의
+        // for_printing 레이아웃과 동일하게, 서포트 없이 그대로 출력할 수 있게 하기 위함이다.
+        // STL 다운로드는 화면에 "조립된 모습"이 떠 있어도 항상 이 배치로 내보낸다.
+        function positionLidForPrint(lidGeo, D) {
             lidGeo.rotateX(Math.PI);
             lidGeo.computeBoundingBox();
             const minY = lidGeo.boundingBox.min.y;
-            lidGeo.translate(result.D + 15, -minY, 0);
+            lidGeo.translate(D + 15, -minY, 0);
+        }
 
-            return { bodyGeo: bodyGeo, lidGeo: lidGeo, D: result.D };
+        // 조립된 모습: 뚜껑을 뒤집지 않고(열리는 面=나사산 쪽이 아래로 향한 채) 몸체의 나사 목
+        // 높이(H-head)까지 그대로 들어올린다 — 몸체 나사 목의 바깥지름과 뚜껑 안쪽 나사산이
+        // 같은 지름(Dscrew 계열)으로 만들어지므로, 이 높이만큼만 올리면 실제로 돌려서 씌운
+        // 것처럼 뚜껑이 몸체 위쪽을 정확히 감싸는 모습이 된다.
+        function positionLidForAssembled(lidGeo, liftY) {
+            lidGeo.translate(0, liftY, 0);
         }
 
         function updateModel() {
@@ -389,6 +403,12 @@
             } catch (err) {
                 console.error('보관통 생성 실패:', err);
                 return;
+            }
+
+            if (document.getElementById('assembledView').checked) {
+                positionLidForAssembled(g.lidGeo, g.H - g.head);
+            } else {
+                positionLidForPrint(g.lidGeo, g.D);
             }
 
             disposeCurrentThreeMesh();
@@ -426,6 +446,10 @@
                 console.error('STL 생성 실패:', err);
                 return;
             }
+
+            // 화면에서 "조립된 모습"을 보고 있어도, 실제로 찍을 STL은 항상 서포트 없이
+            // 출력할 수 있는 분리 배치(뚜껑을 뒤집어 옆에 놓기)로 내보낸다.
+            positionLidForPrint(g.lidGeo, g.D);
 
             const bodyMesh = new THREE.Mesh(g.bodyGeo, new THREE.MeshBasicMaterial());
             const lidMesh = new THREE.Mesh(g.lidGeo, new THREE.MeshBasicMaterial());

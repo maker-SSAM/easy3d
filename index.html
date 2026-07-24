@@ -72,6 +72,51 @@
             pointer-events: none;
             z-index: 1;
         }
+
+        /* ?tune=<gallery.html 파일명 일부> 로 접속하면 카드 그리드 대신 카메라 시점(확대/축소,
+           좌우·상하 이동) 조정용 화면 하나만 크게 띄운다 — 일반 방문자는 볼 일 없는 개발용
+           화면이라 URL 파라미터로만 진입한다. */
+        body.tune-mode #gallery { display: none; }
+        #tunePanel {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 300px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            padding: 20px;
+            z-index: 5;
+            font-size: 0.9em;
+        }
+        #tunePanel h3 { margin: 0 0 14px; font-size: 1.05em; }
+        #tunePanel label { display: block; margin: 12px 0 4px; color: #444; }
+        #tunePanel input[type="range"] { width: 100%; }
+        #tunePanel pre {
+            background: #f2f4f7;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.85em;
+            white-space: pre-wrap;
+            margin: 14px 0 10px;
+        }
+        #tunePanel button {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            background: #2196f3;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.95em;
+        }
+        #tuneBigPreview {
+            width: 520px;
+            height: 520px;
+            margin: 40px auto;
+            background: #e8ecf1;
+            border-radius: 12px;
+        }
     </style>
 </head>
 <body>
@@ -100,61 +145,73 @@
             {
                 title: '보석 만들기',
                 description: '면 개수와 비율을 조절해 나만의 보석을 만들어보세요',
-                url: 'designs/gallery-2.html',
-                glb: 'assets/previews/gallery-2.glb',
+                url: 'designs/gallery-1.html',
+                glb: 'assets/previews/gallery-1.glb',
+                zoom: 1.00,
                 cameraPosition: [0.00, 1.80, 3.10]
             },
             {
                 title: '물결무늬 꽃병',
                 description: '사인파로 물결치는 벽면의 나만의 꽃병을 만들어보세요',
-                url: 'designs/gallery-6.html',
-                glb: 'assets/previews/gallery-6.glb',
+                url: 'designs/gallery-2.html',
+                glb: 'assets/previews/gallery-2.glb',
                 wobble: true,
-                cameraPosition: [0.00, 4.00, 4.00]
+                zoom: 1.20,
+                panY: -0.55,
+                cameraPosition: [2.45, 3.00, 2.80]
             },
             {
                 title: '꼬임 연필꽂이',
                 description: '다각형 단면을 비틀어서 나만의 연필꽂이를 만들어보세요',
-                url: 'designs/gallery-8.html',
-                glb: 'assets/previews/gallery-8.glb',
+                url: 'designs/gallery-3.html',
+                glb: 'assets/previews/gallery-3.glb',
+                zoom: 1.20,
+                panY: -0.40,
                 cameraPosition: [0.00, 4.00, 4.00]
             },
             {
                 title: '나사 뚜껑 통',
                 description: '돌려서 여닫는 나만의 보관통을 만들어보세요',
-                url: 'designs/gallery-3.html',
-                glb: 'assets/previews/gallery-3.glb',
-                zoom: 1.15,
-                cameraPosition: [0.00, 3.00, 3.00]
+                url: 'designs/gallery-4.html',
+                glb: 'assets/previews/gallery-4.glb',
+                zoom: 1.50,
+                panY: 0.50,
+                cameraPosition: [0.00, 4.00, 4.00]
             },
             {
                 title: '다국어 키링',
                 description: '이름과 이모지를 넣어 나만의 키링을 만들어보세요',
-                url: 'designs/gallery-4.html',
-                glb: 'assets/previews/gallery-4.glb',
-                zoom: 1.4,
-                cameraPosition: [0.00, 3.00, 3.00]
+                url: 'designs/gallery-5.html',
+                glb: 'assets/previews/gallery-5.glb',
+                zoom: 1.80,
+                panY: 0.80,
+                cameraPosition: [0.00, 4.00, 4.00]
             },
             {
                 title: '멀티컬러 오가닉 이름표',
                 description: '3줄 텍스트와 이모지가 돌출된 나만의 이름표를 만들어보세요',
-                url: 'designs/gallery-5.html',
-                glb: 'assets/previews/gallery-5.glb',
-                zoom: 1.4,
+                url: 'designs/gallery-6.html',
+                glb: 'assets/previews/gallery-6.glb',
+                zoom: 1.50,
+                panY: 0.80,
                 cameraPosition: [0.00, 3.00, 3.00]
             },
             {
                 title: '클리커 몸체 만들기',
                 description: '격자에서 원하는 칸을 골라 몸체를 이어붙이고 STL로 내려받아보세요',
-                url: 'designs/gallery-1.html',
-                glb: 'assets/previews/gallery-1.glb',
+                url: 'designs/gallery-7.html',
+                glb: 'assets/previews/gallery-7.glb',
+                zoom: 1.20,
+                panY: 0.70,
                 cameraPosition: [0.00, 4.00, 4.00]
             },
             {
                 title: '클리커 뚜껑 만들기',
                 description: '뚜껑을 돌려보고 색을 바꿔서 STL로 내려받아보세요',
-                url: 'designs/gallery-7.html',
-                glb: 'assets/previews/gallery-7.glb',
+                url: 'designs/gallery-8.html',
+                glb: 'assets/previews/gallery-8.glb',
+                zoom: 1.20,
+                panY: 0.70,
                 cameraPosition: [0.00, 4.00, 4.00]
             }
         ];
@@ -209,7 +266,11 @@
                 const wrapper = new THREE.Group();
                 wrapper.add(loaded);
                 wrapper.scale.setScalar(scale);
-                wrapper.position.y = (size.y * scale) / 2;
+                // panX/panY(기본 0): 카드 프레임 안에서 모델을 좌우/상하로 살짝 옮기고 싶을 때
+                // 쓴다(예: 대칭이 아닌 디자인이 중앙 정렬만으론 어색해 보일 때) — index.html을
+                // ?tune=<파일명 일부>로 열면 뜨는 시점 조정 화면에서 값을 정하면 된다.
+                wrapper.position.x = design.panX || 0;
+                wrapper.position.y = (size.y * scale) / 2 + (design.panY || 0);
 
                 scene.add(wrapper);
                 item.group = wrapper;
@@ -252,10 +313,10 @@
                 item.camera.updateProjectionMatrix();
 
                 if (item.group) {
-                    item.group.rotation.y += 0.01;
+                    if (item.spin !== false) item.group.rotation.y += 0.01;
                     // 회전체(rotate_extrude)로 만든 디자인은 세로축 둘레로 완전히 대칭이라
                     // Y축으로만 돌리면 항상 똑같은 실루엣이라 "회전하는 느낌"이 안 든다 —
-                    // 실제로 갤러리6(물결무늬 꽃병)에서 겪은 문제. 좌우로 살짝 갸우뚱거리는
+                    // 실제로 갤러리2(물결무늬 꽃병)에서 겪은 문제. 좌우로 살짝 갸우뚱거리는
                     // 흔들림을 더해 옆모습(물결 실루엣)이 계속 바뀌어 보이게 한다.
                     if (item.wobble) {
                         item.group.rotation.x = Math.sin(performance.now() * 0.0007) * 0.22;
@@ -272,6 +333,126 @@
             renderPreviews();
         }
         animate();
+
+        // ---------- 카메라 시점 조정 화면 (?tune=<파일명 일부>) ----------
+        // 카드 하나만 크게 띄우고 확대/축소·좌우/상하 이동·카메라 위치를 슬라이더로 직접
+        // 조작해볼 수 있게 한다 — 결과 값(zoom/panX/panY/cameraPosition)을 위 designs
+        // 배열의 해당 항목에 그대로 옮겨 적으면 실제 카드에도 반영된다.
+        (function setupTuneMode() {
+            const tuneParam = new URLSearchParams(location.search).get('tune');
+            if (!tuneParam) return;
+
+            const design = designs.find(function (d) { return d.url.indexOf(tuneParam) !== -1 || d.glb.indexOf(tuneParam) !== -1; });
+            if (!design) return;
+
+            design.zoom = design.zoom || 1;
+            design.panX = design.panX || 0;
+            design.panY = design.panY || 0;
+            design.cameraPosition = design.cameraPosition || [2.4, 2, 3];
+            const camPos = design.cameraPosition;
+
+            document.body.classList.add('tune-mode');
+
+            const panel = document.createElement('div');
+            panel.id = 'tunePanel';
+            panel.innerHTML =
+                '<h3>시점 조정 — ' + design.title + '</h3>' +
+                '<label>확대/축소(zoom): <span id="tvZoom"></span></label>' +
+                '<input type="range" id="tZoom" min="0.3" max="3" step="0.05">' +
+                '<label>좌우 이동(panX): <span id="tvPanX"></span></label>' +
+                '<input type="range" id="tPanX" min="-2" max="2" step="0.05">' +
+                '<label>상하 이동(panY): <span id="tvPanY"></span></label>' +
+                '<input type="range" id="tPanY" min="-2" max="2" step="0.05">' +
+                '<label>카메라 X(좌우 각도): <span id="tvCamX"></span></label>' +
+                '<input type="range" id="tCamX" min="-6" max="6" step="0.05">' +
+                '<label>카메라 Y(높이): <span id="tvCamY"></span></label>' +
+                '<input type="range" id="tCamY" min="0.1" max="8" step="0.05">' +
+                '<label>카메라 Z(거리): <span id="tvCamZ"></span></label>' +
+                '<input type="range" id="tCamZ" min="0.5" max="8" step="0.05">' +
+                '<label><input type="checkbox" id="tSpin" checked style="width:auto; vertical-align:middle;"> 자동 회전</label>' +
+                '<pre id="tuneOutput"></pre>' +
+                '<button id="tuneCopy" type="button">이 값 복사하기</button>';
+            document.body.appendChild(panel);
+
+            const bigEl = document.createElement('div');
+            bigEl.id = 'tuneBigPreview';
+            document.querySelector('header').insertAdjacentElement('afterend', bigEl);
+
+            const scene = new THREE.Scene();
+            scene.add(new THREE.AmbientLight(0x888888));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(3, 5, 4);
+            scene.add(dirLight);
+
+            const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+            camera.position.set(camPos[0], camPos[1], camPos[2]);
+            camera.lookAt(0, 0.9, 0);
+
+            const item = { title: design.title, element: bigEl, scene: scene, camera: camera, group: null, spin: true };
+            previewScenes.push(item);
+
+            let rawScene = null, size = null, center = null, maxDim = 1;
+
+            function applyTransform() {
+                if (!rawScene) return;
+                if (item.group) scene.remove(item.group);
+                const scale = (2.2 * design.zoom) / maxDim;
+                const clone = rawScene.clone();
+                clone.position.sub(center);
+                const wrapper = new THREE.Group();
+                wrapper.add(clone);
+                wrapper.scale.setScalar(scale);
+                wrapper.position.x = design.panX;
+                wrapper.position.y = (size.y * scale) / 2 + design.panY;
+                scene.add(wrapper);
+                item.group = wrapper;
+            }
+
+            function updateOutput() {
+                const lines = ['zoom: ' + design.zoom.toFixed(2) + ','];
+                if (Math.abs(design.panX) > 0.001) lines.push('panX: ' + design.panX.toFixed(2) + ',');
+                if (Math.abs(design.panY) > 0.001) lines.push('panY: ' + design.panY.toFixed(2) + ',');
+                lines.push('cameraPosition: [' + camPos.map(function (v) { return v.toFixed(2); }).join(', ') + ']');
+                document.getElementById('tuneOutput').textContent = lines.join('\n');
+            }
+
+            function bindSlider(id, initial, onChange) {
+                const input = document.getElementById(id);
+                const label = document.getElementById('tv' + id.slice(1));
+                input.value = initial;
+                label.textContent = initial.toFixed(2);
+                input.oninput = function () {
+                    const v = parseFloat(input.value);
+                    label.textContent = v.toFixed(2);
+                    onChange(v);
+                    updateOutput();
+                };
+            }
+
+            bindSlider('tZoom', design.zoom, function (v) { design.zoom = v; applyTransform(); });
+            bindSlider('tPanX', design.panX, function (v) { design.panX = v; applyTransform(); });
+            bindSlider('tPanY', design.panY, function (v) { design.panY = v; applyTransform(); });
+            bindSlider('tCamX', camPos[0], function (v) { camPos[0] = v; camera.position.set(camPos[0], camPos[1], camPos[2]); camera.lookAt(0, 0.9, 0); });
+            bindSlider('tCamY', camPos[1], function (v) { camPos[1] = v; camera.position.set(camPos[0], camPos[1], camPos[2]); camera.lookAt(0, 0.9, 0); });
+            bindSlider('tCamZ', camPos[2], function (v) { camPos[2] = v; camera.position.set(camPos[0], camPos[1], camPos[2]); camera.lookAt(0, 0.9, 0); });
+
+            document.getElementById('tSpin').onchange = function (e) { item.spin = e.target.checked; };
+            document.getElementById('tuneCopy').onclick = function () {
+                navigator.clipboard.writeText(document.getElementById('tuneOutput').textContent);
+            };
+
+            gltfLoader.load(design.glb, function (gltf) {
+                rawScene = gltf.scene;
+                const box = new THREE.Box3().setFromObject(rawScene);
+                size = box.getSize(new THREE.Vector3());
+                center = box.getCenter(new THREE.Vector3());
+                maxDim = Math.max(size.x, size.y, size.z) || 1;
+                applyTransform();
+                updateOutput();
+            }, undefined, function (err) {
+                console.error('시점 조정용 미리보기 로드 실패:', err);
+            });
+        })();
     </script>
 </body>
 </html>

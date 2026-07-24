@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리2 - 보석 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리2 - 물결무늬 꽃병 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -10,7 +10,7 @@
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/core.js"></script>
-    <!-- 원뿔대(cylinder) 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
+    <!-- 2D 단면 → Manifold-3D 회전체(revolve) → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
          ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
     <script type="module" src="../assets/js/manifold-core.js"></script>
@@ -18,58 +18,63 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: #333; }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
+        .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
     </style>
 </head>
 <body>
 
     <script type="module">
-        // 갤러리2: 보석(gem) 모양 만들기. Code and Make(codeandmake.com)의 오픈소스 OpenSCAD
-        // "Gem Generator"(https://codeandmake.com/post/gem-generator, MIT 유사 permissive
-        // 라이선스) 설계를 이 프로젝트의 three.js + Manifold-3D 스택으로 포팅했다.
+        // 갤러리2: 물결무늬 꽃병. thingiverse의 사인파 꽃병 OpenSCAD 디자인(jamcultur, 2021)을
+        // 이 프로젝트의 three.js + Manifold-3D 스택으로 포팅했다.
         //
-        // 원본은 원뿔(cone)과 평평한 원기둥(cylinder)을 intersection해서 끝이 잘린 원뿔대를
-        // 만드는데, 잘리는 높이의 반지름이 항상 원뿔 테이퍼 비율과 정확히 일치해서
-        // (반지름(cutoff%) = 원래반지름 * cutoff/100) 그 결과는 그냥 원뿔대(frustum) 그 자체와
-        // 같다. 그래서 불리언 intersection 없이 ManifoldCore.cylinder(아랫반지름, 윗반지름, 높이,
-        // 면개수)만으로 동일한 모양을 바로 만들 수 있다 — 아래쪽(뾰족한 부분/파빌리온),
-        // 가운데 띠(거들), 위쪽(뭉툭한 부분/크라운) 세 조각을 만들어 union으로 하나의 입체로 합친다.
+        // 원본 구조: 세로 단면(속이 빈 벽 두께만큼의 리본 모양 + 바닥 사각형)을 하나의 2D
+        // 프로파일로 만들고, rotate_extrude()로 360도 통째로 회전시켜 입체로 만든다. 프로파일의
+        // x좌표(반지름 방향)에 "높이에 따른 선형 테이퍼 + 사인파" 오프셋을 더해서 물결치는
+        // 벽면을 만든다. 갤러리6의 bend_engine과 달리 별도의 축 재배치 회전이 필요 없다 —
+        // 원본 프로파일이 이미 (반지름, 높이) 좌표로 짜여 있어서 ManifoldCore.revolveXS()에
+        // 그대로 넣을 수 있다(갤러리4 나사통과 동일한 방식). 주의: OpenSCAD의 sin()은 도(degree)
+        // 단위라서 JS의 Math.sin(라디안)으로 옮길 때 반드시 (값 * Math.PI/180) 변환이 필요하다.
+        //
+        // 텍스트나 여러 파츠가 없는 단일 색상 단일 솔리드 디자인이라, 갤러리5/6의
+        // "레이어 분리 + 모양/두께 캐시 분리" 같은 최적화 장치는 필요 없다 — 슬라이더가
+        // 바뀔 때마다 프로파일을 다시 계산해서 한 번에 revolve하면 충분히 가볍다. 세로/가로
+        // 분할 수(slices/circleSegments, 원본의 $fn)는 순수 품질/성능 트레이드오프라 갤러리1의
+        // 면(facet) 개수 슬라이더(그 자체가 디자인 요소)와는 다르게 취급한다 — 사용자에게
+        // 슬라이더로 노출하지 않고, 미리보기는 낮은 해상도로 빠르게, STL 다운로드할 때만
+        // 인쇄 품질로 다시 계산한다(갤러리3/5/6/8과 동일한 방침).
         const shell = ParametricCore.mountEditorShell(document.body);
 
-        // "초기화" 버튼이 되돌릴 기본값. 원본 OpenSCAD 디자인의 기본값(Bottom_Height=30,
-        // Top_Height=15)에서 Bottom_Height=15, Top_Height=10으로 조정함 — 그 외 값은 원본과 동일
-        // (Diameter=30, Sides=6, Bottom_Cutoff_Percent=0, Middle_Height=0, Top_Cutoff_Percent=50).
         const DEFAULTS = {
-            diameter: 30, sides: 6,
-            bottomHeight: 15, bottomCutoff: 0,
-            middleHeight: 0,
-            topHeight: 10, topCutoff: 50,
-            colGem: '#8e24aa'
+            height: 100, radius: 25, wallThickness: 2, baseThickness: 2.4,
+            scaleTop: 0.7, waves: 1, waveAmplitude: 8, waveStartAngle: 0,
+            col: '#4fc3f7'
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>보석 설정</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 아래쪽(뾰족한 부분), 가운데 띠, 위쪽(뭉툭한 부분)을 Manifold-3D로 하나의 입체로 합칩니다.</p>
+            <h3>물결무늬 꽃병 설정</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
 
-            <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
-            <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>
+            <div class="section-label">1. 기본 설정</div>
+            <div class="control-group"><label>높이: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="10" max="400" step="1" value="100" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>반지름: <span id="valRadius">25</span>mm</label><input type="range" id="radius" min="10" max="150" step="0.5" value="25" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>벽 두께: <span id="valWallThickness">2</span>mm</label><input type="range" id="wallThickness" min="1" max="10" step="0.1" value="2" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>바닥 두께: <span id="valBaseThickness">2.4</span>mm</label><input type="range" id="baseThickness" min="0" max="10" step="0.1" value="2.4" oninput="scheduleUpdate()"></div>
 
-            <div class="control-group"><label>아래쪽 높이 (뾰족한 부분): <span id="valBottomHeight">15</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="15" oninput="updateModel()"></div>
-            <div class="control-group"><label>아래쪽 자르기 비율: <span id="valBottomCutoff">0</span>%</label><input type="range" id="bottomCutoff" min="0" max="100" value="0" oninput="updateModel()"></div>
+            <div class="section-label">2. 물결 모양</div>
+            <div class="control-group"><label>위쪽 배율: <span id="valScaleTop">0.7</span></label><input type="range" id="scaleTop" min="0.25" max="4" step="0.05" value="0.7" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>물결 개수: <span id="valWaves">1</span></label><input type="range" id="waves" min="0" max="10" step="0.1" value="1" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>물결 진폭: <span id="valWaveAmplitude">8</span>mm</label><input type="range" id="waveAmplitude" min="0" max="25" step="0.1" value="8" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label>물결 시작 각도: <span id="valWaveStartAngle">0</span>°</label><input type="range" id="waveStartAngle" min="0" max="360" step="1" value="0" oninput="scheduleUpdate()"></div>
 
-            <div class="control-group"><label>가운데 띠 높이: <span id="valMiddleHeight">0</span>mm</label><input type="range" id="middleHeight" min="0" max="40" value="0" oninput="updateModel()"></div>
-
-            <div class="control-group"><label>위쪽 높이 (뭉툭한 부분): <span id="valTopHeight">10</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="10" oninput="updateModel()"></div>
-            <div class="control-group"><label>위쪽 자르기 비율: <span id="valTopCutoff">50</span>%</label><input type="range" id="topCutoff" min="0" max="100" value="50" oninput="updateModel()"></div>
-
-            <div class="color-row"><span>보석 색</span><input type="color" id="colGem" value="#8e24aa" oninput="updateModel()"></div>
+            <div class="section-label">3. 색상</div>
+            <div class="color-row"><span>꽃병</span><input type="color" id="col" value="#4fc3f7" oninput="scheduleUpdate()"></div>
         `;
 
-        // 다운로드 버튼은 footer에 넣어서 컨트롤 패널이 길어져도 화면 하단에 항상 고정으로 보이게 한다.
         shell.controlsFooterEl.innerHTML = `
             <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
         `;
 
-        // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드)
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
         });
@@ -81,145 +86,179 @@
         ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
         shell.resetBtn.onclick = function () { resetToDefaults(); };
 
-        let currentGroup = null;
-        let currentManifolds = []; // 이번 프레임에서 만든 Manifold 객체들 — 다음 갱신 전에 dispose
+        let currentMesh = null;
         let manifoldReady = false;
+        let updateTimer = null;
 
-        // 모든 입력값 + 카메라 시점을 처음 상태로 되돌린다.
+        function scheduleUpdate() {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 100);
+        }
+
         function resetToDefaults() {
-            document.getElementById('diameter').value = DEFAULTS.diameter;
-            document.getElementById('sides').value = DEFAULTS.sides;
-            document.getElementById('bottomHeight').value = DEFAULTS.bottomHeight;
-            document.getElementById('bottomCutoff').value = DEFAULTS.bottomCutoff;
-            document.getElementById('middleHeight').value = DEFAULTS.middleHeight;
-            document.getElementById('topHeight').value = DEFAULTS.topHeight;
-            document.getElementById('topCutoff').value = DEFAULTS.topCutoff;
-            document.getElementById('colGem').value = DEFAULTS.colGem;
+            document.getElementById('height').value = DEFAULTS.height;
+            document.getElementById('radius').value = DEFAULTS.radius;
+            document.getElementById('wallThickness').value = DEFAULTS.wallThickness;
+            document.getElementById('baseThickness').value = DEFAULTS.baseThickness;
+            document.getElementById('scaleTop').value = DEFAULTS.scaleTop;
+            document.getElementById('waves').value = DEFAULTS.waves;
+            document.getElementById('waveAmplitude').value = DEFAULTS.waveAmplitude;
+            document.getElementById('waveStartAngle').value = DEFAULTS.waveStartAngle;
+            document.getElementById('col').value = DEFAULTS.col;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
             updateModel();
         }
 
-        function disposeCurrentManifolds() {
-            currentManifolds.forEach(m => ManifoldCore.dispose(m));
-            currentManifolds = [];
+        // ---------- 실제 모델링 ----------
+        // 세로/가로 분할 수(slices/circleSegments)는 순수 품질/성능 트레이드오프라 슬라이더로
+        // 노출하지 않는다 — 미리보기는 낮게 고정해 속도를 확보하고, 다운로드할 때만 잠깐
+        // 인쇄 품질로 다시 계산한다(갤러리3/5/6/8과 동일한 방침). EXPORT 값은 원래 이 갤러리가
+        // 쓰던 기본값(slices=100, circleSegments=180) 그대로라 인쇄 품질은 이전과 동일하다.
+        const PREVIEW_SLICES = 50;
+        const EXPORT_SLICES = 100;
+        const PREVIEW_CIRCLE_SEGMENTS = 90;
+        const EXPORT_CIRCLE_SEGMENTS = 180;
+
+        // 원본 draw_profile()의 point 생성 로직을 그대로 옮긴 것 — i=0..slices는 안쪽 벽(아래→위),
+        // i=slices+1..slices*2+1은 바깥쪽 벽(위→아래)을 그려서 벽 두께만큼의 리본 모양 폐곡선을
+        // 만든다. offset()이 테이퍼(선형)+사인파를 더해 물결치는 반지름을 만든다.
+        function buildProfileContours(p, slices) {
+            const slicesPerMm = slices / p.height;
+            const offsetPerMm = (p.scaleTop - 1) * p.radius / p.height;
+
+            function offsetAt(y) {
+                const wavePhaseDeg = (y / p.height) * (360 * p.waves) + p.waveStartAngle;
+                return y * offsetPerMm + Math.sin(wavePhaseDeg * Math.PI / 180) * p.waveAmplitude;
+            }
+            function xAt(i) { return i > slices ? p.wallThickness : 0; }
+            function yAt(i) { return i > slices ? p.height - ((i - slices - 1) / slicesPerMm) : i / slicesPerMm; }
+
+            const shiftX = p.radius - p.wallThickness; // 원본의 translate([radius-wall_thickness,0,0])
+            const wallPoints = [];
+            for (let i = 0; i <= slices * 2 + 1; i++) {
+                const y = yAt(i);
+                const x = xAt(i) + offsetAt(y);
+                wallPoints.push([x + shiftX, y]);
+            }
+
+            const contours = [wallPoints];
+            if (p.baseThickness > 0) {
+                // 원본의 square([radius+x(0)+offset(0), base_thickness]) — x(0)은 항상 0.
+                const baseWidth = p.radius + offsetAt(0);
+                // 점 순서가 중요하다 — wallPoints(안쪽 벽 아래→위, 바깥쪽 벽 위→아래)는 시계
+                // 방향으로 감기는데, 이 사각형을 반시계 방향([0,0]→[baseWidth,0]→...)으로 그리면
+                // CrossSection의 NonZero 규칙 아래 둘이 겹치는 영역(벽 두께만큼의 바닥 테두리)의
+                // 감김 수가 서로 상쇄돼(+1과 -1) 그 자리에 도넛 모양의 빈 틈이 생긴다 — 실제로
+                // 겪은 문제, 바닥에서 보면 벽과 바닥판이 안 이어져 있는 것처럼 보였다. 두 폐곡선을
+                // 같은(시계) 방향으로 감아야 겹치는 부분이 하나의 solid로 합쳐진다.
+                contours.push([[0, 0], [0, p.baseThickness], [baseWidth, p.baseThickness], [baseWidth, 0]]);
+            }
+            return contours;
         }
 
-        function disposeCurrentThreeMesh() {
+        // 여러 폐곡선을 한 CrossSection에 함께 넣으면(NonZero 규칙) 자동으로 합쳐진다 — 글자
+        // 윤곽선(자모별 여러 하위경로)을 다룰 때와 동일한 방식이라 별도 union 호출이 필요 없다.
+        function buildVaseSolid(p, slices, circleSegments) {
+            const contours = buildProfileContours(p, slices);
+            const xs = ManifoldCore.contoursToXS(contours);
+            if (!xs) return null;
+            const revolved = ManifoldCore.revolveXS(xs, circleSegments, 360);
+            xs.delete();
+            const yUp = ManifoldCore.toYUp(revolved);
+            revolved.delete();
+            return yUp;
+        }
+
+        function meshFromSolid(solid, color) {
+            if (!solid) return null;
+            const buf = ManifoldCore.toBufferGeometry(solid);
+            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({
+                color: color, metalness: 0.2, roughness: 0.45, envMapIntensity: 0.55
+            }));
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            return mesh;
+        }
+
+        function disposeCurrentMesh() {
             ParametricCore.updateDimensionOverlay(scene, null);
-            if (!currentGroup) return;
-            scene.remove(currentGroup);
-            currentGroup.traverse(obj => {
-                if (obj.geometry) obj.geometry.dispose();
-                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                else if (obj.material) obj.material.dispose();
-            });
-            currentGroup = null;
+            if (!currentMesh) return;
+            scene.remove(currentMesh);
+            currentMesh.geometry.dispose();
+            currentMesh.material.dispose();
+            currentMesh = null;
+        }
+
+        function readParams() {
+            return {
+                height: parseFloat(document.getElementById('height').value),
+                radius: parseFloat(document.getElementById('radius').value),
+                wallThickness: parseFloat(document.getElementById('wallThickness').value),
+                baseThickness: parseFloat(document.getElementById('baseThickness').value),
+                scaleTop: parseFloat(document.getElementById('scaleTop').value),
+                waves: parseFloat(document.getElementById('waves').value),
+                waveAmplitude: parseFloat(document.getElementById('waveAmplitude').value),
+                waveStartAngle: parseFloat(document.getElementById('waveStartAngle').value),
+                col: document.getElementById('col').value
+            };
         }
 
         function updateModel() {
             if (!manifoldReady) return;
+            const p = readParams();
 
-            const diameter = parseFloat(document.getElementById('diameter').value);
-            const sides = parseInt(document.getElementById('sides').value, 10);
-            const bottomHeight = parseFloat(document.getElementById('bottomHeight').value);
-            const bottomCutoff = parseFloat(document.getElementById('bottomCutoff').value);
-            const middleHeight = parseFloat(document.getElementById('middleHeight').value);
-            const topHeight = parseFloat(document.getElementById('topHeight').value);
-            const topCutoff = parseFloat(document.getElementById('topCutoff').value);
-            const gemColor = document.getElementById('colGem').value;
+            [
+                ['valHeight', p.height], ['valRadius', p.radius], ['valWallThickness', p.wallThickness], ['valBaseThickness', p.baseThickness],
+                ['valScaleTop', p.scaleTop], ['valWaves', p.waves], ['valWaveAmplitude', p.waveAmplitude], ['valWaveStartAngle', p.waveStartAngle]
+            ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
 
-            document.getElementById('valDiameter').innerText = diameter;
-            document.getElementById('valSides').innerText = sides;
-            document.getElementById('valBottomHeight').innerText = bottomHeight;
-            document.getElementById('valBottomCutoff').innerText = bottomCutoff;
-            document.getElementById('valMiddleHeight').innerText = middleHeight;
-            document.getElementById('valTopHeight').innerText = topHeight;
-            document.getElementById('valTopCutoff').innerText = topCutoff;
-
-            disposeCurrentManifolds();
-
-            // 원본 OpenSCAD 공식 그대로: cutoff%만큼 잘라낸 자리의 반지름은 항상
-            // (원래 반지름 * cutoff/100)과 같고, 그 자리까지의 높이는 (원래 높이 * (100-cutoff)/100).
-            const radius = diameter / 2;
-            const bottomCutHeight = bottomHeight * (100 - bottomCutoff) / 100;
-            const bottomTipRadius = radius * (bottomCutoff / 100);
-            const topCutHeight = topHeight * (100 - topCutoff) / 100;
-            const topTipRadius = radius * (topCutoff / 100);
-
-            const idToColor = new Map();
-            const parts = [];
-            let cursorY = 0;
-
-            // 아래쪽(파빌리온) — 뾰족한 끝이 아래(y=0), 가장 넓은 부분이 위(거들과 맞닿는 면)
-            if (bottomCutHeight > 0.001) {
-                const piece = ManifoldCore.cylinder(bottomTipRadius, radius, bottomCutHeight, sides);
-                currentManifolds.push(piece);
-                idToColor.set(piece.originalID(), gemColor);
-                const positioned = ManifoldCore.translateY(piece, cursorY);
-                currentManifolds.push(positioned);
-                parts.push(positioned);
-                cursorY += bottomCutHeight;
+            let solid;
+            try {
+                solid = buildVaseSolid(p, PREVIEW_SLICES, PREVIEW_CIRCLE_SEGMENTS);
+            } catch (err) {
+                console.error('꽃병 생성 실패:', err);
+                solid = null;
             }
 
-            // 가운데 띠(거들) — 위아래 반지름이 같은 곧은 원기둥
-            if (middleHeight > 0.001) {
-                const piece = ManifoldCore.cylinder(radius, radius, middleHeight, sides);
-                currentManifolds.push(piece);
-                idToColor.set(piece.originalID(), gemColor);
-                const positioned = ManifoldCore.translateY(piece, cursorY);
-                currentManifolds.push(positioned);
-                parts.push(positioned);
-                cursorY += middleHeight;
-            }
+            disposeCurrentMesh();
+            if (!solid) return;
 
-            // 위쪽(크라운) — 가장 넓은 부분이 아래(거들과 맞닿는 면), 뭉툭한 끝이 위
-            if (topCutHeight > 0.001) {
-                const piece = ManifoldCore.cylinder(radius, topTipRadius, topCutHeight, sides);
-                currentManifolds.push(piece);
-                idToColor.set(piece.originalID(), gemColor);
-                const positioned = ManifoldCore.translateY(piece, cursorY);
-                currentManifolds.push(positioned);
-                parts.push(positioned);
-                cursorY += topCutHeight;
-            }
-
-            disposeCurrentThreeMesh();
-            if (!parts.length) return; // 세 조각 모두 자르기 비율/높이가 극단이라 부피가 안 남는 경우
-
-            let fused = parts[0];
-            for (let i = 1; i < parts.length; i++) {
-                const merged = ManifoldCore.union(fused, parts[i]);
-                currentManifolds.push(merged);
-                fused = merged;
-            }
-
-            // 실제 보석처럼 매끈하게 반짝이도록 이름표 상자보다 낮은 roughness/metalness를 준다.
-            // 보석은 다른 갤러리와 달리 면(facet)이 각져 보이는 것 자체가 매력이라, creaseNormals의
-            // 매끈한 곡면 처리 대신 flatShading으로 되돌린다 — 인접한 두 면(facet) 사이 각도 차이가
-            // 35°(CREASE_ANGLE) 미만이면(면 개수가 많을수록 그럴 가능성이 커짐) 보석인데도 뭉개져
-            // 보이는 문제가 생기기 때문.
-            const threeMesh = ManifoldCore.toThreeMesh(fused, idToColor, gemColor, { metalness: 0.15, roughness: 0.15, flatShading: true });
-            threeMesh.castShadow = false;
-            threeMesh.receiveShadow = false;
-
-            currentGroup = new THREE.Group();
-            currentGroup.add(threeMesh);
-            scene.add(currentGroup);
-            ParametricCore.updateDimensionOverlay(scene, currentGroup);
+            currentMesh = meshFromSolid(solid, p.col);
+            solid.delete();
+            scene.add(currentMesh);
+            ParametricCore.updateDimensionOverlay(scene, currentMesh);
         }
 
         function downloadSTL() {
-            if (!currentGroup) return;
-            const sides = document.getElementById('sides').value;
-            ParametricCore.exportSTL(currentGroup, `보석_${sides}면.stl`);
+            if (!manifoldReady) return;
+            const p = readParams();
+
+            let solid;
+            try {
+                solid = buildVaseSolid(p, EXPORT_SLICES, EXPORT_CIRCLE_SEGMENTS);
+            } catch (err) {
+                console.error('STL 생성 실패:', err);
+                return;
+            }
+            if (!solid) return;
+
+            const buf = ManifoldCore.toBufferGeometry(solid);
+            solid.delete();
+
+            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            ParametricCore.exportSTL(exportGroup, 'wave_vase.stl');
+
+            mesh.geometry.dispose();
+            mesh.material.dispose();
         }
 
-        // 전역에 노출 (컨트롤 패널의 inline onclick/oninput에서 호출하기 위함)
-        window.updateModel = updateModel;
+        window.scheduleUpdate = scheduleUpdate;
         window.downloadSTL = downloadSTL;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
-        window.__getPreviewGroup = function () { return currentGroup; };
+        window.__getPreviewGroup = function () { return currentMesh; };
 
         async function main() {
             await ManifoldCore.ready;

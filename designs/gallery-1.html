@@ -2,68 +2,74 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>갤러리1 - 클리커 몸체 만들기 - 초등 파라메트릭 디자인 스튜디오</title>
+    <title>갤러리1 - 보석 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/core.js"></script>
-    <!-- 몸체 STL 여러 개를 겹쳐서 진짜 하나의 입체로 합치는 데 쓰는 Manifold-3D 브릿지.
-         ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로
-         만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <!-- 원뿔대(cylinder) 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
+         로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
+         ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: #333; }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
-        .body-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
-        .body-grid button {
-            aspect-ratio: 1; padding: 0; border: 2px solid #ccc; border-radius: 4px;
-            background: #fff; cursor: pointer;
-        }
-        /* 사이즈 등 다른 슬라이더와 같은 계열의 파랑(core.css의 홈 버튼/뷰큐브 호버 색과 통일) */
-        .body-grid button.active { background: #2196f3; border-color: #1976d2; }
-        .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-        .check-row label { font-size: 0.95em; }
-        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
     </style>
 </head>
 <body>
 
     <script type="module">
-        // 갤러리1: 클리커 몸체 STL을 4x4 격자 위에서 원하는 칸에 클릭해서 배치하면, 그
-        // 칸들에 놓인 복사본들을 서로 살짝 겹치게 배치한 뒤 Manifold-3D로 진짜 하나의
-        // 입체로 합쳐서 보여준다(테트리스 키캡처럼 여러 칸이 이어붙은 모양을 만들 수 있게).
-        // 뚜껑(글씨 새기기 포함)은 갤러리7에서 따로 다룬다 — 몸체는 "배치"에만 집중한다.
+        // 갤러리1: 보석(gem) 모양 만들기. Code and Make(codeandmake.com)의 오픈소스 OpenSCAD
+        // "Gem Generator"(https://codeandmake.com/post/gem-generator, MIT 유사 permissive
+        // 라이선스) 설계를 이 프로젝트의 three.js + Manifold-3D 스택으로 포팅했다.
+        //
+        // 원본은 원뿔(cone)과 평평한 원기둥(cylinder)을 intersection해서 끝이 잘린 원뿔대를
+        // 만드는데, 잘리는 높이의 반지름이 항상 원뿔 테이퍼 비율과 정확히 일치해서
+        // (반지름(cutoff%) = 원래반지름 * cutoff/100) 그 결과는 그냥 원뿔대(frustum) 그 자체와
+        // 같다. 그래서 불리언 intersection 없이 ManifoldCore.cylinder(아랫반지름, 윗반지름, 높이,
+        // 면개수)만으로 동일한 모양을 바로 만들 수 있다 — 아래쪽(뾰족한 부분/파빌리온),
+        // 가운데 띠(거들), 위쪽(뭉툭한 부분/크라운) 세 조각을 만들어 union으로 하나의 입체로 합친다.
         const shell = ParametricCore.mountEditorShell(document.body);
 
-        shell.controlsBodyEl.innerHTML = `
-            <h3>클리커 몸체 만들기</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 16px;">
-                아래 격자에서 빈칸을 클릭하면 그 자리에 몸체가 생기고, 다시 클릭하면 없어져요.
-                선택한 칸들은 서로 이어붙은 하나의 모양으로 합쳐져요.
-            </p>
-            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">몸체 배치 (5×5)</label>
-            <div id="bodyGrid" class="body-grid"></div>
-            <p style="font-size: 0.8em; color: #999; margin: 0 0 20px;">칸 수가 많아질수록 합치는 데 시간이 조금 더 걸려요.</p>
-            <div class="color-row"><span>몸체 색</span><input type="color" id="colBase" value="#46b4f5" oninput="updateColors()"></div>
+        // "초기화" 버튼이 되돌릴 기본값. 원본 OpenSCAD 디자인의 기본값(Bottom_Height=30,
+        // Top_Height=15)에서 Bottom_Height=15, Top_Height=10으로 조정함 — 그 외 값은 원본과 동일
+        // (Diameter=30, Sides=6, Bottom_Cutoff_Percent=0, Middle_Height=0, Top_Cutoff_Percent=50).
+        const DEFAULTS = {
+            diameter: 30, sides: 6,
+            bottomHeight: 15, bottomCutoff: 0,
+            middleHeight: 0,
+            topHeight: 10, topCutoff: 50,
+            colGem: '#8e24aa'
+        };
 
-            <div class="section-label">4. 키링 구멍</div>
-            <div class="check-row"><input type="checkbox" id="keyringOn" onchange="scheduleUpdate()"><label for="keyringOn">키링 구멍 사용</label></div>
-            <div class="control-group"><label>구멍 X 위치: <span id="valKeyringX">-70</span>mm</label><input type="range" id="keyringX" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>구멍 Y 위치: <span id="valKeyringY">-70</span>mm</label><input type="range" id="keyringY" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>구멍 지름: <span id="valKeyringHoleSize">3.5</span>mm</label><input type="range" id="keyringHoleSize" min="2" max="8" step="0.5" value="3.5" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>구멍 테두리 두께: <span id="valKeyringRim">2</span>mm</label><input type="range" id="keyringRim" min="0.5" max="3" step="0.1" value="2" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>구멍 두께(높이): <span id="valKeyringThick">3</span>mm</label><input type="range" id="keyringThick" min="1" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
+        shell.controlsBodyEl.innerHTML = `
+            <h3>보석 설정</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 아래쪽(뾰족한 부분), 가운데 띠, 위쪽(뭉툭한 부분)을 Manifold-3D로 하나의 입체로 합칩니다.</p>
+
+            <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
+            <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>
+
+            <div class="control-group"><label>아래쪽 높이 (뾰족한 부분): <span id="valBottomHeight">15</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="15" oninput="updateModel()"></div>
+            <div class="control-group"><label>아래쪽 자르기 비율: <span id="valBottomCutoff">0</span>%</label><input type="range" id="bottomCutoff" min="0" max="100" value="0" oninput="updateModel()"></div>
+
+            <div class="control-group"><label>가운데 띠 높이: <span id="valMiddleHeight">0</span>mm</label><input type="range" id="middleHeight" min="0" max="40" value="0" oninput="updateModel()"></div>
+
+            <div class="control-group"><label>위쪽 높이 (뭉툭한 부분): <span id="valTopHeight">10</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="10" oninput="updateModel()"></div>
+            <div class="control-group"><label>위쪽 자르기 비율: <span id="valTopCutoff">50</span>%</label><input type="range" id="topCutoff" min="0" max="100" value="50" oninput="updateModel()"></div>
+
+            <div class="color-row"><span>보석 색</span><input type="color" id="colGem" value="#8e24aa" oninput="updateModel()"></div>
         `;
 
+        // 다운로드 버튼은 footer에 넣어서 컨트롤 패널이 길어져도 화면 하단에 항상 고정으로 보이게 한다.
         shell.controlsFooterEl.innerHTML = `
             <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
         `;
 
+        // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드)
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
         });
@@ -73,225 +79,152 @@
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
         ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
-
-        // ---------- 격자 상태 ----------
-        const GRID_SIZE = 5;
-        // 몸체 하나의 가로/세로 폭(약 25mm)보다 살짝 작게 잡아서, 이웃한 칸끼리 아주 살짝
-        // 겹치게 한다 — 참고용으로 받은 겹친 예시 STL(Name Clicker Base (Ribbed).stl)을
-        // 실측해서 얻은 간격이다. 겹친 부분은 Manifold union이 하나의 입체로 이어붙인다.
-        const GRID_PITCH = 23.5; // mm
-        // 5x5 중 (row1,col1),(row1,col2),(row2,col2) 세 칸을 기본으로 켜서 ㄱ자 모양으로 시작한다.
-        const DEFAULT_GRID_INDICES = [6, 7, 12];
-        let gridState = new Array(GRID_SIZE * GRID_SIZE).fill(false);
-        DEFAULT_GRID_INDICES.forEach(function (idx) { gridState[idx] = true; });
-
-        function buildGridUI() {
-            const container = document.getElementById('bodyGrid');
-            container.innerHTML = '';
-            for (let idx = 0; idx < GRID_SIZE * GRID_SIZE; idx++) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                if (gridState[idx]) btn.classList.add('active');
-                btn.onclick = function () {
-                    gridState[idx] = !gridState[idx];
-                    btn.classList.toggle('active', gridState[idx]);
-                    scheduleUpdate();
-                };
-                container.appendChild(btn);
-            }
-        }
-        buildGridUI();
-
-        shell.resetBtn.onclick = function () {
-            gridState = new Array(GRID_SIZE * GRID_SIZE).fill(false);
-            DEFAULT_GRID_INDICES.forEach(function (idx) { gridState[idx] = true; });
-            buildGridUI();
-            document.getElementById('colBase').value = '#46b4f5';
-            updateColors();
-            document.getElementById('keyringOn').checked = false;
-            document.getElementById('keyringX').value = -70;
-            document.getElementById('keyringY').value = -70;
-            document.getElementById('keyringHoleSize').value = 3.5;
-            document.getElementById('keyringRim').value = 2;
-            document.getElementById('keyringThick').value = 3;
-            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-            scheduleUpdate();
-        };
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
 
         let currentGroup = null;
-        let bodyMesh = null;
+        let currentManifolds = []; // 이번 프레임에서 만든 Manifold 객체들 — 다음 갱신 전에 dispose
         let manifoldReady = false;
-        let updateTimer = null;
 
-        // 몸체 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
-        // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
-        // (Y-up -> Z-up)과 반대 방향으로 한 번 돌려서 불러온다. 그 다음 가로/세로를
-        // 원점(0,0) 중심으로 맞추고, 바닥(y=0)에 닿도록 세운다.
-        function normalizeGeometry(geo) {
-            geo.rotateX(-Math.PI / 2);
-            geo.computeBoundingBox();
-            const box = geo.boundingBox;
-            const cx = (box.min.x + box.max.x) / 2;
-            const cz = (box.min.z + box.max.z) / 2;
-            geo.translate(-cx, -box.min.y, -cz);
-            geo.computeBoundingBox();
-            return geo;
+        // 모든 입력값 + 카메라 시점을 처음 상태로 되돌린다.
+        function resetToDefaults() {
+            document.getElementById('diameter').value = DEFAULTS.diameter;
+            document.getElementById('sides').value = DEFAULTS.sides;
+            document.getElementById('bottomHeight').value = DEFAULTS.bottomHeight;
+            document.getElementById('bottomCutoff').value = DEFAULTS.bottomCutoff;
+            document.getElementById('middleHeight').value = DEFAULTS.middleHeight;
+            document.getElementById('topHeight').value = DEFAULTS.topHeight;
+            document.getElementById('topCutoff').value = DEFAULTS.topCutoff;
+            document.getElementById('colGem').value = DEFAULTS.colGem;
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            updateModel();
         }
 
-        function scheduleUpdate() {
-            if (updateTimer) clearTimeout(updateTimer);
-            updateTimer = setTimeout(updateModel, 150);
-        }
-
-        function updateColors() {
-            const baseColor = document.getElementById('colBase').value;
-            if (bodyMesh) {
-                const mats = Array.isArray(bodyMesh.material) ? bodyMesh.material : [bodyMesh.material];
-                mats.forEach(function (m) { m.color.set(baseColor); });
-            }
-        }
-
-        let baseGeoNormalized = null; // 원본 몸체 STL(정규화 완료, Manifold 변환 전)
-        let baseTemplate = null; // 몸체 하나를 Manifold로 변환해둔 것 — 매번 다시 만들지 않고 재사용
-
-        // 켜진 격자 칸들의 위치에 baseTemplate 복사본을 놓고 전부 union으로 합친다.
-        function buildBodyManifold() {
-            const activeIdx = [];
-            for (let i = 0; i < gridState.length; i++) if (gridState[i]) activeIdx.push(i);
-            if (!activeIdx.length) return null;
-
-            const half = (GRID_SIZE - 1) / 2;
-            let fused = null;
-            const toDelete = [];
-            activeIdx.forEach(function (idx) {
-                const row = Math.floor(idx / GRID_SIZE);
-                const col = idx % GRID_SIZE;
-                const x = (col - half) * GRID_PITCH;
-                const z = (row - half) * GRID_PITCH;
-                const placed = ManifoldCore.translate(baseTemplate, x, 0, z);
-                if (!fused) {
-                    fused = placed;
-                } else {
-                    const next = ManifoldCore.union(fused, placed);
-                    toDelete.push(fused, placed);
-                    fused = next;
-                }
-            });
-            ManifoldCore.dispose.apply(ManifoldCore, toDelete);
-            return fused;
-        }
-
-        // 키링 구멍: 갤러리4의 이름표 구멍과 같은 방식 — 바닥(y=0)에 붙어 있는 납작한 고리를
-        // 몸체 옆에 놓고, 구멍은 수직(Y축, 인쇄 시 슬라이서가 보는 "위" 방향)으로 뚫는다.
-        // X는 좌우, Y는 앞뒤(깊이) 위치라서 두 슬라이더로 평면 위의 아무 곳에나 옮길 수 있다.
-        function applyKeyringHole(bodyManifold) {
-            if (!document.getElementById('keyringOn').checked) return bodyManifold;
-
-            const x = parseFloat(document.getElementById('keyringX').value);
-            const z = parseFloat(document.getElementById('keyringY').value); // "Y 위치" = 화면 앞뒤(Z) 위치
-            const holeD = parseFloat(document.getElementById('keyringHoleSize').value);
-            const rim = parseFloat(document.getElementById('keyringRim').value);
-
-            const outerR = holeD / 2 + rim;
-            const holeR = holeD / 2;
-            const ringThickness = parseFloat(document.getElementById('keyringThick').value);
-
-            const scratch = [];
-            function track(m) { scratch.push(m); return m; }
-
-            // 먼저 구멍 없는 고리를 몸체에 합친 뒤, 합쳐진 전체에서 구멍을 파낸다 — 구멍을
-            // 고리에만 미리 뚫고 나중에 union하면, 고리가 몸체와 겹치는 부분은 몸체의 원래
-            // solid 부피가 그대로 남아 있어서 구멍이 막힌 홈처럼 되어버린다(실제로 겪은 문제,
-            // union 결과의 genus가 0으로 나와서 발견함 — 진짜 관통 구멍이라면 손잡이 달린
-            // 머그컵처럼 genus가 1이어야 한다).
-            const ringRaw = track(ManifoldCore.cylinder(outerR, outerR, ringThickness, 48));
-            const ringPlaced = track(ManifoldCore.translate(ringRaw, x, 0, z));
-            const bodyWithRing = track(ManifoldCore.union(bodyManifold, ringPlaced));
-
-            const holeRaw = track(ManifoldCore.cylinder(holeR, holeR, ringThickness + 4, 32));
-            const holePlaced = track(ManifoldCore.translate(holeRaw, x, -2, z));
-            const fused = ManifoldCore.subtract(bodyWithRing, holePlaced);
-
-            scratch.forEach(function (m) { m.delete(); });
-            bodyManifold.delete();
-            return fused;
+        function disposeCurrentManifolds() {
+            currentManifolds.forEach(m => ManifoldCore.dispose(m));
+            currentManifolds = [];
         }
 
         function disposeCurrentThreeMesh() {
             ParametricCore.updateDimensionOverlay(scene, null);
             if (!currentGroup) return;
             scene.remove(currentGroup);
-            currentGroup.traverse(function (obj) {
+            currentGroup.traverse(obj => {
                 if (obj.geometry) obj.geometry.dispose();
-                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
                 else if (obj.material) obj.material.dispose();
             });
             currentGroup = null;
-            bodyMesh = null;
         }
 
         function updateModel() {
-            if (!manifoldReady || !baseGeoNormalized) return;
+            if (!manifoldReady) return;
 
-            let bodyManifold;
-            try {
-                bodyManifold = buildBodyManifold();
-                if (bodyManifold) bodyManifold = applyKeyringHole(bodyManifold);
-            } catch (err) {
-                console.error('몸체 합치기/키링 구멍 생성 실패:', err);
-                bodyManifold = null;
+            const diameter = parseFloat(document.getElementById('diameter').value);
+            const sides = parseInt(document.getElementById('sides').value, 10);
+            const bottomHeight = parseFloat(document.getElementById('bottomHeight').value);
+            const bottomCutoff = parseFloat(document.getElementById('bottomCutoff').value);
+            const middleHeight = parseFloat(document.getElementById('middleHeight').value);
+            const topHeight = parseFloat(document.getElementById('topHeight').value);
+            const topCutoff = parseFloat(document.getElementById('topCutoff').value);
+            const gemColor = document.getElementById('colGem').value;
+
+            document.getElementById('valDiameter').innerText = diameter;
+            document.getElementById('valSides').innerText = sides;
+            document.getElementById('valBottomHeight').innerText = bottomHeight;
+            document.getElementById('valBottomCutoff').innerText = bottomCutoff;
+            document.getElementById('valMiddleHeight').innerText = middleHeight;
+            document.getElementById('valTopHeight').innerText = topHeight;
+            document.getElementById('valTopCutoff').innerText = topCutoff;
+
+            disposeCurrentManifolds();
+
+            // 원본 OpenSCAD 공식 그대로: cutoff%만큼 잘라낸 자리의 반지름은 항상
+            // (원래 반지름 * cutoff/100)과 같고, 그 자리까지의 높이는 (원래 높이 * (100-cutoff)/100).
+            const radius = diameter / 2;
+            const bottomCutHeight = bottomHeight * (100 - bottomCutoff) / 100;
+            const bottomTipRadius = radius * (bottomCutoff / 100);
+            const topCutHeight = topHeight * (100 - topCutoff) / 100;
+            const topTipRadius = radius * (topCutoff / 100);
+
+            const idToColor = new Map();
+            const parts = [];
+            let cursorY = 0;
+
+            // 아래쪽(파빌리온) — 뾰족한 끝이 아래(y=0), 가장 넓은 부분이 위(거들과 맞닿는 면)
+            if (bottomCutHeight > 0.001) {
+                const piece = ManifoldCore.cylinder(bottomTipRadius, radius, bottomCutHeight, sides);
+                currentManifolds.push(piece);
+                idToColor.set(piece.originalID(), gemColor);
+                const positioned = ManifoldCore.translateY(piece, cursorY);
+                currentManifolds.push(positioned);
+                parts.push(positioned);
+                cursorY += bottomCutHeight;
             }
 
-            [
-                ['valKeyringX', document.getElementById('keyringX').value],
-                ['valKeyringY', document.getElementById('keyringY').value],
-                ['valKeyringHoleSize', document.getElementById('keyringHoleSize').value],
-                ['valKeyringRim', document.getElementById('keyringRim').value],
-                ['valKeyringThick', document.getElementById('keyringThick').value]
-            ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
+            // 가운데 띠(거들) — 위아래 반지름이 같은 곧은 원기둥
+            if (middleHeight > 0.001) {
+                const piece = ManifoldCore.cylinder(radius, radius, middleHeight, sides);
+                currentManifolds.push(piece);
+                idToColor.set(piece.originalID(), gemColor);
+                const positioned = ManifoldCore.translateY(piece, cursorY);
+                currentManifolds.push(positioned);
+                parts.push(positioned);
+                cursorY += middleHeight;
+            }
+
+            // 위쪽(크라운) — 가장 넓은 부분이 아래(거들과 맞닿는 면), 뭉툭한 끝이 위
+            if (topCutHeight > 0.001) {
+                const piece = ManifoldCore.cylinder(radius, topTipRadius, topCutHeight, sides);
+                currentManifolds.push(piece);
+                idToColor.set(piece.originalID(), gemColor);
+                const positioned = ManifoldCore.translateY(piece, cursorY);
+                currentManifolds.push(positioned);
+                parts.push(positioned);
+                cursorY += topCutHeight;
+            }
 
             disposeCurrentThreeMesh();
-            currentGroup = new THREE.Group();
+            if (!parts.length) return; // 세 조각 모두 자르기 비율/높이가 극단이라 부피가 안 남는 경우
 
-            if (bodyManifold) {
-                bodyMesh = ManifoldCore.toThreeMesh(bodyManifold, new Map(), document.getElementById('colBase').value, { roughness: 0.55, metalness: 0.05, envMapIntensity: 0.55 });
-                bodyMesh.castShadow = true;
-                bodyMesh.receiveShadow = true;
-                currentGroup.add(bodyMesh);
+            let fused = parts[0];
+            for (let i = 1; i < parts.length; i++) {
+                const merged = ManifoldCore.union(fused, parts[i]);
+                currentManifolds.push(merged);
+                fused = merged;
             }
-            ManifoldCore.dispose(bodyManifold);
 
+            // 실제 보석처럼 매끈하게 반짝이도록 이름표 상자보다 낮은 roughness/metalness를 준다.
+            // 보석은 다른 갤러리와 달리 면(facet)이 각져 보이는 것 자체가 매력이라, creaseNormals의
+            // 매끈한 곡면 처리 대신 flatShading으로 되돌린다 — 인접한 두 면(facet) 사이 각도 차이가
+            // 35°(CREASE_ANGLE) 미만이면(면 개수가 많을수록 그럴 가능성이 커짐) 보석인데도 뭉개져
+            // 보이는 문제가 생기기 때문.
+            const threeMesh = ManifoldCore.toThreeMesh(fused, idToColor, gemColor, { metalness: 0.15, roughness: 0.15, flatShading: true });
+            threeMesh.castShadow = false;
+            threeMesh.receiveShadow = false;
+
+            currentGroup = new THREE.Group();
+            currentGroup.add(threeMesh);
             scene.add(currentGroup);
             ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
         function downloadSTL() {
             if (!currentGroup) return;
-            ParametricCore.exportSTL(currentGroup, '클리커_몸체.stl');
+            const sides = document.getElementById('sides').value;
+            ParametricCore.exportSTL(currentGroup, `보석_${sides}면.stl`);
         }
 
-        window.updateColors = updateColors;
+        // 전역에 노출 (컨트롤 패널의 inline onclick/oninput에서 호출하기 위함)
+        window.updateModel = updateModel;
         window.downloadSTL = downloadSTL;
-        window.scheduleUpdate = scheduleUpdate;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
         window.__getPreviewGroup = function () { return currentGroup; };
 
-        const loader = new THREE.STLLoader();
-        function tryInit() {
-            if (!manifoldReady || !baseGeoNormalized || baseTemplate) return;
-            baseTemplate = ManifoldCore.fromGeometry(baseGeoNormalized);
-            updateModel();
-        }
-        loader.load('../assets/models/clicker_base.stl', function (geo) {
-            baseGeoNormalized = normalizeGeometry(geo);
-            tryInit();
-        });
-
         async function main() {
             await ManifoldCore.ready;
             manifoldReady = true;
-            tryInit();
+            updateModel();
         }
         main();
     </script>

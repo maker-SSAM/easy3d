@@ -91,7 +91,7 @@ window.ManifoldCore = (function () {
     // 변환한다. STL은 삼각형마다 정점을 따로 갖는 "삼각형 수프"라, 이웃한 면끼리 같은
     // 위치의 정점이라도 서로 다른 인덱스를 쓴다 — Manifold는 완전히 닫힌(watertight)
     // 2-매니폴드를 요구하므로, Mesh.merge()로 같은 위치의 정점들을 자동 용접해 이어붙인
-    // 뒤에야 Manifold로 만들 수 있다(갤러리1의 "몸체를 여러 개 배치해 하나로 합치기"
+    // 뒤에야 Manifold로 만들 수 있다(갤러리7의 "몸체를 여러 개 배치해 하나로 합치기"
     // 기능에서, 고정 STL 부품을 union의 입력으로 쓰기 위해 필요).
     function fromGeometry(geometry) {
         const geo = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -105,7 +105,7 @@ window.ManifoldCore = (function () {
     }
 
     // font-core.js의 윤곽선으로 2D 단면(CrossSection)만 만들고 압출하지 않는다. extrudeContours와
-    // 달리, 결과를 곧바로 offset()/add()/subtract() 같은 2D 연산에 먼저 쓴 뒤(예: 갤러리4의
+    // 달리, 결과를 곧바로 offset()/add()/subtract() 같은 2D 연산에 먼저 쓴 뒤(예: 갤러리5의
     // 글자 외곽선/테두리 링처럼 폰트 윤곽선 자체를 부풀리거나 서로 합치는 경우) 원하는 시점에
     // extrudeXS()로 나중에 압출하고 싶을 때 쓴다.
     function contoursToXS(contours) {
@@ -125,7 +125,7 @@ window.ManifoldCore = (function () {
     }
 
     // 반지름이 다른 두 원판을 잇는 원뿔대(윗면 반지름=radiusTop, 아랫면 반지름=radiusBottom)를
-    // 만든다. sides로 원 대신 N각형 단면(각기둥/각뿔대)도 만들 수 있다 — 갤러리2 보석 디자인의
+    // 만든다. sides로 원 대신 N각형 단면(각기둥/각뿔대)도 만들 수 있다 — 갤러리1 보석 디자인의
     // 면(facet) 개수 조절이 여기서 나온다. Manifold의 cylinder()는 로컬 Z축을 따라
     // (아랫면 z=0, 윗면 z=height) 만들어지므로, extrudeContours와 동일하게 X축 -90도 회전으로
     // 아랫면이 y=0, 윗면이 y=height인 three.js Y-up 좌표계로 맞춘다.
@@ -150,12 +150,12 @@ window.ManifoldCore = (function () {
     }
 
     // 여러 Manifold의 볼록 껍질(convex hull)을 한 번에 계산한다. OpenSCAD의 hull()에 대응
-    // (갤러리8 꽃병처럼 서로 다른 높이/모양의 두 조각을 매끄러운 곡면으로 이어붙일 때 쓴다).
+    // (갤러리3 꽃병처럼 서로 다른 높이/모양의 두 조각을 매끄러운 곡면으로 이어붙일 때 쓴다).
     function hullOf(manifolds) {
         return Manifold.hull(manifolds);
     }
 
-    // ---------- 고급 원본(raw) API — 갤러리3(나사 뚜껑 통) 같이 회전 압출/꼬임 압출을 여러 번
+    // ---------- 고급 원본(raw) API — 갤러리4(나사 뚜껑 통) 같이 회전 압출/꼬임 압출을 여러 번
     // 조합해야 하는 디자인용. cuboid/cylinder/extrudeContours와 달리 originalID를 부여하지
     // 않고, Manifold의 기본 좌표계(Z축이 "위") 그대로 반환한다 — 여러 조각을 OpenSCAD 원본
     // 코드와 동일한 Z-up 좌표계에서 조합한 뒤, 마지막에 toYUp() 한 번만 호출해서 three.js
@@ -182,7 +182,7 @@ window.ManifoldCore = (function () {
     // 널링(knurl) 홈이 둘 다 이 방식(편심 원을 꼬아서 압출)으로 만들어진다.
     // scaleTop: manifold-3d의 .d.ts는 Vec2([x,y] 배열)와 number(균일 배율) 둘 다 받는다고
     // 돼 있지만, 실제로 겪은 문제 — 숫자 하나만 그대로 넘기면 X/Y가 비대칭으로 깨져서
-    // (갤러리8 꽃병에서 발견: 위로 갈수록 넓어져야 할 다각형이 한쪽 축만 거의 안 늘어나
+    // (갤러리3 꽃병에서 발견: 위로 갈수록 넓어져야 할 다각형이 한쪽 축만 거의 안 늘어나
     // 뾰족한 원뿔처럼 나왔다) 항상 [x,y] 배열로 정규화해서 넘긴다.
     function extrudeTwist(cross, height, nDivisions, twistDegrees, scaleTop) {
         let scale = scaleTop;
@@ -278,8 +278,8 @@ window.ManifoldCore = (function () {
         return resultGeometry;
     }
 
-    // 갤러리1(이름표 상자 모서리)/갤러리3(나사산 스레드)처럼 실제 각져야 하는 부분과,
-    // 갤러리2(보석 파빌리온 능선)처럼 실제 각져야 하는 다각형 면 사이의 경계는 살리면서도
+    // 갤러리7(이름표 상자 모서리)/갤러리4(나사산 스레드)처럼 실제 각져야 하는 부분과,
+    // 갤러리1(보석 파빌리온 능선)처럼 실제 각져야 하는 다각형 면 사이의 경계는 살리면서도
     // 30° 미만의 미세한 삼각분할 각도 차이(둥근 부분을 근사하며 생기는 자잘한 꺾임)는
     // 부드럽게 이어붙이기 위한 기준각. Code and Make 저장소가 실측으로 확정한 35°를 그대로 썼다.
     const CREASE_ANGLE = (35 * Math.PI) / 180;
@@ -307,7 +307,7 @@ window.ManifoldCore = (function () {
         const materials = [];
         const idToMaterialIndex = new Map();
         const matOpts = materialOptions || {};
-        // 아래 metalness/roughness 기본값은 갤러리1의 화면 설정 튜닝 패널로 실제 눈으로 보면서
+        // 아래 metalness/roughness 기본값은 갤러리7의 화면 설정 튜닝 패널로 실제 눈으로 보면서
         // 확정한 값이다. materialOptions로 필요하면 호출부에서 덮어쓸 수 있게는 열어둔다.
         const metalness = matOpts.metalness !== undefined ? matOpts.metalness : 0.2;
         const roughness = matOpts.roughness !== undefined ? matOpts.roughness : 0.45;

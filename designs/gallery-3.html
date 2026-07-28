@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <title>갤러리3 - 꼬임 연필꽂이 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
@@ -9,16 +12,18 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
     <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
     <!-- 2D 단면 → 꼬임 압출(twist extrude)/볼록 껍질(hull) → Manifold-3D 솔리드 → three.js
          변환 공용 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도
          type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .color-row span { font-size: 0.9em; color: #333; }
-        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
-        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
         .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
     </style>
 </head>
@@ -84,9 +89,9 @@
             <div class="color-row"><span>연필꽂이</span><input type="color" id="col" value="#ff5050" oninput="scheduleUpdate()"></div>
         `;
 
-        shell.controlsFooterEl.innerHTML = `
-            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
-        `;
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -247,8 +252,34 @@
             mesh.material.dispose();
         }
 
+        function download3MF() {
+            if (!manifoldReady) return;
+            const p = readParams();
+
+            let solid;
+            try {
+                solid = buildVaseSolid(p, EXPORT_TWIST_SLICES);
+            } catch (err) {
+                console.error('3MF 생성 실패:', err);
+                return;
+            }
+            if (!solid) return;
+
+            const buf = ManifoldCore.toBufferGeometry(solid);
+            solid.delete();
+
+            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            ThreeMFCore.export3MF(exportGroup, '꼬임_연필꽂이.3mf');
+
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        }
+
         window.scheduleUpdate = scheduleUpdate;
         window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
         window.__getPreviewGroup = function () { return currentMesh; };

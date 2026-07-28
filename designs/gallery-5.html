@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <title>갤러리5 - 다국어 키링 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
@@ -11,7 +14,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
     <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
     <!-- 2D 윤곽선(offset/union) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
@@ -20,11 +25,11 @@
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .color-row span { font-size: 0.9em; color: #333; }
-        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
         .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
         .check-row label { font-size: 0.95em; }
-        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
         .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
         .emoji-input { width: 100%; box-sizing: border-box; font-size: 1.2em; text-align: center; padding: 6px; }
     </style>
@@ -88,7 +93,9 @@
                 <label>글씨체 선택</label>
                 <select id="fontSelect" onchange="onFontChange()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
                 </select>
+                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
             </div>
             <div class="control-group"><label>글자 크기: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="50" step="0.5" value="12" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>글자 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
@@ -142,9 +149,9 @@
             <div class="color-row"><span>이모지</span><input type="color" id="colEmojiR" value="#ff2424" oninput="scheduleUpdate()"></div>
         `;
 
-        shell.controlsFooterEl.innerHTML = `
-            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
-        `;
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -163,6 +170,12 @@
         let manifoldReady = false;
         let textFont = null;
         let emojiFont = null;
+        // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명(FONT_OPTIONS[i].file), 업로드
+        // 파일이면 FontCore.loadFontFromFile()이 만들어준 합성 키. readParams()가 매번
+        // FONT_OPTIONS[select.value]를 다시 계산하면 업로드 폰트일 때(select.value가 숫자가
+        // 아니라 캐시 키라서) 배열 인덱싱이 깨지므로, onFontChange()가 갱신해두는 이 값을 쓴다.
+        let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
+        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
         let updateTimer = null;
 
         function scheduleUpdate() {
@@ -175,12 +188,48 @@
         }
 
         function onFontChange() {
-            const idx = document.getElementById('fontSelect').value;
-            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) {
+            const select = document.getElementById('fontSelect');
+            if (select.value === '__upload__') {
+                document.getElementById('fontUpload').click();
+                return; // 실제 처리는 fontUpload의 change 핸들러(아래)에서
+            }
+            fontSelectPrevValue = select.value;
+            // 이미 업로드해서 fontCache에 들어있는 폰트라면(캐시 키로 재선택한 경우) 다시
+            // 읽지 않고 바로 꺼내 쓴다.
+            const uploadedFont = FontCore.getFont(select.value);
+            if (uploadedFont) {
+                textFont = uploadedFont;
+                currentFontFile = select.value;
+                updateModel();
+                return;
+            }
+            currentFontFile = FONT_OPTIONS[select.value].file;
+            FontCore.loadFont(currentFontFile, function (font) {
                 textFont = font;
                 updateModel();
             });
         }
+
+        document.getElementById('fontUpload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            e.target.value = ''; // 같은 파일을 다시 선택해도 change 이벤트가 뜨도록 초기화
+            const select = document.getElementById('fontSelect');
+            if (!file) { select.value = fontSelectPrevValue; return; }
+            FontCore.loadFontFromFile(file, function (font, cacheKey) {
+                const opt = document.createElement('option');
+                opt.value = cacheKey;
+                opt.textContent = '📁 ' + file.name;
+                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
+                select.value = cacheKey;
+                fontSelectPrevValue = cacheKey;
+                textFont = font;
+                currentFontFile = cacheKey;
+                updateModel();
+            }, function () {
+                alert('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.');
+                select.value = fontSelectPrevValue;
+            });
+        });
 
         function resetToDefaults() {
             document.getElementById('inputText').value = DEFAULTS.text;
@@ -450,7 +499,7 @@
             return {
                 text: document.getElementById('inputText').value || '',
                 textFont: textFont, emojiFont: emojiFont,
-                fontFile: FONT_OPTIONS[document.getElementById('fontSelect').value].file,
+                fontFile: currentFontFile,
                 fontSize: parseFloat(document.getElementById('fontSize').value),
                 fontWeight: parseFloat(document.getElementById('fontWeight').value),
                 spacing: parseFloat(document.getElementById('spacing').value),
@@ -591,9 +640,45 @@
             (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
         }
 
+        // downloadSTL()과 동일하게 부품별 색을 입힌 mesh를 만든다 — toThreeMesh(result.fused,
+        // result.idToColor)가 이미 부품마다 실제 색을 넣어주므로(STL 내보내기 때는 그 색을
+        // 버렸을 뿐), 3MF 내보내기에서는 이 mesh를 그대로 넘기기만 하면 색이 파일에 남는다.
+        function download3MF() {
+            if (!manifoldReady || !textFont || !emojiFont) return;
+            const params = readParams();
+
+            const scratch = [];
+            function track(m) { scratch.push(m); return m; }
+
+            let result;
+            try {
+                result = buildFusedSolid(params, track);
+            } catch (err) {
+                console.error('3MF 생성 실패:', err);
+                scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+                return;
+            }
+            if (!result) {
+                scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+                return;
+            }
+
+            const mesh = ManifoldCore.toThreeMesh(result.fused, result.idToColor);
+            scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            const textValue = params.text || 'keyring';
+            ThreeMFCore.export3MF(exportGroup, `${textValue}_keyring.3mf`);
+
+            mesh.geometry.dispose();
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
+        }
+
         window.scheduleUpdate = scheduleUpdate;
         window.onTextKeydown = onTextKeydown;
         window.onFontChange = onFontChange;
+        window.download3MF = download3MF;
         window.downloadSTL = downloadSTL;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.

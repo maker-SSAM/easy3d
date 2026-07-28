@@ -23,6 +23,35 @@ window.FontCore = (function () {
         });
     }
 
+    // 사용자가 자기 컴퓨터에서 고른 폰트 파일(File 객체, <input type="file">에서 얻음)을 읽어
+    // opentype.js로 분석한다. opentype.load(url, cb)와 opentype.parse(arrayBuffer)는 같은 모양의
+    // Font 객체를 돌려주므로, 이 함수가 돌려주는 font는 buildCenteredContours() 등 아래 함수들에
+    // 아무 변경 없이 그대로 넘길 수 있다. 서버 업로드 없이 브라우저 안에서만 처리한다.
+    //
+    // 번들 폰트(loadFont)는 파일명 문자열 자체를 캐시 키 겸 표시용 식별자로 쓰지만, 업로드
+    // 파일은 이름이 겹칠 수 있어서(다른 컴퓨터에서 고른 서로 다른 malgun.ttf 등) 파일명+크기+
+    // 수정시각을 합친 합성 키를 만들어 fontCache/glyphShapeCache 양쪽에서 이 폰트만의 고유
+    // 식별자로 쓴다. 호출부는 이 cacheKey를 loadFont()의 file 인자 자리에 그대로 쓰면 된다.
+    function loadFontFromFile(file, onSuccess, onError) {
+        const cacheKey = 'upload:' + file.name + ':' + file.size + ':' + file.lastModified;
+        if (fontCache[cacheKey]) { onSuccess(fontCache[cacheKey], cacheKey); return; }
+        file.arrayBuffer().then(function (buf) {
+            let font;
+            try {
+                font = opentype.parse(buf);
+            } catch (err) {
+                console.error('업로드한 폰트 분석 실패:', file.name, err);
+                if (onError) onError(err);
+                return;
+            }
+            fontCache[cacheKey] = font;
+            onSuccess(font, cacheKey);
+        }).catch(function (err) {
+            console.error('업로드한 폰트 파일 읽기 실패:', file.name, err);
+            if (onError) onError(err);
+        });
+    }
+
     // 점이 {x,y} 객체(THREE.Vector2 등)든 [x,y] 배열이든 좌표 두 개를 뽑아낸다 —
     // 갤러리마다 점을 다루는 방식이 달라서(gallery-1/nameplate-box는 Vector2,
     // jscad-core는 [x,y] 배열) 호출부를 안 바꾸고도 양쪽 다 지원하기 위함.
@@ -132,6 +161,7 @@ window.FontCore = (function () {
 
     return {
         loadFont: loadFont,
+        loadFontFromFile: loadFontFromFile,
         getFont: getFont,
         isPointInPolygon: isPointInPolygon,
         extractGlyphContours: extractGlyphContours,

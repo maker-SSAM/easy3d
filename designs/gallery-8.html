@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <title>갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
@@ -12,7 +15,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
     <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
     <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
@@ -21,12 +26,13 @@
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .color-row span { font-size: 0.9em; color: #333; }
-        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
         .cap-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
         .cap-grid input {
             aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
-            border: 2px solid #ccc; border-radius: 4px; text-align: center; font-size: 0.85em;
+            border: 2px solid var(--input-border); border-radius: 4px; text-align: center; font-size: 0.85em;
+            background: var(--input-bg); color: var(--text-color);
         }
         /* 갤러리7과 같은 계열의 파랑이되, 칸 안에 글씨가 보여야 하니 배경은 옅게(투명도) 처리 */
         .cap-grid input.filled { background: rgba(33, 150, 243, 0.18); border-color: #1976d2; }
@@ -99,7 +105,9 @@
                 <label>글씨체 선택</label>
                 <select id="fontSelect" onchange="onFontChange()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
                 </select>
+                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
             </div>
             <div class="control-group"><label>텍스트 크기: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>텍스트 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
@@ -109,9 +117,9 @@
             <div class="color-row"><span>글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
         `;
 
-        shell.controlsFooterEl.innerHTML = `
-            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
-        `;
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -161,6 +169,11 @@
         let manifoldReady = false;
         let updateTimer = null;
         let textFont = null;
+        // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면 FontCore.loadFontFromFile()이
+        // 만들어준 합성 키. readGlobalParams()가 이 값을 쓴다(select.value를 그때그때 다시
+        // 인덱싱하면 업로드 폰트일 때 어긋난다).
+        let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
+        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
 
         // 뚜껑 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
         // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
@@ -183,12 +196,46 @@
         }
 
         function onFontChange() {
-            const idx = document.getElementById('fontSelect').value;
-            FontCore.loadFont(FONT_OPTIONS[idx].file, function (font) {
+            const select = document.getElementById('fontSelect');
+            if (select.value === '__upload__') {
+                document.getElementById('fontUpload').click();
+                return;
+            }
+            fontSelectPrevValue = select.value;
+            const uploadedFont = FontCore.getFont(select.value);
+            if (uploadedFont) {
+                textFont = uploadedFont;
+                currentFontFile = select.value;
+                updateModel();
+                return;
+            }
+            currentFontFile = FONT_OPTIONS[select.value].file;
+            FontCore.loadFont(currentFontFile, function (font) {
                 textFont = font;
                 updateModel();
             });
         }
+
+        document.getElementById('fontUpload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            const select = document.getElementById('fontSelect');
+            if (!file) { select.value = fontSelectPrevValue; return; }
+            FontCore.loadFontFromFile(file, function (font, cacheKey) {
+                const opt = document.createElement('option');
+                opt.value = cacheKey;
+                opt.textContent = '📁 ' + file.name;
+                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
+                select.value = cacheKey;
+                fontSelectPrevValue = cacheKey;
+                textFont = font;
+                currentFontFile = cacheKey;
+                updateModel();
+            }, function () {
+                alert('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.');
+                select.value = fontSelectPrevValue;
+            });
+        });
 
         let capGeoNormalized = null; // 원본 뚜껑 STL(정규화 완료)
         let capTemplate = null; // 뚜껑을 Manifold로 변환해둔 것(부품 색 구분용 originalID 부여) — 매번 다시 만들지 않고 재사용
@@ -260,7 +307,7 @@
                 fontSize: parseFloat(document.getElementById('fontSize').value),
                 fontWeight: parseFloat(document.getElementById('fontWeight').value),
                 protrudeHeight: parseFloat(document.getElementById('protrudeHeight').value),
-                fontFile: FONT_OPTIONS[document.getElementById('fontSelect').value].file,
+                fontFile: currentFontFile,
                 capColor: document.getElementById('colCap').value,
                 textColor: document.getElementById('colText').value
             };
@@ -325,9 +372,26 @@
             });
         }
 
+        // buildOneCap()이 이미 뚜껑색/글자색을 부품별로 입힌 mesh를 만들어주므로(toThreeMesh +
+        // idToColor), downloadSTL과 동일하게 만들고 3MF로만 내보내면 그 색이 그대로 남는다.
+        function download3MF() {
+            if (!manifoldReady || !capTemplate) return;
+            const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
+            if (!meshes.length) return;
+            const exportGroup = new THREE.Group();
+            meshes.forEach(function (m) { exportGroup.add(m); });
+            ThreeMFCore.export3MF(exportGroup, '클리커_뚜껑_세트.3mf');
+            meshes.forEach(function (m) {
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
+                else m.material.dispose();
+            });
+        }
+
         window.scheduleUpdate = scheduleUpdate;
         window.onFontChange = onFontChange;
         window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
         window.__getPreviewGroup = function () { return currentGroup; };

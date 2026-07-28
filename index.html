@@ -2,26 +2,67 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <title>초등 파라메트릭 디자인 스튜디오</title>
+    <script src="assets/js/theme-core.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <!-- 갤러리 카드 미리보기는 각 갤러리 기본값 모델을 미리 구워둔 GLB(assets/previews/)를
          읽어서 보여준다 — Manifold/폰트 WASM을 메인화면에서 직접 돌리지 않아도 된다. -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
     <style>
+        /* 다크모드: <html data-theme="dark">일 때 아래 값들로 덮어쓴다(assets/js/theme-core.js가
+           <head>의 인라인 스크립트로 첫 페인트 전에 data-theme을 설정해 깜빡임을 막는다). */
+        :root {
+            --page-bg: #f2f4f7;
+            --text-color: #222;
+            --text-muted: #666;
+            --card-bg: #fff;
+            --card-preview-bg: #e8ecf1;
+            --card-shadow: rgba(0,0,0,0.08);
+            --card-shadow-hover: rgba(0,0,0,0.12);
+        }
+        :root[data-theme="dark"] {
+            --page-bg: #17181b;
+            --text-color: #e4e4e4;
+            --text-muted: #999;
+            --card-bg: #232427;
+            --card-preview-bg: #2a2c30;
+            --card-shadow: rgba(0,0,0,0.3);
+            --card-shadow-hover: rgba(0,0,0,0.4);
+        }
+
         html, body {
             margin: 0;
             padding: 0;
             font-family: sans-serif;
-            background: #f2f4f7;
-            color: #222;
+            background: var(--page-bg);
+            color: var(--text-color);
         }
 
         header {
             padding: 48px 24px 24px;
             text-align: center;
+            position: relative;
         }
         header h1 { margin: 0 0 8px; font-size: 1.8rem; }
-        header p { margin: 0; color: #666; }
+        header p { margin: 0; color: var(--text-muted); }
+
+        #themeToggle {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            border-radius: 6px;
+            border: 1px solid var(--card-shadow);
+            background: var(--card-bg);
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        #themeToggle:hover { box-shadow: 0 2px 6px var(--card-shadow); }
 
         /* 4열 고정 그리드(2줄이면 최대 8개) */
         #gallery {
@@ -40,28 +81,28 @@
 
         .design-card {
             display: block;
-            background: #fff;
+            background: var(--card-bg);
             border-radius: 12px;
             overflow: hidden;
             text-decoration: none;
             color: inherit;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px var(--card-shadow);
             transition: transform 0.15s, box-shadow 0.15s;
         }
         .design-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            box-shadow: 0 8px 20px var(--card-shadow-hover);
         }
 
         .design-preview {
             width: 100%;
             height: 220px;
-            background: #e8ecf1;
+            background: var(--card-preview-bg);
         }
 
         .design-info { padding: 16px 20px 20px; }
         .design-info h3 { margin: 0 0 6px; font-size: 1.1rem; }
-        .design-info p { margin: 0; font-size: 0.9rem; color: #666; }
+        .design-info p { margin: 0; font-size: 0.9rem; color: var(--text-muted); }
 
         /* 갤러리 카드들의 실시간 3D 미리보기를 렌더링하는 공유 캔버스.
            pointer-events: none으로 클릭이 아래 카드 링크로 그대로 전달된다. */
@@ -79,10 +120,11 @@
         body.tune-mode #gallery { display: none; }
         #tunePanel {
             position: fixed;
-            top: 24px;
+            top: 80px;
             right: 24px;
             width: 300px;
-            background: #fff;
+            background: var(--card-bg);
+            color: var(--text-color);
             border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.15);
             padding: 20px;
@@ -90,10 +132,11 @@
             font-size: 0.9em;
         }
         #tunePanel h3 { margin: 0 0 14px; font-size: 1.05em; }
-        #tunePanel label { display: block; margin: 12px 0 4px; color: #444; }
+        #tunePanel label { display: block; margin: 12px 0 4px; color: var(--text-muted); }
         #tunePanel input[type="range"] { width: 100%; }
         #tunePanel pre {
-            background: #f2f4f7;
+            background: var(--page-bg);
+            color: var(--text-color);
             border-radius: 6px;
             padding: 10px;
             font-size: 0.85em;
@@ -114,7 +157,7 @@
             width: 520px;
             height: 520px;
             margin: 40px auto;
-            background: #e8ecf1;
+            background: var(--card-preview-bg);
             border-radius: 12px;
         }
     </style>
@@ -122,6 +165,7 @@
 <body>
 
     <header>
+        <button id="themeToggle" type="button"></button>
         <h1>초등 파라메트릭 디자인 스튜디오</h1>
         <p>로그인 없이, 슬라이더만 움직여서 나만의 3D 디자인을 만들고 STL로 내려받아요.</p>
     </header>
@@ -131,6 +175,22 @@
     <canvas id="preview-canvas"></canvas>
 
     <script>
+        // 다크모드 토글 버튼(우측 상단). 실제 테마 적용/저장/tab간 동기화는 theme-core.js가 맡고,
+        // 여기서는 버튼 라벨 갱신과 클릭 연결만 한다.
+        (function setupThemeToggle() {
+            const btn = document.getElementById('themeToggle');
+            function updateLabel() {
+                const isDark = ThemeCore.currentTheme() === 'dark';
+                btn.textContent = isDark ? '☀️ 밝은 화면' : '🌙 어두운 화면';
+            }
+            updateLabel();
+            btn.addEventListener('click', function () {
+                ThemeCore.toggleTheme();
+                updateLabel();
+            });
+            window.addEventListener('themechange', updateLabel);
+        })();
+
         // 갤러리에 노출할 디자인 목록. 각 카드의 미리보기는 해당 갤러리를 기본값 그대로 열었을
         // 때의 실제 모양을 미리 구워둔 GLB 파일(assets/previews/gallery-N.glb)이다 — 갤러리
         // 기본값을 바꿀 때마다 다시 구워야 최신 모양으로 맞는다(자동 동기화 아님). 각 갤러리

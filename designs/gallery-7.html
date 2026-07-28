@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <title>갤러리7 - 클리커 몸체 만들기 - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
@@ -10,25 +13,27 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
     <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
     <!-- 몸체 STL 여러 개를 겹쳐서 진짜 하나의 입체로 합치는 데 쓰는 Manifold-3D 브릿지.
          ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로
          만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .color-row span { font-size: 0.9em; color: #333; }
-        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
         .body-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
         .body-grid button {
-            aspect-ratio: 1; padding: 0; border: 2px solid #ccc; border-radius: 4px;
-            background: #fff; cursor: pointer;
+            aspect-ratio: 1; padding: 0; border: 2px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); cursor: pointer;
         }
         /* 사이즈 등 다른 슬라이더와 같은 계열의 파랑(core.css의 홈 버튼/뷰큐브 호버 색과 통일) */
         .body-grid button.active { background: #2196f3; border-color: #1976d2; }
         .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
         .check-row label { font-size: 0.95em; }
-        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid #e5e5e5; color: #333; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
     </style>
 </head>
 <body>
@@ -52,7 +57,7 @@
             <div class="color-row"><span>몸체 색</span><input type="color" id="colBase" value="#46b4f5" oninput="updateColors()"></div>
 
             <div class="section-label">4. 키링 구멍</div>
-            <div class="check-row"><input type="checkbox" id="keyringOn" onchange="scheduleUpdate()"><label for="keyringOn">키링 구멍 사용</label></div>
+            <div class="check-row"><input type="checkbox" id="keyringOn" checked onchange="scheduleUpdate()"><label for="keyringOn">키링 구멍 사용</label></div>
             <div class="control-group"><label>구멍 X 위치: <span id="valKeyringX">-70</span>mm</label><input type="range" id="keyringX" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>구멍 Y 위치: <span id="valKeyringY">-70</span>mm</label><input type="range" id="keyringY" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label>구멍 지름: <span id="valKeyringHoleSize">3.5</span>mm</label><input type="range" id="keyringHoleSize" min="2" max="8" step="0.5" value="3.5" oninput="scheduleUpdate()"></div>
@@ -60,9 +65,9 @@
             <div class="control-group"><label>구멍 두께(높이): <span id="valKeyringThick">3</span>mm</label><input type="range" id="keyringThick" min="1" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
         `;
 
-        shell.controlsFooterEl.innerHTML = `
-            <button class="download-btn" onclick="downloadSTL()">파일(STL) 다운로드</button>
-        `;
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -108,7 +113,7 @@
             buildGridUI();
             document.getElementById('colBase').value = '#46b4f5';
             updateColors();
-            document.getElementById('keyringOn').checked = false;
+            document.getElementById('keyringOn').checked = true;
             document.getElementById('keyringX').value = -70;
             document.getElementById('keyringY').value = -70;
             document.getElementById('keyringHoleSize').value = 3.5;
@@ -270,8 +275,16 @@
             ParametricCore.exportSTL(currentGroup, '클리커_몸체.stl');
         }
 
+        // currentGroup의 bodyMesh는 이미 colBase로 색이 입혀져 있어(updateModel 참고)
+        // 새로 만들 필요 없이 그대로 3MF로 넘기면 색이 파일에 남는다.
+        function download3MF() {
+            if (!currentGroup) return;
+            ThreeMFCore.export3MF(currentGroup, '클리커_몸체.3mf');
+        }
+
         window.updateColors = updateColors;
         window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
         window.scheduleUpdate = scheduleUpdate;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.

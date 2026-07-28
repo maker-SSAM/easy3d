@@ -90,6 +90,12 @@ window.ParametricCore = (function () {
 
         viewerEl.appendChild(cubeContainer);
 
+        // 다크모드 토글 — 뷰큐브 버튼들 바로 아래, 같은 패널 안에 붙인다(위치는 사용자 요청).
+        // theme-core.js가 모든 편집화면 페이지에 core.js보다 먼저 로드되어 있다는 전제.
+        if (window.ThemeCore) {
+            cubeContainer.appendChild(window.ThemeCore.createToggleButton());
+        }
+
         rootEl.appendChild(controlsEl);
         rootEl.appendChild(resizerEl);
         rootEl.appendChild(viewerEl);
@@ -112,7 +118,17 @@ window.ParametricCore = (function () {
         const initialPosition = opts.initialCameraPosition || DEFAULT_CAMERA_PRESETS.ISO;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xe0e0e0);
+        // 색상 값은 core.css의 --scene-bg 변수(라이트/다크 테마별로 값이 다름)에서 읽어온다 —
+        // CSS 쪽 색상표 하나만 관리하면 되고, 여기서는 그 값을 읽어 THREE.Color로 바꾸기만 한다.
+        function readSceneBgColor() {
+            const varValue = getComputedStyle(document.documentElement).getPropertyValue('--scene-bg').trim();
+            return new THREE.Color(varValue || '#e0e0e0');
+        }
+        scene.background = readSceneBgColor();
+        // 다크모드 토글 시(themechange 이벤트) 이미 만들어진 씬의 배경색도 즉시 갱신한다.
+        window.addEventListener('themechange', function () {
+            scene.background = readSceneBgColor();
+        });
 
         const camera = new THREE.PerspectiveCamera(45, viewerEl.clientWidth / viewerEl.clientHeight, 1, 1000);
         camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
@@ -506,6 +522,159 @@ window.ParametricCore = (function () {
         return panel;
     }
 
+    // containerEl(보통 shell.controlsBodyEl) 안의 모든 <input type="range"> 슬라이더에
+    // "−/슬라이더/+" 단계 버튼을 씌우고, 값 표시용 <span id="valX">를 클릭하면 숫자를 직접
+    // 입력할 수 있게 만든다. 갤러리마다 슬라이더가 수십 개씩 있어서 마크업을 일일이 손보는
+    // 대신, 각 컨트롤 패널을 한 번 만들고 난 직후 이 함수 한 줄만 불러주면 전부 적용된다.
+    //
+    // 값 표시 span은 관례상 슬라이더 id 앞에 "val"을 붙이고 첫 글자를 대문자로 바꾼 이름을
+    // 쓴다(id="size1" -> id="valSize1") — 이 프로젝트의 모든 갤러리가 이미 이 규칙을 따르고
+    // 있어서, id 문자열만으로 대응되는 표시 span을 찾을 수 있다. 각 갤러리의 updateModel()이
+    // 그 span의 textContent/innerText를 계속 자기 값으로 다시 채워주므로(기존 코드 변경 없음),
+    // 여기서는 슬라이더 값과 표시를 맞추는 이벤트만 걸어주면 된다 — 최종 표시값은 항상
+    // updateModel()이 다음 갱신 때 다시 확정한다.
+    function enhanceRangeInputs(containerEl) {
+        const ranges = containerEl.querySelectorAll('input[type="range"]');
+        ranges.forEach(function (range) {
+            if (range.dataset.enhanced) return; // 같은 컨테이너에 두 번 불려도 중복 적용 안 되게
+            range.dataset.enhanced = 'true';
+
+            const row = document.createElement('div');
+            row.className = 'range-row';
+            range.parentNode.insertBefore(row, range);
+
+            const minusBtn = document.createElement('button');
+            minusBtn.type = 'button';
+            minusBtn.className = 'range-step-btn';
+            minusBtn.textContent = '−';
+            minusBtn.setAttribute('aria-label', '한 칸 감소');
+
+            const plusBtn = document.createElement('button');
+            plusBtn.type = 'button';
+            plusBtn.className = 'range-step-btn';
+            plusBtn.textContent = '+';
+            plusBtn.setAttribute('aria-label', '한 칸 증가');
+
+            row.appendChild(minusBtn);
+            row.appendChild(range);
+            row.appendChild(plusBtn);
+
+            // step 소수 자릿수에 맞춰 반올림한다 — 그렇지 않으면 0.1을 여러 번 더할 때
+            // 흔한 부동소수점 오차(0.1+0.1+0.1 = 0.30000000000000004 같은)가 슬라이더 값에
+            // 그대로 남아, valX 표시가 지저분해지거나 max에 딱 안 맞고 어긋나는 문제가 생긴다.
+            const stepDecimals = ((range.step || '1').split('.')[1] || '').length;
+
+            function clamp(v) {
+                const min = parseFloat(range.min), max = parseFloat(range.max);
+                if (!isNaN(min) && v < min) v = min;
+                if (!isNaN(max) && v > max) v = max;
+                return v;
+            }
+
+            function fireChange() {
+                // 기존 oninput="scheduleUpdate()" 등은 그대로 두고, 진짜 input/change 이벤트를
+                // 직접 쏴서(값은 이미 위에서 바꿔둠) 각 갤러리가 이미 붙여둔 핸들러가 그대로
+                // 반응하게 한다 — 갤러리 쪽 코드를 하나도 안 건드려도 된다.
+                range.dispatchEvent(new Event('input', { bubbles: true }));
+                range.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function step(dir) {
+                const stepVal = parseFloat(range.step) || 1;
+                let v = parseFloat(range.value) + dir * stepVal;
+                v = parseFloat(v.toFixed(stepDecimals));
+                range.value = clamp(v);
+                fireChange();
+            }
+
+            minusBtn.addEventListener('click', function () { step(-1); });
+            plusBtn.addEventListener('click', function () { step(1); });
+
+            const valSpanId = 'val' + range.id.charAt(0).toUpperCase() + range.id.slice(1);
+            const valSpan = document.getElementById(valSpanId);
+            if (!valSpan) return;
+
+            valSpan.classList.add('range-value-editable');
+            valSpan.title = '클릭해서 숫자 직접 입력';
+            valSpan.addEventListener('click', function () {
+                if (valSpan.querySelector('input')) return; // 이미 편집 중이면 무시
+
+                const editInput = document.createElement('input');
+                editInput.type = 'number';
+                editInput.className = 'range-value-input';
+                editInput.value = range.value;
+                editInput.min = range.min;
+                editInput.max = range.max;
+                editInput.step = range.step;
+
+                let committed = false;
+                function commit() {
+                    if (committed) return;
+                    committed = true;
+                    const parsed = parseFloat(editInput.value);
+                    const v = isNaN(parsed) ? parseFloat(range.value) : clamp(parsed);
+                    range.value = v;
+                    valSpan.textContent = String(v); // 다음 updateModel()이 다시 정확한 값으로 덮어씀
+                    fireChange();
+                }
+
+                editInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') editInput.blur();
+                    else if (e.key === 'Escape') { committed = true; valSpan.textContent = range.value; }
+                });
+                editInput.addEventListener('blur', commit);
+
+                valSpan.textContent = '';
+                valSpan.appendChild(editInput);
+                editInput.focus();
+                editInput.select();
+            });
+        });
+    }
+
+    // controlsFooterEl에 "형식 선택 카드(STL/3MF) + 다운로드 버튼 하나"를 만들어 붙인다.
+    // 예전에는 갤러리마다 "STL 다운로드"/"3MF 다운로드" 버튼을 나란히 두 개 뒀는데, 먼저
+    // 형식을 고르고 버튼 하나로 받는 편이 사용자 입장에서 더 명확하다는 요청으로 바뀌었다.
+    // 각 갤러리가 이미 갖고 있는 downloadSTL/download3MF 함수는 그대로 두고, 여기서는
+    // "지금 선택된 형식의 함수를 부른다"는 배선만 담당한다.
+    function mountDownloadPanel(footerEl, options) {
+        const opts = options || {};
+        const formats = opts.formats || [
+            { id: 'stl', name: 'STL', desc: '높은 범용성', handler: opts.onSTL },
+            { id: '3mf', name: '3MF', desc: '멀티컬러 프린팅', handler: opts.on3MF }
+        ];
+
+        const picker = document.createElement('div');
+        picker.className = 'format-picker';
+
+        const cards = {};
+        let selectedId = formats[0].id;
+        formats.forEach(function (f) {
+            const card = document.createElement('div');
+            card.className = 'format-option';
+            card.innerHTML = '<div class="format-name">' + f.name + '</div><div class="format-desc">' + f.desc + '</div>';
+            card.addEventListener('click', function () {
+                selectedId = f.id;
+                Object.keys(cards).forEach(function (id) { cards[id].classList.toggle('selected', id === selectedId); });
+            });
+            cards[f.id] = card;
+            picker.appendChild(card);
+        });
+        cards[selectedId].classList.add('selected');
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.type = 'button';
+        downloadBtn.className = 'download-btn';
+        downloadBtn.textContent = '파일 다운로드';
+        downloadBtn.addEventListener('click', function () {
+            const format = formats.find(function (f) { return f.id === selectedId; });
+            if (format && typeof format.handler === 'function') format.handler();
+        });
+
+        footerEl.appendChild(picker);
+        footerEl.appendChild(downloadBtn);
+    }
+
     return {
         DEFAULT_CAMERA_PRESETS: DEFAULT_CAMERA_PRESETS,
         mountEditorShell: mountEditorShell,
@@ -515,6 +684,8 @@ window.ParametricCore = (function () {
         resetCameraTo: resetCameraTo,
         updateDimensionOverlay: updateDimensionOverlay,
         exportSTL: exportSTL,
+        enhanceRangeInputs: enhanceRangeInputs,
+        mountDownloadPanel: mountDownloadPanel,
         mountLightTuningPanel: mountLightTuningPanel
     };
 })();

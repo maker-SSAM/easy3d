@@ -78,6 +78,8 @@
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
         ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
+        ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
 
         // ---------- 격자 상태 ----------
         const GRID_SIZE = 5;

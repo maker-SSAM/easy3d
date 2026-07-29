@@ -88,13 +88,34 @@ window.ParametricCore = (function () {
             cubeButtons[viewType] = btn;
         });
 
-        viewerEl.appendChild(cubeContainer);
+        // "시점 변경" 구간과 아래쪽 기능 버튼들을 구분선으로 나눈다.
+        const modeDivider = document.createElement('div');
+        modeDivider.className = 'viewcube-divider';
+        cubeContainer.appendChild(modeDivider);
 
-        // 다크모드 토글 — 뷰큐브 버튼들 바로 아래, 같은 패널 안에 붙인다(위치는 사용자 요청).
-        // theme-core.js가 모든 편집화면 페이지에 core.js보다 먼저 로드되어 있다는 전제.
+        const modeTitle = document.createElement('div');
+        modeTitle.className = 'viewcube-title';
+        modeTitle.textContent = '모드 변경';
+        cubeContainer.appendChild(modeTitle);
+
+        // 다크모드 토글 — theme-core.js가 모든 편집화면 페이지에 core.js보다 먼저 로드되어
+        // 있다는 전제(버튼 자체는 그 파일이 만들고, 여기서는 자리만 배치).
         if (window.ThemeCore) {
             cubeContainer.appendChild(window.ThemeCore.createToggleButton());
         }
+
+        const dimensionToggleBtn = document.createElement('button');
+        dimensionToggleBtn.type = 'button';
+        dimensionToggleBtn.className = 'cube-btn';
+        cubeContainer.appendChild(dimensionToggleBtn);
+
+        const screenshotBtn = document.createElement('button');
+        screenshotBtn.type = 'button';
+        screenshotBtn.className = 'cube-btn';
+        screenshotBtn.textContent = '📷 화면 캡쳐';
+        cubeContainer.appendChild(screenshotBtn);
+
+        viewerEl.appendChild(cubeContainer);
 
         rootEl.appendChild(controlsEl);
         rootEl.appendChild(resizerEl);
@@ -108,7 +129,9 @@ window.ParametricCore = (function () {
             resetBtn: resetBtn,
             resizerEl: resizerEl,
             viewerEl: viewerEl,
-            cubeButtons: cubeButtons
+            cubeButtons: cubeButtons,
+            dimensionToggleBtn: dimensionToggleBtn,
+            screenshotBtn: screenshotBtn
         };
     }
 
@@ -133,7 +156,10 @@ window.ParametricCore = (function () {
         const camera = new THREE.PerspectiveCamera(45, viewerEl.clientWidth / viewerEl.clientHeight, 1, 1000);
         camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // preserveDrawingBuffer:true — 화면 캡쳐(captureScreenshot) 기능이 렌더 직후
+        // domElement.toDataURL()로 픽셀을 읽어가야 하는데, 기본값(false)이면 브라우저가
+        // 다음 프레임을 위해 드로잉 버퍼를 이미 지워버려서 캡쳐가 빈 화면으로 나올 수 있다.
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setSize(viewerEl.clientWidth, viewerEl.clientHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 그림자 경계를 부드럽게
@@ -238,7 +264,9 @@ window.ParametricCore = (function () {
             scene: scene, camera: camera, renderer: renderer, controls: controls, onWindowResize: onWindowResize,
             // 화면 튜닝 패널(조명/그림자 실시간 조절 등)이 직접 값을 바꿀 수 있도록 참조를 노출.
             lights: { hemi: hemiLight, key: dirLight, fill: fillLight },
-            floor: floor
+            floor: floor,
+            // 화면 캡쳐 시 바닥 그리드를 잠깐 숨기기 위해 필요(captureScreenshot).
+            grid: gridHelper
         };
     }
 
@@ -287,6 +315,9 @@ window.ParametricCore = (function () {
     // 다시 부르면 이전 오버레이를 지우고 새 바운딩박스 기준으로 다시 그린다. 페이지당 스크립트가
     // 하나씩만 돌기 때문에 모듈 전역 변수 하나로 충분하다.
     let dimensionOverlayGroup = null;
+    // 사용자가 치수선 켜기/끄기 토글로 고른 상태 — updateDimensionOverlay가 모델 갱신마다
+    // 오버레이를 새로 만들 때마다 이 값을 그대로 이어받아야 토글한 상태가 유지된다.
+    let dimensionOverlayVisible = true;
 
     // three.js에는 내장 텍스트가 없어서, 캔버스에 숫자를 그려 텍스처로 만든 뒤 항상 카메라를
     // 보는 Sprite에 입힌다(CSS2DRenderer를 새로 얹는 대신 기존 스크립트 구성 그대로 쓰기 위함).
@@ -412,7 +443,49 @@ window.ParametricCore = (function () {
         const box = new THREE.Box3().setFromObject(targetObject);
         if (box.isEmpty()) return;
         dimensionOverlayGroup = buildDimensionAnnotations(box);
+        dimensionOverlayGroup.visible = dimensionOverlayVisible;
         scene.add(dimensionOverlayGroup);
+    }
+
+    // 치수선 켜기/끄기 버튼(mountEditorShell의 dimensionToggleBtn)에 연결한다. 버튼 라벨은
+    // "지금 누르면 무슨 일이 일어나는지"를 보여준다(테마 토글과 같은 관례).
+    function bindDimensionToggle(button) {
+        function updateLabel() {
+            button.textContent = dimensionOverlayVisible ? '📏 치수선 끄기' : '📏 치수선 켜기';
+        }
+        updateLabel();
+        button.addEventListener('click', function () {
+            dimensionOverlayVisible = !dimensionOverlayVisible;
+            if (dimensionOverlayGroup) dimensionOverlayGroup.visible = dimensionOverlayVisible;
+            updateLabel();
+        });
+    }
+
+    // 화면 캡쳐 버튼(mountEditorShell의 screenshotBtn)에 연결한다. 바닥 그리드와 치수선을
+    // 캡쳐하는 순간만 잠깐 숨겨서 모델만 깔끔하게 찍고, 찍은 뒤 원래 표시 상태로 되돌린다.
+    function bindScreenshotButton(button, viewer, filename) {
+        button.addEventListener('click', function () {
+            const grid = viewer.grid;
+            const gridWasVisible = grid.visible;
+            const dimWasVisible = dimensionOverlayGroup ? dimensionOverlayGroup.visible : null;
+
+            grid.visible = false;
+            if (dimensionOverlayGroup) dimensionOverlayGroup.visible = false;
+            viewer.renderer.render(viewer.scene, viewer.camera);
+            const dataURL = viewer.renderer.domElement.toDataURL('image/png');
+
+            grid.visible = gridWasVisible;
+            if (dimensionOverlayGroup) dimensionOverlayGroup.visible = dimWasVisible;
+            viewer.renderer.render(viewer.scene, viewer.camera);
+
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.href = dataURL;
+            link.download = filename || '3d-모델-캡쳐.png';
+            link.click();
+            document.body.removeChild(link);
+        });
     }
 
     function exportSTL(modelGroup, filename) {
@@ -683,6 +756,8 @@ window.ParametricCore = (function () {
         bindViewCube: bindViewCube,
         resetCameraTo: resetCameraTo,
         updateDimensionOverlay: updateDimensionOverlay,
+        bindDimensionToggle: bindDimensionToggle,
+        bindScreenshotButton: bindScreenshotButton,
         exportSTL: exportSTL,
         enhanceRangeInputs: enhanceRangeInputs,
         mountDownloadPanel: mountDownloadPanel,

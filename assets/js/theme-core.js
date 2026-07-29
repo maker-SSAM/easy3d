@@ -50,8 +50,8 @@ window.ThemeCore = (function () {
 
         function updateLabel() {
             const isDark = currentTheme() === 'dark';
-            btn.textContent = isDark ? '☀️ 밝은 화면' : '🌙 어두운 화면';
-            btn.setAttribute('aria-label', isDark ? '밝은 화면으로 전환' : '어두운 화면으로 전환');
+            btn.textContent = isDark ? '☀️ 라이트모드' : '🌙 다크모드';
+            btn.setAttribute('aria-label', isDark ? '라이트모드로 전환' : '다크모드로 전환');
         }
         updateLabel();
 

@@ -22,6 +22,10 @@
             --card-preview-bg: #e8ecf1;
             --card-shadow: rgba(0,0,0,0.08);
             --card-shadow-hover: rgba(0,0,0,0.12);
+            /* 다크모드 버튼 색: 지금이 아니라 눌렀을 때 바뀔 화면(반대 테마)을 미리 보여준다. */
+            --theme-toggle-bg: #232427;
+            --theme-toggle-border: rgba(0,0,0,0.3);
+            --theme-toggle-color: #e4e4e4;
         }
         :root[data-theme="dark"] {
             --page-bg: #17181b;
@@ -31,6 +35,9 @@
             --card-preview-bg: #2a2c30;
             --card-shadow: rgba(0,0,0,0.3);
             --card-shadow-hover: rgba(0,0,0,0.4);
+            --theme-toggle-bg: #ffffff;
+            --theme-toggle-border: rgba(0,0,0,0.08);
+            --theme-toggle-color: #222;
         }
 
         html, body {
@@ -53,14 +60,18 @@
             position: absolute;
             top: 24px;
             right: 24px;
+            width: 128px;
+            box-sizing: border-box;
             padding: 8px 14px;
             font-size: 0.85rem;
             font-weight: bold;
             border-radius: 6px;
-            border: 1px solid var(--card-shadow);
-            background: var(--card-bg);
-            color: var(--text-color);
+            border: 1px solid var(--theme-toggle-border);
+            background: var(--theme-toggle-bg);
+            color: var(--theme-toggle-color);
             cursor: pointer;
+            text-align: center;
+            white-space: nowrap;
         }
         #themeToggle:hover { box-shadow: 0 2px 6px var(--card-shadow); }
 
@@ -181,7 +192,7 @@
             const btn = document.getElementById('themeToggle');
             function updateLabel() {
                 const isDark = ThemeCore.currentTheme() === 'dark';
-                btn.textContent = isDark ? '☀️ 밝은 화면' : '🌙 어두운 화면';
+                btn.textContent = isDark ? '☀️ 라이트모드' : '🌙 다크모드';
             }
             updateLabel();
             btn.addEventListener('click', function () {

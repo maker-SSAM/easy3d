@@ -27,6 +27,11 @@
     --input-bg: #ffffff;
     --input-border: #ccc;
     --scene-bg: #e0e0e0; /* three.js 뷰어 배경(scene.background) — core.js initViewer가 읽어감 */
+    /* 다크모드 토글 버튼 색: 지금이 아니라 눌렀을 때 바뀔 화면(반대 테마)을 미리 보여준다
+       (라이트모드에선 어두운 배색, 다크모드에선 밝은 배색) — 그래서 아래는 dark 배색의 반전. */
+    --theme-toggle-bg: #2a2c30;
+    --theme-toggle-border: #4a4d52;
+    --theme-toggle-color: #ddd;
 }
 :root[data-theme="dark"] {
     --panel-bg: #1e1f22;
@@ -52,6 +57,9 @@
     --input-bg: #2a2c30;
     --input-border: #4a4d52;
     --scene-bg: #2b2c30;
+    --theme-toggle-bg: #ffffff;
+    --theme-toggle-border: #ccc;
+    --theme-toggle-color: #333;
 }
 
 html, body {
@@ -204,6 +212,8 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 5px;
+    width: 150px;
+    box-sizing: border-box;
     background: var(--viewcube-bg);
     padding: 8px;
     border-radius: 8px;
@@ -217,6 +227,10 @@ html, body {
     color: var(--text-muted);
     margin-bottom: 2px;
 }
+.viewcube-divider {
+    border-top: 1px solid var(--panel-border);
+    margin: 2px 0;
+}
 .cube-btn {
     background: var(--cube-btn-bg);
     border: 1px solid var(--cube-btn-border);
@@ -228,6 +242,7 @@ html, body {
     cursor: pointer;
     transition: all 0.1s;
     text-align: center;
+    white-space: nowrap;
 }
 .cube-btn:hover {
     background: #2196f3;
@@ -235,25 +250,21 @@ html, body {
     border-color: #2196f3;
 }
 
-/* 다크모드 토글 — 뷰큐브 버튼들 바로 아래, 같은 패널 안에 구분선을 두고 배치한다
-   (assets/js/theme-core.js의 createToggleButton()이 만들어 core.js의 mountEditorShell()이
-   viewcube-container 안에 붙인다). */
+/* 다크모드 토글 — "모드 변경" 구간(assets/js/core.js의 mountEditorShell()이 viewcube-title +
+   구분선까지 만들어둔 자리)에 들어간다. 버튼 자체는 theme-core.js의 createToggleButton()이
+   만든다. 크기/여백은 .cube-btn과 동일하게 맞추되(사용자 요청), 색만 지금 테마가 아니라
+   눌렀을 때 바뀔 반대 테마를 미리 보여주도록 --theme-toggle-* 변수를 쓴다. */
 .theme-toggle-btn {
-    margin-top: 3px;
-    padding-top: 8px;
-    border-top: 1px solid var(--panel-border);
-    background: none;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    font-size: 1.1rem;
-    line-height: 1;
+    background: var(--theme-toggle-bg);
+    border: 1px solid var(--theme-toggle-border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--theme-toggle-color);
     cursor: pointer;
     text-align: center;
-    color: var(--cube-btn-color);
-}
-.theme-toggle-btn:hover {
-    color: #2196f3;
+    white-space: nowrap;
 }
 
 .control-group { margin-bottom: 20px; }

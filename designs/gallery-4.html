@@ -225,7 +225,11 @@
 
                 if (hh > 0.05) {
                     const maskCone = track(ManifoldCore.rawCylinder(d + 2 * hh, d, hh, THREAD_CIRCLE_SEGMENTS * 2));
-                    const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS));
+                    // 이 원은 반지름이 d/2에 가까운(≈16mm) 큰 원이라, 목 원기둥/마스크 원뿔과
+                    // 똑같이 *2 해상도를 써야 한다 — 여기만 절반 해상도를 쓰면 다각형 근사 오차가
+                    // 나사산 돌출 높이(~1mm)에 맞먹을 만큼 커져서, maskCone과 교차시킨 경계가
+                    // 들쭉날쭉해진다(실제로 프린트해보니 나사산이 지저분하게 나온 원인).
+                    const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS * 2));
                     const circleShifted = track(circle.translate([0.5, 0]));
                     const twistDeg = -144 * hh;
                     const nDiv = clamp(Math.round(Math.abs(twistDeg) / THREAD_TWIST_DIVISOR), 6, THREAD_TWIST_MAX_NDIV);

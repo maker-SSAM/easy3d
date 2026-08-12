@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -58,7 +60,7 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3>물결무늬 꽃병 설정</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
 
             <div class="section-label">1. 기본 설정</div>
             <div class="control-group"><label>높이: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="10" max="400" step="1" value="100" oninput="scheduleUpdate()"></div>

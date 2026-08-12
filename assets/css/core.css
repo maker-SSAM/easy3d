@@ -38,7 +38,7 @@
     --panel-accent-bg: #26282c;
     --panel-border: #3a3c40;
     --text-color: #e4e4e4;
-    --text-muted: #999;
+    --text-muted: #adadad;
     --home-link-color: #64b5f6;
     --home-link-bg: #1c3550;
     --home-link-border: #2b4d6e;
@@ -71,6 +71,11 @@ html, body {
     font-family: sans-serif;
     display: flex;
     user-select: none;
+    /* color는 상속되는 속성이라 여기 한 번만 지정해두면 각 갤러리가 controlsBodyEl.innerHTML로
+       만드는 <h3>/<span> 등 색을 따로 안 지정한 글자도 전부 테마에 맞게 바뀐다. 지금까지는
+       이 지정이 없어서 브라우저 기본값(검정)이 그대로 나왔다 — "보석 설정" 같은 <h3> 제목이
+       다크모드에서도 검게 보이던 원인. */
+    color: var(--text-color);
 }
 
 /* header(홈 버튼)/body(스크롤 영역)/footer(다운로드 등 액션 버튼) 3단 세로 flex.
@@ -89,6 +94,15 @@ html, body {
     flex-direction: column;
     overflow: hidden;
 }
+
+/* .controls-topbar는 header/footer를 감싸는 래퍼다(모바일에서 한 줄로 합치기 위한 것,
+   assets/js/core.js 주석 참고). 데스크톱에서는 박스를 만들지 않아(display:contents) 있으나
+   마나고, 대신 header(1)/body(2)/footer(3) 순서를 명시적인 order로 고정해서 래퍼의 DOM
+   위치와 무관하게 항상 "위-가운데-아래" 순서가 나오게 한다. */
+.controls-topbar { display: contents; }
+.controls-header { order: 1; }
+.controls-body { order: 2; }
+.controls-footer { order: 3; }
 
 /* header/footer는 배경을 body(--panel-bg)보다 살짝 진하게 줘서 "이 부분은 고정돼 있다"는
    걸 시각적으로 구분한다. */
@@ -220,6 +234,12 @@ html, body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     backdrop-filter: blur(4px);
 }
+
+/* 시점/모드 패널을 접었다 펼치는 작은 버튼 — 데스크톱에서는 패널이 항상 펼쳐져 있으므로
+   숨긴다(480px 이하 모바일 미디어 쿼리에서만 보이게 함). */
+#viewcube-toggle {
+    display: none;
+}
 .viewcube-title {
     font-size: 0.75rem;
     text-align: center;
@@ -318,5 +338,135 @@ input[type="range"], input[type="text"], select {
 }
 .format-option .format-name { font-weight: bold; font-size: 1rem; color: var(--text-color); }
 .format-option .format-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ---------- 모바일 세로 화면(폰) 레이아웃 ----------
+   기본(데스크톱) 레이아웃은 #controls(사이드바)+#resizer(드래그 손잡이)+#viewer가 가로로
+   나란히 배치되는 구조라, 폰 폭에서는 사이드바가 화면 대부분을 차지해버린다. 480px 이하에서는
+   3단 세로 구조로 바꾼다: ① 메인화면/초기화/STL·3MF/다운로드(원래 #controls의 header+footer)를
+   한 줄로 압축해 화면 맨 위에 고정, ② 3D 뷰어를 그 아래 고정 높이로, ③ 슬라이더 조절부(원래
+   #controls의 body)만 나머지 공간에서 스크롤되게 한다 — 손 그림 요청 그대로 "위쪽 고정 한 줄 +
+   뷰어 고정 + 아래쪽만 스크롤".
+   #controls는 원래 header/body/footer를 감싸는 하나의 박스인데, header+footer(정확히는 그
+   래퍼 .controls-topbar)는 맨 위로, body는 맨 아래로 흩어놔야 해서 #controls 자체를
+   display:contents로 박스를 없애고(padding/width 등은 무시됨) 그 자식들을 body 플렉스
+   컨테이너의 직속 아이템으로 만들어 각각 order를 지정한다.
+   #controls가 박스를 잃으면서 원래 #controls에 있던 배경색(--panel-bg)도 같이 사라지기
+   때문에(display:contents는 배경/테두리/패딩을 전부 무시한다), 슬라이더 영역이 다크모드에서도
+   흰 배경으로 보이는 문제가 있었다 — .controls-body에 배경을 다시 지정해서 고쳤다.
+   이 파일은 모든 갤러리가 공유하므로 이 규칙도 core.css를 쓰는 모든 편집 화면에 자동
+   적용된다. */
+@media (max-width: 480px) {
+    html, body {
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+        background: var(--panel-bg);
+    }
+    #controls {
+        display: contents;
+    }
+
+    /* 위쪽 고정 바 — header(홈/초기화)와 footer(STL·3MF/다운로드)를 한 줄로 압축한다.
+       header/footer/format-picker를 각각 display:contents로 투명하게 만들어서, 그 안의
+       버튼 5개(홈/초기화/STL/3MF/다운로드)가 이 줄 하나의 flex row 아이템으로 나란히
+       붙는다 — 화면이 아주 좁은 기기에서도 안 잘리도록 넘치면 가로 스크롤되게 뒀다. */
+    .controls-topbar {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        /* 버튼들이 내용 크기만큼만 차지하고 남는 공간은 사이사이로 분배해서, 첫 버튼은
+           왼쪽 끝에 마지막 버튼은 오른쪽 끝에 딱 붙게 한다(사용자 요청: 좌우 꽉 차게). */
+        justify-content: space-between;
+        order: 1;
+        flex-shrink: 0;
+        width: 100%;
+        gap: 6px;
+        /* 좌우 패딩을 없애서 버튼 줄이 화면 가장자리까지 꽉 차게 한다(사용자 요청). */
+        padding: 8px 0;
+        box-sizing: border-box;
+        background: var(--panel-accent-bg);
+        border-bottom: 1px solid var(--panel-border);
+        overflow-x: auto;
+    }
+    .controls-header, .controls-footer, .format-picker {
+        display: contents;
+    }
+    .controls-topbar .home-link,
+    .controls-topbar .reset-btn,
+    .controls-topbar .format-option,
+    .controls-topbar .download-btn {
+        flex: 0 0 auto;
+        width: auto; /* download-btn 기본 스타일의 width:100%를 덮어써야 한다 — 안 그러면
+                        flex-basis:auto가 그 width를 그대로 써서 줄 전체를 차지해버린다 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        /* 상하 패딩 0→5px: 버튼 높이를 기존(18px)의 약 150%(28px)로 키운다. */
+        padding: 5px 10px;
+        font-size: 0.72rem;
+        border-radius: 6px;
+        white-space: nowrap;
+        box-shadow: none;
+        box-sizing: border-box;
+    }
+    .controls-topbar .format-option .format-name { font-size: inherit; }
+    .controls-topbar .format-option .format-desc { display: none; }
+
+    #viewer {
+        order: 3;
+        flex: none;
+        width: 100%;
+        height: 38vh;
+    }
+    #resizer {
+        display: none;
+    }
+    .controls-body {
+        order: 4;
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        overflow-y: auto;
+        box-sizing: border-box;
+        background: var(--panel-bg);
+    }
+    /* 시점/모드 패널: 좁은 화면에서 뷰어를 너무 많이 가리므로 기본은 접어두고,
+       #viewcube-toggle 버튼을 눌러야만(.viewcube-open 클래스) 펼쳐지게 한다. */
+    #viewcube-container {
+        display: none;
+        width: 128px;
+        padding: 6px;
+        gap: 4px;
+    }
+    #viewcube-container.viewcube-open {
+        display: flex;
+    }
+    #viewcube-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 31;
+        width: 40px;
+        height: 40px;
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 1px solid var(--cube-btn-border);
+        background: var(--viewcube-bg);
+        color: var(--cube-btn-color);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        backdrop-filter: blur(4px);
+    }
+    .cube-btn, .theme-toggle-btn {
+        font-size: 0.72rem;
+        padding: 5px 8px;
+    }
+}
 .format-option.selected { border-color: #2196f3; background: rgba(33, 150, 243, 0.14); }
 .format-option.selected .format-name { color: #1976d2; }

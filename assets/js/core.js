@@ -35,9 +35,20 @@ window.ParametricCore = (function () {
         // 3단 flex 레이아웃이다 — body만 스크롤되고, header/footer는 컨트롤 패널 내용이
         // 아무리 길어져도 화면에 항상 고정으로 보인다. header/footer는 배경색을 body보다
         // 살짝 진하게 줘서 "이 부분은 고정돼 있다"는 걸 시각적으로 알 수 있게 한다.
+        //
+        // header와 footer를 controlsTopBarEl로 한 번 더 감싸두는 이유는 모바일 전용이다 —
+        // core.css의 480px 미디어 쿼리에서 이 래퍼만 실제 박스(가로 flex row)로 켜고 header/
+        // footer/format-picker는 display:contents로 투명하게 만들어서, 그 안의 버튼들(홈/
+        // 초기화/STL/3MF/다운로드)이 전부 한 줄로 나란히 붙게 한다. 데스크톱에서는 이 래퍼가
+        // display:contents라 있으나 마나라, header가 맨 위/footer가 맨 아래(각각 CSS order로
+        // 지정)라는 기존 배치가 그대로 유지된다.
+        const controlsTopBarEl = document.createElement('div');
+        controlsTopBarEl.className = 'controls-topbar';
+        controlsEl.appendChild(controlsTopBarEl);
+
         const controlsHeaderEl = document.createElement('div');
         controlsHeaderEl.className = 'controls-header';
-        controlsEl.appendChild(controlsHeaderEl);
+        controlsTopBarEl.appendChild(controlsHeaderEl);
 
         const homeLink = document.createElement('a');
         homeLink.className = 'home-link';
@@ -61,7 +72,7 @@ window.ParametricCore = (function () {
         // 디자인 페이지는 다운로드 버튼을 controlsBodyEl이 아니라 여기에 넣어야 한다.
         const controlsFooterEl = document.createElement('div');
         controlsFooterEl.className = 'controls-footer';
-        controlsEl.appendChild(controlsFooterEl);
+        controlsTopBarEl.appendChild(controlsFooterEl);
 
         const resizerEl = document.createElement('div');
         resizerEl.id = 'resizer';
@@ -116,6 +127,21 @@ window.ParametricCore = (function () {
         cubeContainer.appendChild(screenshotBtn);
 
         viewerEl.appendChild(cubeContainer);
+
+        // 모바일 화면(480px 이하, core.css의 미디어 쿼리)에서는 이 패널이 좁은 뷰어를 너무
+        // 많이 가려서, 기본은 접어두고 이 작은 버튼으로만 펼치고 접게 한다. 데스크톱에서는
+        // core.css가 이 버튼을 숨기고 패널을 항상 펼쳐진 상태로 보여주므로 동작에 영향이 없다.
+        const cubeToggleBtn = document.createElement('button');
+        cubeToggleBtn.type = 'button';
+        cubeToggleBtn.id = 'viewcube-toggle';
+        cubeToggleBtn.textContent = '⚙️';
+        cubeToggleBtn.setAttribute('aria-label', '시점/모드 패널 열기');
+        cubeToggleBtn.addEventListener('click', function () {
+            const open = cubeContainer.classList.toggle('viewcube-open');
+            cubeToggleBtn.textContent = open ? '✕' : '⚙️';
+            cubeToggleBtn.setAttribute('aria-label', open ? '시점/모드 패널 닫기' : '시점/모드 패널 열기');
+        });
+        viewerEl.appendChild(cubeToggleBtn);
 
         rootEl.appendChild(controlsEl);
         rootEl.appendChild(resizerEl);

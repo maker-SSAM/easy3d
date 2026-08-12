@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -117,7 +119,7 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3>보관통 설정</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
 
             <div class="check-row"><input type="checkbox" id="assembledView" onchange="scheduleUpdate()"><label for="assembledView">조립된 모습 보기 (화면 미리보기 전용, STL 파일엔 영향 없음)</label></div>
 

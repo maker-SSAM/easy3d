@@ -3,17 +3,39 @@
 $port = 8099
 $root = $PSScriptRoot
 
+# "localhost" 전용 바인딩은 같은 PC에서만 접속된다. 같은 와이파이의 휴대폰에서도 열어보려면
+# "+"(모든 주소)로 바인딩해야 하는데, 이건 Windows 정책상 관리자 권한으로 실행하거나 아래
+# urlacl을 미리 등록해둬야 한다(관리자 PowerShell에서 한 번만: 이 줄 그대로 복사해서 실행
+#   netsh http add urlacl url=http://+:8099/ user=Everyone
+# ). 등록해두면 이후엔 이 스크립트를 관리자 권한 없이 실행해도 "+"바인딩이 된다.
+# 실패하면(둘 다 준비 안 된 경우) localhost 전용으로 자동 대체된다 — 이 PC에서 여는 건 계속 된다.
 $listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add("http://localhost:$port/")
+$listener.Prefixes.Add("http://+:$port/")
+$lanMode = $true
 try {
     $listener.Start()
 } catch {
-    Write-Output "서버를 시작하지 못했습니다. 이미 실행 중인지 확인해주세요: http://localhost:$port/"
-    Read-Host "엔터를 누르면 창이 닫힙니다"
-    exit
+    $listener = New-Object System.Net.HttpListener
+    $listener.Prefixes.Add("http://localhost:$port/")
+    $lanMode = $false
+    try {
+        $listener.Start()
+    } catch {
+        Write-Output "서버를 시작하지 못했습니다. 이미 실행 중인지 확인해주세요: http://localhost:$port/"
+        Read-Host "엔터를 누르면 창이 닫힙니다"
+        exit
+    }
 }
 
 Write-Output "로컬 서버 시작: http://localhost:$port/"
+if ($lanMode) {
+    $lanIp = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1 -ExpandProperty IPAddress)
+    if ($lanIp) {
+        Write-Output "같은 와이파이의 휴대폰에서: http://${lanIp}:$port/  (처음 실행 시 방화벽 허용 창이 뜨면 '허용' 클릭)"
+    }
+} else {
+    Write-Output "(휴대폰 접속을 켜려면 관리자 PowerShell에서 한 번만: netsh http add urlacl url=http://+:8099/ user=Everyone 실행 후 이 스크립트를 다시 켜보세요)"
+}
 Write-Output "(이 창을 닫으면 서버가 멈춥니다. 종료하려면 Ctrl+C)"
 
 $mime = @{

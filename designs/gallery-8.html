@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -93,13 +95,13 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3>클리커 뚜껑 만들기</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 16px;">
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;">
                 아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
                 뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <label style="display:block; font-size:0.9em; color:#333; margin-bottom:8px;">뚜껑 배치 및 글씨 (5×5)</label>
+            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;">뚜껑 배치 및 글씨 (5×5)</label>
             <div id="capGrid" class="cap-grid"></div>
-            <p style="font-size: 0.8em; color: #999; margin: 0 0 20px;">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
+            <p style="font-size: 0.8em; color: var(--text-muted); margin: 0 0 20px;">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
 
             <div class="control-group">
                 <label>글씨체 선택</label>

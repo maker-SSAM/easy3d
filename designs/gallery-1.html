@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -53,7 +55,7 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3>보석 설정</h3>
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 20px;">* 아래쪽(뾰족한 부분), 가운데 띠, 위쪽(뭉툭한 부분)을 Manifold-3D로 하나의 입체로 합칩니다.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 아래쪽(뾰족한 부분), 가운데 띠, 위쪽(뭉툭한 부분)을 Manifold-3D로 하나의 입체로 합칩니다.</p>
 
             <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
             <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>

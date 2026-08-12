@@ -55,7 +55,7 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3>보석 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 아래쪽(뾰족한 부분), 가운데 띠, 위쪽(뭉툭한 부분)을 Manifold-3D로 하나의 입체로 합칩니다.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 보석을 이루는 부분의 길이와 비율을 조절하여 나만의 멋진 보석 디자인을 완성하세요.</p>
 
             <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
             <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>

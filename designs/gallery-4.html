@@ -72,10 +72,12 @@
                 bodySegments: 32, threadCircleSegments: 12, knurlCircleSegments: 6, maxKnurlN: 36,
                 threadTwistDivisor: 34, threadTwistMaxNDiv: 60, knurlTwistDivisor: 26, knurlTwistMaxNDiv: 70
             },
-            // export 값은 원래 이 갤러리가 항상 쓰던 값 그대로라, 다운로드되는 STL의 인쇄
-            // 품질은 이전과 완전히 동일하다.
+            // export 값: threadCircleSegments만 48로 올렸다(실제 나사산 원 해상도인
+            // threadCircleSegments*2 = 96 — 원본 OpenSCAD의 전역 $fn=96과 동일한 면 수).
+            // 기존 값(20 → 실해상도 40)은 원본의 절반 이하라 나사산이 계단처럼 각지게
+            // 나오는 원인이었다. 다른 값은 그대로 둔다.
             export: {
-                bodySegments: 48, threadCircleSegments: 20, knurlCircleSegments: 10, maxKnurlN: 60,
+                bodySegments: 48, threadCircleSegments: 48, knurlCircleSegments: 10, maxKnurlN: 60,
                 threadTwistDivisor: 20, threadTwistMaxNDiv: 120, knurlTwistDivisor: 15, knurlTwistMaxNDiv: 150
             }
         };
@@ -232,7 +234,14 @@
                     const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS * 2));
                     const circleShifted = track(circle.translate([0.5, 0]));
                     const twistDeg = -144 * hh;
-                    const nDiv = clamp(Math.round(Math.abs(twistDeg) / THREAD_TWIST_DIVISOR), 6, THREAD_TWIST_MAX_NDIV);
+                    // 이 원의 중심이 회전축에서 (d+1)/2만큼(≈16mm) 멀리 떨어진 채로 최대 수백 도를
+                    // 비틀며 압출되기 때문에, 슬라이스 사이 간격이 조금만 벌어져도 인접 슬라이스의
+                    // 다각형이 서로 겹쳐 넘어가(self-intersect) 나사산이 찢어진 것처럼 나온다.
+                    // 원본 OpenSCAD는 linear_extrude(twist=...)의 슬라이스 수를 지정하지 않으면
+                    // $fn에 비례해서(대략 |twist|/360*$fn) 자동으로 정하므로, 여기서도 고정 divisor
+                    // 대신 같은 공식(원 해상도에 비례)으로 계산한다 — 이 원의 해상도(THREAD_CIRCLE_
+                    // SEGMENTS*2)가 곧 원본의 $fn 역할을 하므로 그 값을 그대로 곱해준다.
+                    const nDiv = clamp(Math.ceil(Math.abs(twistDeg) / 360 * (THREAD_CIRCLE_SEGMENTS * 2)), 6, 400);
                     const ridge = track(ManifoldCore.extrudeTwist(circleShifted, hh, nDiv, twistDeg, [1, 1]));
                     const threadPart = track(ManifoldCore.intersect(maskCone, ridge));
                     solid = track(ManifoldCore.union(solid, threadPart));

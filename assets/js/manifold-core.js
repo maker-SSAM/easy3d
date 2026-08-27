@@ -104,6 +104,34 @@ window.ManifoldCore = (function () {
         return Manifold.ofMesh(meshObj);
     }
 
+    // OpenSCAD의 polyhedron(points, faces)에 대응 — 임의의 점/면 배열로 작은 Manifold 솔리드를
+    // 직접 짓는다. 면은 삼각형이든 볼록 다각형(사각형 등)이든 상관없이 첫 정점 기준 부채꼴로
+    // 삼각분할한다. 갤러리9(볼트/너트)의 실제 나사산 폴리헤드론(Dan Kirshner의
+    // thread_polyhedron 포팅)처럼, CrossSection 압출로는 만들 수 없는 원시 정점 좌표 형태의
+    // 작은 솔리드가 필요할 때 쓴다. OpenSCAD는 "바깥에서 봤을 때 시계 방향" 순서를 쓰는데,
+    // Manifold/three.js는 반시계 방향이 바깥을 향하는 관례라, 삼각분할 시 정점 순서를
+    // 뒤집는다(faces 배열 자체는 원본 OpenSCAD 코드 그대로 넘기면 된다).
+    function polyhedron(points, faces) {
+        const vertProperties = new Float32Array(points.length * 3);
+        for (let i = 0; i < points.length; i++) {
+            vertProperties[i * 3] = points[i][0];
+            vertProperties[i * 3 + 1] = points[i][1];
+            vertProperties[i * 3 + 2] = points[i][2];
+        }
+        const triList = [];
+        faces.forEach(function (face) {
+            for (let i = 1; i < face.length - 1; i++) {
+                // face[0], face[i+1], face[i] — OpenSCAD의 시계 방향을 Manifold의 반시계
+                // 방향으로 뒤집기 위해 i/i+1 순서를 바꿔 넣는다.
+                triList.push(face[0], face[i + 1], face[i]);
+            }
+        });
+        const triVerts = new Uint32Array(triList);
+        const meshObj = new MeshCtor({ numProp: 3, vertProperties: vertProperties, triVerts: triVerts });
+        meshObj.merge();
+        return Manifold.ofMesh(meshObj);
+    }
+
     // font-core.js의 윤곽선으로 2D 단면(CrossSection)만 만들고 압출하지 않는다. extrudeContours와
     // 달리, 결과를 곧바로 offset()/add()/subtract() 같은 2D 연산에 먼저 쓴 뒤(예: 갤러리5의
     // 글자 외곽선/테두리 링처럼 폰트 윤곽선 자체를 부풀리거나 서로 합치는 경우) 원하는 시점에
@@ -371,6 +399,7 @@ window.ManifoldCore = (function () {
         translateY: translateY,
         translate: translate,
         fromGeometry: fromGeometry,
+        polyhedron: polyhedron,
         union: union,
         subtract: subtract,
         intersect: intersect,

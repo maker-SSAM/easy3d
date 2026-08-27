@@ -51,12 +51,19 @@
         //     원본 기본값으로 고정(각각 1mm/0.25mm/6mm) — 출력 성공률에 영향을 주는 값이라
         //     잘못 만지면 나사가 안 맞물릴 수 있어서 뺐다
         //
-        // 나사산(cscrew)과 널링 홈(knurl)은 둘 다 원본처럼 "편심 원(또는 여러 개의 작은 원)을
-        // 꼬면서(twist) 압출"하는 방식 그대로 구현했다 — Manifold의 CrossSection.extrude(height,
-        // nDivisions, twistDegrees)가 OpenSCAD의 linear_extrude(height, twist)와 정확히 대응된다.
-        // 널링 무늬의 높이 범위(height_body/height_lid, %)를 제한하는 마스크만 원본은 회전
-        // 압출된 완만한 테이퍼 단면을 쓰는데, 여기서는 그냥 넉넉한 지름의 평평한 원기둥
-        // 마스크로 단순화했다(끝부분이 부드럽게 사라지는 대신 살짝 딱 끊기는 정도의 차이).
+        // 나사산: 처음엔 원본처럼 "편심 원을 꼬며 압출한 뒤 원뿔로 다듬는" 방식(cscrew)으로
+        // 만들었는데, 실제 나사산 각도/피치를 정확히 반영하지 못하는 근사법이었다. 이후
+        // Philipp Klostermann의 screw_extrude(나선을 따라 정점을 직접 이어붙여 폴리헤드론
+        // 하나를 통째로 짓는 방식 — union이 필요 없어 더 가볍고 나사산 각도가 명확함)로
+        // 교체해 확정했다. cscrew(d, threadLen, neckHeight)는 여전히 "평범한 원기둥(뿌리,
+        // part1/part2/part3 — 목 부분을 몸체/뚜껑에 매끄럽게 잇는 미세한 테이퍼) + 나사산
+        // 돌기"를 합친 하나의 솔리드를 돌려주고, 몸체에는 합치고(union) 뚜껑 구멍에는 그대로
+        // 파낸다(subtract) — "돌기를 만드는 부분"만 screwExtrude()로 바뀌었다. 나사산 각도/
+        // 피치가 몸체와 뚜껑에서 반드시 같아야 서로 맞물리므로, THREAD_PITCH·THREAD_TURNS는
+        // 상수로 고정해 양쪽 호출에 동일하게 쓴다.
+        //
+        // 널링(knurl) 그립 홈은 나사산과 무관한 기능이라 원본 그대로 편심 원 꼬임 압출
+        // (extrudeTwist)을 계속 쓴다.
         const shell = ParametricCore.mountEditorShell(document.body);
 
         // ---- 해상도 상수 (원본 $fn=96보다 낮춤) — 미리보기/내보내기 자동 분리(갤러리2/3/5/6/8과
@@ -76,8 +83,6 @@
             },
             // export 값: threadCircleSegments만 48로 올렸다(실제 나사산 원 해상도인
             // threadCircleSegments*2 = 96 — 원본 OpenSCAD의 전역 $fn=96과 동일한 면 수).
-            // 기존 값(20 → 실해상도 40)은 원본의 절반 이하라 나사산이 계단처럼 각지게
-            // 나오는 원인이었다. 다른 값은 그대로 둔다.
             export: {
                 bodySegments: 48, threadCircleSegments: 48, knurlCircleSegments: 10, maxKnurlN: 60,
                 threadTwistDivisor: 20, threadTwistMaxNDiv: 120, knurlTwistDivisor: 15, knurlTwistMaxNDiv: 150
@@ -102,6 +107,10 @@
         const THREADLEN = 6;      // 나사산 길이(돌리는 회전 수를 결정)
         const WALL_MM = 3.7;      // 옆벽 두께 — 그립 홈 최대 깊이(maxdep)가 여기서 갈라지므로, 무늬가
                                   // 흐릿해지지 않도록 이전 기본값(3.7mm)으로 고정하고 조절바를 뺐다.
+        // screw_extrude 나사산 전용 상수 — 몸체(합침)와 뚜껑(파냄)이 반드시 같은 피치를 써야
+        // 맞물리므로 하나로 고정한다. THREADLEN(=6mm)을 3바퀴로 나눠 피치 2mm.
+        const THREAD_TURNS = 3;
+        const THREAD_PITCH = THREADLEN / THREAD_TURNS;
 
         // 그립 깊이/폭/적용 범위는 슬라이더로 조절하기보다 고정값이 나을 만큼 이미 보기 좋은
         // 조합이 나와서 고정하고 조절바를 뺐다. (각도/간격/방향만 계속 조절 가능)
@@ -196,6 +205,71 @@
             updateModel();
         }
 
+        // Philipp Klostermann의 screw_extrude() 포팅. P(다각형 단면, 바깥에서 봤을 때 시계
+        // 방향)를 반지름 r에서 시작해 매 360도마다 p mm씩 높아지며 총 d도만큼 나선으로
+        // 감아 돌린다. sr/er(도)만큼은 단면이 점으로 오므려지며 시작/끝난다(매끈한
+        // 리드인/아웃). 정점/면 배열을 직접 지어 manifold-core.js의 polyhedron()으로
+        // 넘긴다 — union이 전혀 필요 없는 통짜 폴리헤드론이라 가볍다.
+        function screwExtrude(P, r, p, d, sr, er, fnSteps) {
+            const anzPt = P.length;
+            const steps = Math.round(d * fnSteps / 360);
+            const mmPerDeg = p / 360;
+            const deg2rad = Math.PI / 180;
+
+            const VG = [[r, 0, 0]];
+            const PG = [];
+            for (let i = 0; i < anzPt; i++) {
+                PG.push([0, 1 + i, 1 + ((i + 1) % anzPt)]);
+            }
+
+            for (let n = 1; n <= steps - 1; n++) {
+                const w1 = n * d / steps;
+                const h1 = mmPerDeg * w1;
+                const c1 = Math.cos(w1 * deg2rad);
+                const s1 = Math.sin(w1 * deg2rad);
+                let faktor;
+                if (w1 < sr) faktor = w1 / sr;
+                else if (w1 > (d - er)) faktor = 1 - ((w1 - (d - er)) / er);
+                else faktor = 1;
+                for (let k = 0; k < anzPt; k++) {
+                    const pt = P[k];
+                    VG.push([
+                        r * c1 + pt[0] * c1 * faktor,
+                        r * s1 + pt[0] * s1 * faktor,
+                        h1 + pt[1] * faktor
+                    ]);
+                }
+            }
+
+            for (let n = 0; n <= steps - 3; n++) {
+                for (let i = 0; i < anzPt; i++) {
+                    PG.push([
+                        1 + (n * anzPt) + i,
+                        1 + (n * anzPt) + anzPt + i,
+                        1 + (n * anzPt) + anzPt + (i + 1) % anzPt
+                    ]);
+                    PG.push([
+                        1 + (n * anzPt) + i,
+                        1 + (n * anzPt) + anzPt + (i + 1) % anzPt,
+                        1 + (n * anzPt) + (i + 1) % anzPt
+                    ]);
+                }
+            }
+
+            const dRad = d * deg2rad;
+            VG.push([r * Math.cos(dRad), r * Math.sin(dRad), mmPerDeg * d]);
+            const endIdx = VG.length - 1;
+            for (let i = 0; i < anzPt; i++) {
+                PG.push([
+                    endIdx,
+                    1 + (steps - 2) * anzPt + (i + 1) % anzPt,
+                    1 + (steps - 2) * anzPt + i
+                ]);
+            }
+
+            return ManifoldCore.polyhedron(VG, PG);
+        }
+
         // ---------- 실제 모델링 ----------
         // OpenSCAD 원본과 동일하게 Z축이 "위"인 좌표계에서 몸체/뚜껑을 각각 조립하고,
         // 마지막에 ManifoldCore.toYUp()으로 딱 한 번씩만 three.js Y-up으로 바꾼다.
@@ -218,6 +292,8 @@
             const Dscrew = Math.max(diameter + 1.4, DscrewRaw);
 
             // 나사산 하나 — 몸체(돌출)/뚜껑(파냄, 살짝 더 큰 지름) 양쪽에서 재사용한다.
+            // "뿌리 원기둥(part1/part2/part3, 목 부분을 매끈하게 잇는 미세한 테이퍼)"은 그대로
+            // 두고, "돌기를 만드는 부분"만 screwExtrude()로 만든다.
             function cscrew(d, threadLen, neckHeight) {
                 const hh = Math.min(threadLen, neckHeight);
                 const part1 = track(ManifoldCore.rawCylinder(d, d, neckHeight - 0.25, THREAD_CIRCLE_SEGMENTS * 2));
@@ -228,25 +304,18 @@
                 solid = track(ManifoldCore.union(solid, part3));
 
                 if (hh > 0.05) {
-                    const maskCone = track(ManifoldCore.rawCylinder(d + 2 * hh, d, hh, THREAD_CIRCLE_SEGMENTS * 2));
-                    // 이 원은 반지름이 d/2에 가까운(≈16mm) 큰 원이라, 목 원기둥/마스크 원뿔과
-                    // 똑같이 *2 해상도를 써야 한다 — 여기만 절반 해상도를 쓰면 다각형 근사 오차가
-                    // 나사산 돌출 높이(~1mm)에 맞먹을 만큼 커져서, maskCone과 교차시킨 경계가
-                    // 들쭉날쭉해진다(실제로 프린트해보니 나사산이 지저분하게 나온 원인).
-                    const circle = track(ManifoldCore.circleXS((d + 1) / 2, THREAD_CIRCLE_SEGMENTS * 2));
-                    const circleShifted = track(circle.translate([0.5, 0]));
-                    const twistDeg = -144 * hh;
-                    // 이 원의 중심이 회전축에서 (d+1)/2만큼(≈16mm) 멀리 떨어진 채로 최대 수백 도를
-                    // 비틀며 압출되기 때문에, 슬라이스 사이 간격이 조금만 벌어져도 인접 슬라이스의
-                    // 다각형이 서로 겹쳐 넘어가(self-intersect) 나사산이 찢어진 것처럼 나온다.
-                    // 원본 OpenSCAD는 linear_extrude(twist=...)의 슬라이스 수를 지정하지 않으면
-                    // $fn에 비례해서(대략 |twist|/360*$fn) 자동으로 정하므로, 여기서도 고정 divisor
-                    // 대신 같은 공식(원 해상도에 비례)으로 계산한다 — 이 원의 해상도(THREAD_CIRCLE_
-                    // SEGMENTS*2)가 곧 원본의 $fn 역할을 하므로 그 값을 그대로 곱해준다.
-                    const nDiv = clamp(Math.ceil(Math.abs(twistDeg) / 360 * (THREAD_CIRCLE_SEGMENTS * 2)), 6, 400);
-                    const ridge = track(ManifoldCore.extrudeTwist(circleShifted, hh, nDiv, twistDeg, [1, 1]));
-                    const threadPart = track(ManifoldCore.intersect(maskCone, ridge));
-                    solid = track(ManifoldCore.union(solid, threadPart));
+                    // 나사산 돌기 하나의 단면(삼각형) — 안쪽으로 TOLERANCE만큼, 바깥으로
+                    // threadThickness만큼 튀어나온 뾰족한 V자 모양(screw_extrude의 P 인자와
+                    // 완전히 동일한 관례).
+                    const threadThickness = THREAD_PITCH / 2;
+                    const P = [
+                        [-TOLERANCE, threadThickness - TOLERANCE],
+                        [threadThickness, 0],
+                        [-TOLERANCE, -(threadThickness - TOLERANCE)]
+                    ];
+                    const turns = hh / THREAD_PITCH;
+                    const ridge = track(screwExtrude(P, d / 2, THREAD_PITCH, 360 * turns, 0, 45, THREAD_CIRCLE_SEGMENTS * 2));
+                    solid = track(ManifoldCore.union(solid, ridge));
                 }
                 return solid;
             }

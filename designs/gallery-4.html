@@ -64,7 +64,10 @@
         //
         // 널링(knurl) 그립 홈은 나사산과 무관한 기능이라 원본 그대로 편심 원 꼬임 압출
         // (extrudeTwist)을 계속 쓴다.
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://www.printables.com/model/906507-customizable-screw-container-v2-openscad',
+            licenseType: 'BY'
+        });
 
         // ---- 해상도 상수 (원본 $fn=96보다 낮춤) — 미리보기/내보내기 자동 분리(갤러리2/3/5/6/8과
         // 동일한 방침). 나사산/그립 무늬는 꼬임 압출을 여러 번 계산해야 해서 이 갤러리들 중

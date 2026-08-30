@@ -263,11 +263,41 @@ html, body {
     transition: all 0.1s;
     text-align: center;
     white-space: nowrap;
+    text-decoration: none; /* 링크(<a>)로 만든 cube-btn(원작디자인 등)에 기본 밑줄이 붙는 것 방지 */
 }
 .cube-btn:hover {
     background: #2196f3;
     color: #fff;
     border-color: #2196f3;
+}
+
+/* 라이선스 배지(CC BY/BY-SA, MakerWorld 표준 라이선스) — 원본 이미지 비율은 서로 다르지만,
+   다른 cube-btn과 똑같은 둥근 테두리 상자 안에 꽉 채워 넣어 버튼 크기/모양의 일관성을
+   유지한다. padding을 0으로 비우고 overflow:hidden으로 border-radius 밖을 잘라내며, 이미지는
+   width/height 100%로 상자에 맞춰 늘이거나 줄인다(가로세로 비율이 살짝 달라져도 무방하다는
+   전제).*/
+.license-btn,
+.cube-btn.license-badge {
+    padding: 0;
+    overflow: hidden;
+    height: 33px; /* 다른 cube-btn(예: "윗면(평면도)")의 실측 렌더 높이와 맞춘 값 */
+}
+.license-btn img,
+.license-badge img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+}
+
+/* 클릭되는 링크가 아닌 안내용 배지(예: 전용 라이선스 페이지가 없는 경우) — 다른 버튼과
+   똑같이 보이면 눌러보고 싶게 만들므로, 커서/hover 반응만 없앤다(모양 자체는 동일하게 유지). */
+.cube-btn.license-badge {
+    cursor: default;
+}
+.cube-btn.license-badge:hover {
+    background: var(--cube-btn-bg);
+    border-color: var(--cube-btn-border);
 }
 
 /* 다크모드 토글 — "모드 변경" 구간(assets/js/core.js의 mountEditorShell()이 viewcube-title +

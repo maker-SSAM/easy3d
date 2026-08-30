@@ -53,7 +53,10 @@
         // 발/몸통 모두 OpenSCAD 원본과 동일한 Z-up 좌표계에서 만들고, 마지막에
         // ManifoldCore.toYUp()을 한 번만 호출해서 three.js Y-up으로 바꾼다(갤러리4 나사통과
         // 동일한 방침 — raw API 주석 참고).
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://www.thingiverse.com/thing:3303230',
+            licenseType: 'BY'
+        });
 
         const DEFAULTS = {
             baseDiameter: 80, topDiameter: 80, height: 100,

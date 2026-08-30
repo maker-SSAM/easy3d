@@ -126,6 +126,81 @@ window.ParametricCore = (function () {
         screenshotBtn.textContent = '📷 화면 캡쳐';
         cubeContainer.appendChild(screenshotBtn);
 
+        // 원작 디자인 출처 + 라이선스 — 리믹스 기반 갤러리 페이지에서 opts.sourceUrl을 넘겨줄
+        // 때만 만든다(원작 없이 직접 만든 디자인이면 이 구간 자체가 생기지 않는다).
+        if (opts.sourceUrl) {
+            const licenseDivider = document.createElement('div');
+            licenseDivider.className = 'viewcube-divider';
+            cubeContainer.appendChild(licenseDivider);
+
+            const licenseTitle = document.createElement('div');
+            licenseTitle.className = 'viewcube-title';
+            licenseTitle.textContent = '라이선스';
+            cubeContainer.appendChild(licenseTitle);
+
+            // CC BY / CC BY-SA는 creativecommons.org의 공식 라이선스 문서로 바로 연결한다.
+            // 그 외(예: MakerWorld 표준 디지털 파일 라이선스)는 CC 라이선스가 아니라 링크로
+            // 보낼 전용 페이지가 없어서, 클릭되지 않는 안내 배지로만 표시한다.
+            // 배지 이미지는 creativecommons.org가 라이선스 표시 용도로 공식 배포하는 원본
+            // SVG를 그대로 assets/icons/에 내려받아 쓴다(CC BY/BY-SA 4.0 문서 페이지에
+            // 실려 있는 파일 — creativecommons.org/cc-licenses/).
+            const CC_LICENSES = {
+                'BY': {
+                    url: 'https://creativecommons.org/licenses/by/4.0/',
+                    title: 'Creative Commons 저작자표시(BY) 4.0',
+                    icon: '../assets/icons/by.svg'
+                },
+                'BY-SA': {
+                    url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+                    title: 'Creative Commons 저작자표시-동일조건변경허락(BY-SA) 4.0',
+                    icon: '../assets/icons/by_sa.svg'
+                }
+            };
+            const ccInfo = CC_LICENSES[opts.licenseType];
+            if (ccInfo) {
+                const licenseLink = document.createElement('a');
+                licenseLink.className = 'cube-btn license-btn';
+                licenseLink.href = ccInfo.url;
+                licenseLink.target = '_blank';
+                licenseLink.rel = 'noopener noreferrer';
+                licenseLink.title = ccInfo.title;
+                licenseLink.setAttribute('aria-label', ccInfo.title);
+
+                const badgeImg = document.createElement('img');
+                badgeImg.src = ccInfo.icon;
+                badgeImg.alt = ccInfo.title;
+                badgeImg.width = 120;
+                badgeImg.height = 42;
+                licenseLink.appendChild(badgeImg);
+
+                cubeContainer.appendChild(licenseLink);
+            } else {
+                // MakerWorld의 "Standard Digital File License" 배지 — CC 배지와 달리 제3자
+                // 재사용을 위해 공식 배포되는 이미지는 아니지만, 원작 라이선스를 정확히
+                // 표시하려는 목적으로 원본 그대로 가져와 쓴다(비클릭 안내용).
+                const licenseBadge = document.createElement('div');
+                licenseBadge.className = 'cube-btn license-badge';
+                licenseBadge.title = opts.licenseLabel || '표준 디지털 파일 라이선스';
+
+                const badgeImg = document.createElement('img');
+                badgeImg.src = '../assets/icons/standard-digital-file-license.png';
+                badgeImg.alt = opts.licenseLabel || '표준 디지털 파일 라이선스';
+                badgeImg.width = 184;
+                badgeImg.height = 64;
+                licenseBadge.appendChild(badgeImg);
+
+                cubeContainer.appendChild(licenseBadge);
+            }
+
+            const originalLink = document.createElement('a');
+            originalLink.className = 'cube-btn';
+            originalLink.href = opts.sourceUrl;
+            originalLink.target = '_blank';
+            originalLink.rel = 'noopener noreferrer';
+            originalLink.textContent = '👉원작디자인링크';
+            cubeContainer.appendChild(originalLink);
+        }
+
         viewerEl.appendChild(cubeContainer);
 
         // 모바일 화면(480px 이하, core.css의 미디어 쿼리)에서는 이 패널이 좁은 뷰어를 너무

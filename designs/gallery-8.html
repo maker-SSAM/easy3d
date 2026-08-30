@@ -59,7 +59,11 @@
         // 것처럼 보이는 문제가 있었다 — 실제로 겪은 문제. 윗면 자체는 평평하므로, 아주
         // 얇게만(EMBED_DEPTH) 겹쳐서 이음매를 확실히 하고 나머지는 전부 표면 위로
         // 도드라지게(PROTRUDE_HEIGHT, 사용자가 슬라이더로 조절) 압출한다.
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://makerworld.com/ko/models/2854834-customizable-name-word-clicker-keychain#profileId-3184880',
+            licenseType: 'STANDARD',
+            licenseLabel: '표준 디지털 파일 라이선스'
+        });
 
         const FONT_OPTIONS = [
             { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },

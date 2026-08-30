@@ -56,7 +56,10 @@
         // (90-cutangle)도 회전 → -90도 회전)은 OpenSCAD 소스를 그대로 기계적으로 옮긴 것이다.
         // 실제 브라우저 렌더링으로 검증하지 못했으므로(이 세션은 WebGL을 직접 못 봄), 글자가
         // 뒤집히거나 엉뚱한 방향으로 튀어나오면 아래 bendEmboss()의 회전 부호/순서부터 의심할 것.
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://makerworld.com/ko/models/2628507-sweeping-nameplate-typed-in-korean#profileId-2902128',
+            licenseType: 'BY-SA'
+        });
 
         const FONT_OPTIONS = [
             { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },

@@ -45,7 +45,11 @@
         // 칸들에 놓인 복사본들을 서로 살짝 겹치게 배치한 뒤 Manifold-3D로 진짜 하나의
         // 입체로 합쳐서 보여준다(테트리스 키캡처럼 여러 칸이 이어붙은 모양을 만들 수 있게).
         // 뚜껑(글씨 새기기 포함)은 갤러리8에서 따로 다룬다 — 몸체는 "배치"에만 집중한다.
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://makerworld.com/ko/models/2854834-customizable-name-word-clicker-keychain#profileId-3184880',
+            licenseType: 'STANDARD',
+            licenseLabel: '표준 디지털 파일 라이선스'
+        });
 
         shell.controlsBodyEl.innerHTML = `
             <h3>클리커 몸체 만들기</h3>

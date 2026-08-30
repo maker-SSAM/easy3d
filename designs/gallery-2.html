@@ -50,7 +50,10 @@
         // 면(facet) 개수 슬라이더(그 자체가 디자인 요소)와는 다르게 취급한다 — 사용자에게
         // 슬라이더로 노출하지 않고, 미리보기는 낮은 해상도로 빠르게, STL 다운로드할 때만
         // 인쇄 품질로 다시 계산한다(갤러리3/5/6/8과 동일한 방침).
-        const shell = ParametricCore.mountEditorShell(document.body);
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://www.thingiverse.com/thing:4820712',
+            licenseType: 'BY'
+        });
 
         const DEFAULTS = {
             height: 100, radius: 25, wallThickness: 2, baseThickness: 2.4,

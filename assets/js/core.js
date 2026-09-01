@@ -27,6 +27,14 @@ window.ParametricCore = (function () {
             SIDE: '측면(우측면도)',
             ISO: '기본입체'
         };
+        // 각 갤러리가 넘기는 viewCubeLabels는 한글 문자열 그대로다 — 영문판은 여기서
+        // 공용으로 한 번만 매핑해두면, 페이지마다 영문 라벨을 따로 정의할 필요가 없다.
+        const EN_VIEW_LABELS = {
+            '윗면(평면도)': 'Top',
+            '정면(정면도)': 'Front',
+            '측면(우측면도)': 'Side',
+            '기본입체': 'Isometric'
+        };
 
         const controlsEl = document.createElement('div');
         controlsEl.id = 'controls';
@@ -54,6 +62,7 @@ window.ParametricCore = (function () {
         homeLink.className = 'home-link';
         homeLink.href = homeUrl;
         homeLink.textContent = '← 메인화면으로';
+        homeLink.setAttribute('data-i18n-en', '← Home');
         controlsHeaderEl.appendChild(homeLink);
 
         // "초기화" 버튼 — 리셋 동작 자체는 갤러리마다 기본값이 달라서 각 디자인 페이지가
@@ -62,6 +71,7 @@ window.ParametricCore = (function () {
         resetBtn.type = 'button';
         resetBtn.className = 'reset-btn';
         resetBtn.textContent = '초기화';
+        resetBtn.setAttribute('data-i18n-en', 'Reset');
         controlsHeaderEl.appendChild(resetBtn);
 
         const controlsBodyEl = document.createElement('div');
@@ -86,6 +96,7 @@ window.ParametricCore = (function () {
         const cubeTitle = document.createElement('div');
         cubeTitle.className = 'viewcube-title';
         cubeTitle.textContent = '시점 변경';
+        cubeTitle.setAttribute('data-i18n-en', 'View');
         cubeContainer.appendChild(cubeTitle);
 
         const viewTypes = ['TOP', 'FRONT', 'SIDE', 'ISO'];
@@ -95,6 +106,9 @@ window.ParametricCore = (function () {
             btn.className = 'cube-btn';
             btn.textContent = labels[viewType];
             btn.dataset.view = viewType;
+            if (EN_VIEW_LABELS[labels[viewType]]) {
+                btn.setAttribute('data-i18n-en', EN_VIEW_LABELS[labels[viewType]]);
+            }
             cubeContainer.appendChild(btn);
             cubeButtons[viewType] = btn;
         });
@@ -107,12 +121,17 @@ window.ParametricCore = (function () {
         const modeTitle = document.createElement('div');
         modeTitle.className = 'viewcube-title';
         modeTitle.textContent = '모드 변경';
+        modeTitle.setAttribute('data-i18n-en', 'Mode');
         cubeContainer.appendChild(modeTitle);
 
         // 다크모드 토글 — theme-core.js가 모든 편집화면 페이지에 core.js보다 먼저 로드되어
         // 있다는 전제(버튼 자체는 그 파일이 만들고, 여기서는 자리만 배치).
         if (window.ThemeCore) {
             cubeContainer.appendChild(window.ThemeCore.createToggleButton());
+        }
+        // 영어 전환 토글 — 사용자 요청대로 다크모드 토글 바로 옆(같은 "모드 변경" 구간)에 둔다.
+        if (window.LangCore) {
+            cubeContainer.appendChild(window.LangCore.createToggleButton());
         }
 
         const dimensionToggleBtn = document.createElement('button');
@@ -124,6 +143,7 @@ window.ParametricCore = (function () {
         screenshotBtn.type = 'button';
         screenshotBtn.className = 'cube-btn';
         screenshotBtn.textContent = '📷 화면 캡쳐';
+        screenshotBtn.setAttribute('data-i18n-en', '📷 Screenshot');
         cubeContainer.appendChild(screenshotBtn);
 
         // 원작 디자인 출처 + 라이선스 — 리믹스 기반 갤러리 페이지에서 opts.sourceUrl을 넘겨줄
@@ -136,6 +156,7 @@ window.ParametricCore = (function () {
             const licenseTitle = document.createElement('div');
             licenseTitle.className = 'viewcube-title';
             licenseTitle.textContent = '라이선스';
+            licenseTitle.setAttribute('data-i18n-en', 'License');
             cubeContainer.appendChild(licenseTitle);
 
             // CC BY / CC BY-SA는 creativecommons.org의 공식 라이선스 문서로 바로 연결한다.
@@ -148,11 +169,13 @@ window.ParametricCore = (function () {
                 'BY': {
                     url: 'https://creativecommons.org/licenses/by/4.0/',
                     title: 'Creative Commons 저작자표시(BY) 4.0',
+                    titleEn: 'Creative Commons Attribution (BY) 4.0',
                     icon: '../assets/icons/by.svg'
                 },
                 'BY-SA': {
                     url: 'https://creativecommons.org/licenses/by-sa/4.0/',
                     title: 'Creative Commons 저작자표시-동일조건변경허락(BY-SA) 4.0',
+                    titleEn: 'Creative Commons Attribution-ShareAlike (BY-SA) 4.0',
                     icon: '../assets/icons/by_sa.svg'
                 }
             };
@@ -164,11 +187,14 @@ window.ParametricCore = (function () {
                 licenseLink.target = '_blank';
                 licenseLink.rel = 'noopener noreferrer';
                 licenseLink.title = ccInfo.title;
+                licenseLink.setAttribute('data-i18n-en-title', ccInfo.titleEn);
                 licenseLink.setAttribute('aria-label', ccInfo.title);
+                licenseLink.setAttribute('data-i18n-en-aria', ccInfo.titleEn);
 
                 const badgeImg = document.createElement('img');
                 badgeImg.src = ccInfo.icon;
                 badgeImg.alt = ccInfo.title;
+                badgeImg.setAttribute('data-i18n-en-alt', ccInfo.titleEn);
                 badgeImg.width = 120;
                 badgeImg.height = 42;
                 licenseLink.appendChild(badgeImg);
@@ -178,13 +204,17 @@ window.ParametricCore = (function () {
                 // MakerWorld의 "Standard Digital File License" 배지 — CC 배지와 달리 제3자
                 // 재사용을 위해 공식 배포되는 이미지는 아니지만, 원작 라이선스를 정확히
                 // 표시하려는 목적으로 원본 그대로 가져와 쓴다(비클릭 안내용).
+                const licenseLabel = opts.licenseLabel || '표준 디지털 파일 라이선스';
+                const licenseLabelEn = opts.licenseLabelEn || 'Standard Digital File License';
                 const licenseBadge = document.createElement('div');
                 licenseBadge.className = 'cube-btn license-badge';
-                licenseBadge.title = opts.licenseLabel || '표준 디지털 파일 라이선스';
+                licenseBadge.title = licenseLabel;
+                licenseBadge.setAttribute('data-i18n-en-title', licenseLabelEn);
 
                 const badgeImg = document.createElement('img');
                 badgeImg.src = '../assets/icons/standard-digital-file-license.png';
-                badgeImg.alt = opts.licenseLabel || '표준 디지털 파일 라이선스';
+                badgeImg.alt = licenseLabel;
+                badgeImg.setAttribute('data-i18n-en-alt', licenseLabelEn);
                 badgeImg.width = 184;
                 badgeImg.height = 64;
                 licenseBadge.appendChild(badgeImg);
@@ -198,6 +228,7 @@ window.ParametricCore = (function () {
             originalLink.target = '_blank';
             originalLink.rel = 'noopener noreferrer';
             originalLink.textContent = '👉원작디자인링크';
+            originalLink.setAttribute('data-i18n-en', '👉 Original design');
             cubeContainer.appendChild(originalLink);
         }
 
@@ -210,17 +241,30 @@ window.ParametricCore = (function () {
         cubeToggleBtn.type = 'button';
         cubeToggleBtn.id = 'viewcube-toggle';
         cubeToggleBtn.textContent = '⚙️';
-        cubeToggleBtn.setAttribute('aria-label', '시점/모드 패널 열기');
+        function updateCubeToggleAria(open) {
+            const label = open
+                ? window.LangCore && window.LangCore.pick('시점/모드 패널 닫기', 'Close view/mode panel')
+                : window.LangCore && window.LangCore.pick('시점/모드 패널 열기', 'Open view/mode panel');
+            cubeToggleBtn.setAttribute('aria-label', label || (open ? '시점/모드 패널 닫기' : '시점/모드 패널 열기'));
+        }
+        updateCubeToggleAria(false);
+        window.addEventListener('langchange', function () {
+            updateCubeToggleAria(cubeContainer.classList.contains('viewcube-open'));
+        });
         cubeToggleBtn.addEventListener('click', function () {
             const open = cubeContainer.classList.toggle('viewcube-open');
             cubeToggleBtn.textContent = open ? '✕' : '⚙️';
-            cubeToggleBtn.setAttribute('aria-label', open ? '시점/모드 패널 닫기' : '시점/모드 패널 열기');
+            updateCubeToggleAria(open);
         });
         viewerEl.appendChild(cubeToggleBtn);
 
         rootEl.appendChild(controlsEl);
         rootEl.appendChild(resizerEl);
         rootEl.appendChild(viewerEl);
+
+        // 지금까지 만든 shell의 data-i18n-en* 요소들을 현재 언어에 맞춰 즉시 반영한다
+        // (예: localStorage에 이미 영어가 선택되어 있는 상태로 이 페이지에 들어온 경우).
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         return {
             controlsEl: controlsEl,
@@ -552,9 +596,12 @@ window.ParametricCore = (function () {
     // "지금 누르면 무슨 일이 일어나는지"를 보여준다(테마 토글과 같은 관례).
     function bindDimensionToggle(button) {
         function updateLabel() {
-            button.textContent = dimensionOverlayVisible ? '📏 치수선 끄기' : '📏 치수선 켜기';
+            const ko = dimensionOverlayVisible ? '📏 치수선 끄기' : '📏 치수선 켜기';
+            const en = dimensionOverlayVisible ? '📏 Hide dimensions' : '📏 Show dimensions';
+            button.textContent = window.LangCore ? window.LangCore.pick(ko, en) : ko;
         }
         updateLabel();
+        window.addEventListener('langchange', updateLabel);
         button.addEventListener('click', function () {
             dimensionOverlayVisible = !dimensionOverlayVisible;
             if (dimensionOverlayGroup) dimensionOverlayGroup.visible = dimensionOverlayVisible;
@@ -583,7 +630,7 @@ window.ParametricCore = (function () {
             link.style.display = 'none';
             document.body.appendChild(link);
             link.href = dataURL;
-            link.download = filename || '3d-모델-캡쳐.png';
+            link.download = filename || (window.LangCore ? window.LangCore.pick('3d-모델-캡쳐.png', '3d-model-capture.png') : '3d-모델-캡쳐.png');
             link.click();
             document.body.removeChild(link);
         });
@@ -722,12 +769,14 @@ window.ParametricCore = (function () {
             minusBtn.className = 'range-step-btn';
             minusBtn.textContent = '−';
             minusBtn.setAttribute('aria-label', '한 칸 감소');
+            minusBtn.setAttribute('data-i18n-en-aria', 'Decrease by one step');
 
             const plusBtn = document.createElement('button');
             plusBtn.type = 'button';
             plusBtn.className = 'range-step-btn';
             plusBtn.textContent = '+';
             plusBtn.setAttribute('aria-label', '한 칸 증가');
+            plusBtn.setAttribute('data-i18n-en-aria', 'Increase by one step');
 
             row.appendChild(minusBtn);
             row.appendChild(range);
@@ -770,6 +819,7 @@ window.ParametricCore = (function () {
 
             valSpan.classList.add('range-value-editable');
             valSpan.title = '클릭해서 숫자 직접 입력';
+            valSpan.setAttribute('data-i18n-en-title', 'Click to type a number');
             valSpan.addEventListener('click', function () {
                 if (valSpan.querySelector('input')) return; // 이미 편집 중이면 무시
 
@@ -814,8 +864,8 @@ window.ParametricCore = (function () {
     function mountDownloadPanel(footerEl, options) {
         const opts = options || {};
         const formats = opts.formats || [
-            { id: 'stl', name: 'STL', desc: '높은 범용성', handler: opts.onSTL },
-            { id: '3mf', name: '3MF', desc: '멀티컬러 프린팅', handler: opts.on3MF }
+            { id: 'stl', name: 'STL', desc: '높은 범용성', descEn: 'Widely compatible', handler: opts.onSTL },
+            { id: '3mf', name: '3MF', desc: '멀티컬러 프린팅', descEn: 'Multi-color printing', handler: opts.on3MF }
         ];
 
         const picker = document.createElement('div');
@@ -826,7 +876,7 @@ window.ParametricCore = (function () {
         formats.forEach(function (f) {
             const card = document.createElement('div');
             card.className = 'format-option';
-            card.innerHTML = '<div class="format-name">' + f.name + '</div><div class="format-desc">' + f.desc + '</div>';
+            card.innerHTML = '<div class="format-name">' + f.name + '</div><div class="format-desc" data-i18n-en="' + (f.descEn || f.desc) + '">' + f.desc + '</div>';
             card.addEventListener('click', function () {
                 selectedId = f.id;
                 Object.keys(cards).forEach(function (id) { cards[id].classList.toggle('selected', id === selectedId); });
@@ -840,6 +890,7 @@ window.ParametricCore = (function () {
         downloadBtn.type = 'button';
         downloadBtn.className = 'download-btn';
         downloadBtn.textContent = '파일 다운로드';
+        downloadBtn.setAttribute('data-i18n-en', 'Download File');
         downloadBtn.addEventListener('click', function () {
             const format = formats.find(function (f) { return f.id === selectedId; });
             if (format && typeof format.handler === 'function') format.handler();

@@ -317,6 +317,27 @@ html, body {
     white-space: nowrap;
 }
 
+/* 영어 전환 토글 — 다크모드 토글 바로 옆(같은 "모드 변경" 구간)에 들어간다. 언어는
+   다크모드처럼 "반대쪽을 미리 보여주는" 색 트릭이 필요 없어서, 평범한 .cube-btn과
+   같은 중립 색을 쓴다. */
+.lang-toggle-btn {
+    background: var(--cube-btn-bg);
+    border: 1px solid var(--cube-btn-border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--cube-btn-color);
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+}
+.lang-toggle-btn:hover {
+    background: #2196f3;
+    color: #fff;
+    border-color: #2196f3;
+}
+
 .control-group { margin-bottom: 20px; }
 label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.95rem; color: var(--text-color); }
 input[type="range"], input[type="text"], select {
@@ -494,7 +515,7 @@ input[type="range"], input[type="text"], select {
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         backdrop-filter: blur(4px);
     }
-    .cube-btn, .theme-toggle-btn {
+    .cube-btn, .theme-toggle-btn, .lang-toggle-btn {
         font-size: 0.72rem;
         padding: 5px 8px;
     }

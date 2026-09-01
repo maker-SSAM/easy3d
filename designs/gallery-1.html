@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리1 - 보석 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 1 - Gem Maker (Manifold-3D) - Elementary Parametric Design Studio">갤러리1 - 보석 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -15,6 +16,7 @@
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 원뿔대(cylinder) 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
@@ -57,27 +59,28 @@
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>보석 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 보석을 이루는 부분의 길이와 비율을 조절하여 나만의 멋진 보석 디자인을 완성하세요.</p>
+            <h3 data-i18n-en="Gem Settings">보석 설정</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* Adjust the length and proportions of each part to complete your own beautiful gem design.">* 보석을 이루는 부분의 길이와 비율을 조절하여 나만의 멋진 보석 디자인을 완성하세요.</p>
 
-            <div class="control-group"><label>지름 (가장 넓은 부분): <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
-            <div class="control-group"><label>면 개수: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Diameter (widest part)">지름 (가장 넓은 부분)</span>: <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="80" value="30" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Number of faces">면 개수</span>: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" value="6" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>아래쪽 높이 (뾰족한 부분): <span id="valBottomHeight">15</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="15" oninput="updateModel()"></div>
-            <div class="control-group"><label>아래쪽 자르기 비율: <span id="valBottomCutoff">0</span>%</label><input type="range" id="bottomCutoff" min="0" max="100" value="0" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Bottom height (pointed part)">아래쪽 높이 (뾰족한 부분)</span>: <span id="valBottomHeight">15</span>mm</label><input type="range" id="bottomHeight" min="5" max="60" value="15" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Bottom cutoff ratio">아래쪽 자르기 비율</span>: <span id="valBottomCutoff">0</span>%</label><input type="range" id="bottomCutoff" min="0" max="100" value="0" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>가운데 띠 높이: <span id="valMiddleHeight">0</span>mm</label><input type="range" id="middleHeight" min="0" max="40" value="0" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Middle band height">가운데 띠 높이</span>: <span id="valMiddleHeight">0</span>mm</label><input type="range" id="middleHeight" min="0" max="40" value="0" oninput="updateModel()"></div>
 
-            <div class="control-group"><label>위쪽 높이 (뭉툭한 부분): <span id="valTopHeight">10</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="10" oninput="updateModel()"></div>
-            <div class="control-group"><label>위쪽 자르기 비율: <span id="valTopCutoff">50</span>%</label><input type="range" id="topCutoff" min="0" max="100" value="50" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Top height (blunt part)">위쪽 높이 (뭉툭한 부분)</span>: <span id="valTopHeight">10</span>mm</label><input type="range" id="topHeight" min="5" max="40" value="10" oninput="updateModel()"></div>
+            <div class="control-group"><label><span data-i18n-en="Top cutoff ratio">위쪽 자르기 비율</span>: <span id="valTopCutoff">50</span>%</label><input type="range" id="topCutoff" min="0" max="100" value="50" oninput="updateModel()"></div>
 
-            <div class="color-row"><span>보석 색</span><input type="color" id="colGem" value="#8e24aa" oninput="updateModel()"></div>
+            <div class="color-row"><span data-i18n-en="Gem color">보석 색</span><input type="color" id="colGem" value="#8e24aa" oninput="updateModel()"></div>
         `;
 
         // 다운로드 버튼은 footer에 넣어서 컨트롤 패널이 길어져도 화면 하단에 항상 고정으로 보이게 한다.
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         // Three.js 씬/카메라/렌더러/조명/애니메이션 루프 초기화 (공통 스캐폴드)
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
@@ -223,7 +226,7 @@
         function downloadSTL() {
             if (!currentGroup) return;
             const sides = document.getElementById('sides').value;
-            ParametricCore.exportSTL(currentGroup, `보석_${sides}면.stl`);
+            ParametricCore.exportSTL(currentGroup, LangCore.pick(`보석_${sides}면.stl`, `gem_${sides}sides.stl`));
         }
 
         // STL과 달리 3MF는 색 정보를 담을 수 있으므로, currentGroup(이미 보석 색이 입혀진
@@ -231,7 +234,7 @@
         function download3MF() {
             if (!currentGroup) return;
             const sides = document.getElementById('sides').value;
-            ThreeMFCore.export3MF(currentGroup, `보석_${sides}면.3mf`);
+            ThreeMFCore.export3MF(currentGroup, LangCore.pick(`보석_${sides}면.3mf`, `gem_${sides}sides.3mf`));
         }
 
         // 전역에 노출 (컨트롤 패널의 inline onclick/oninput에서 호출하기 위함)

@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리2 - 물결무늬 꽃병 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 2 - Wavy Vase - Elementary Parametric Design Studio">갤러리2 - 물결무늬 꽃병 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -15,6 +16,7 @@
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 2D 단면 → Manifold-3D 회전체(revolve) → three.js 변환 공용 브릿지. ES 모듈이라
@@ -62,28 +64,29 @@
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>물결무늬 꽃병 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
+            <h3 data-i18n-en="Wavy Vase Settings">물결무늬 꽃병 설정</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* A revolved vase with a wall that ripples in a sine wave. The top is open.">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
 
-            <div class="section-label">1. 기본 설정</div>
-            <div class="control-group"><label>높이: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="10" max="400" step="1" value="100" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>반지름: <span id="valRadius">25</span>mm</label><input type="range" id="radius" min="10" max="150" step="0.5" value="25" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>벽 두께: <span id="valWallThickness">2</span>mm</label><input type="range" id="wallThickness" min="1" max="10" step="0.1" value="2" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>바닥 두께: <span id="valBaseThickness">2.4</span>mm</label><input type="range" id="baseThickness" min="0" max="10" step="0.1" value="2.4" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="1. Basic settings">1. 기본 설정</div>
+            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="10" max="400" step="1" value="100" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Radius">반지름</span>: <span id="valRadius">25</span>mm</label><input type="range" id="radius" min="10" max="150" step="0.5" value="25" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Wall thickness">벽 두께</span>: <span id="valWallThickness">2</span>mm</label><input type="range" id="wallThickness" min="1" max="10" step="0.1" value="2" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Base thickness">바닥 두께</span>: <span id="valBaseThickness">2.4</span>mm</label><input type="range" id="baseThickness" min="0" max="10" step="0.1" value="2.4" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">2. 물결 모양</div>
-            <div class="control-group"><label>위쪽 배율: <span id="valScaleTop">0.7</span></label><input type="range" id="scaleTop" min="0.25" max="4" step="0.05" value="0.7" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>물결 개수: <span id="valWaves">1</span></label><input type="range" id="waves" min="0" max="10" step="0.1" value="1" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>물결 진폭: <span id="valWaveAmplitude">8</span>mm</label><input type="range" id="waveAmplitude" min="0" max="25" step="0.1" value="8" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>물결 시작 각도: <span id="valWaveStartAngle">0</span>°</label><input type="range" id="waveStartAngle" min="0" max="360" step="1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="2. Wave shape">2. 물결 모양</div>
+            <div class="control-group"><label><span data-i18n-en="Top scale">위쪽 배율</span>: <span id="valScaleTop">0.7</span></label><input type="range" id="scaleTop" min="0.25" max="4" step="0.05" value="0.7" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Number of waves">물결 개수</span>: <span id="valWaves">1</span></label><input type="range" id="waves" min="0" max="10" step="0.1" value="1" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Wave amplitude">물결 진폭</span>: <span id="valWaveAmplitude">8</span>mm</label><input type="range" id="waveAmplitude" min="0" max="25" step="0.1" value="8" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Wave start angle">물결 시작 각도</span>: <span id="valWaveStartAngle">0</span>°</label><input type="range" id="waveStartAngle" min="0" max="360" step="1" value="0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">3. 색상</div>
-            <div class="color-row"><span>꽃병</span><input type="color" id="col" value="#4fc3f7" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="3. Color">3. 색상</div>
+            <div class="color-row"><span data-i18n-en="Vase">꽃병</span><input type="color" id="col" value="#4fc3f7" oninput="scheduleUpdate()"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -260,7 +263,7 @@
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            ParametricCore.exportSTL(exportGroup, 'wave_vase.stl');
+            ParametricCore.exportSTL(exportGroup, LangCore.pick('물결무늬_꽃병.stl', 'wave_vase.stl'));
 
             mesh.geometry.dispose();
             mesh.material.dispose();
@@ -285,7 +288,7 @@
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            ThreeMFCore.export3MF(exportGroup, 'wave_vase.3mf');
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick('물결무늬_꽃병.3mf', 'wave_vase.3mf'));
 
             mesh.geometry.dispose();
             mesh.material.dispose();

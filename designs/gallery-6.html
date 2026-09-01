@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리6 - 멀티컬러 오가닉 이름표 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 6 - Sweeping Nameplate - Elementary Parametric Design Studio">갤러리6 - 멀티컬러 오가닉 이름표 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -17,6 +18,7 @@
     <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱 공용 모듈 (갤러리5와 공유) -->
@@ -88,102 +90,103 @@
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>이름표 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 평평한 바닥판 위에 텍스트 3줄과 이모지가 둥글게 돌출된 이름표입니다.</p>
+            <h3 data-i18n-en="Nameplate Settings">이름표 설정</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* A nameplate with 3 lines of text and emoji embossed in a rounded sweep over a flat base plate.">* 평평한 바닥판 위에 텍스트 3줄과 이모지가 둥글게 돌출된 이름표입니다.</p>
 
-            <div class="section-label">1. 기본 설정</div>
+            <div class="section-label" data-i18n-en="1. Basic Settings">1. 기본 설정</div>
             <!-- 곡선의 세밀한정도 슬라이더: three.js 렌더링에서 각짐이 잘 안 보여 UI에서 뺐다.
                  되살리려면 이 줄의 주석을 풀고, readParams()/resetToDefaults()/updateModel()에
                  남겨둔 관련 주석을 함께 복구할 것.
             <div class="control-group"><label>곡선의 세밀한정도: <span id="valFacesSegment">20</span></label><input type="range" id="facesSegment" min="4" max="60" step="1" value="20" oninput="scheduleUpdate()"></div>
             -->
-            <div class="control-group"><label>줄간격: <span id="valDistance">1</span></label><input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Line spacing">줄간격</span>: <span id="valDistance">1</span></label><input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">2. 텍스트 1</div>
+            <div class="section-label" data-i18n-en="2. Text Line 1">2. 텍스트 1</div>
             <div class="control-group">
-                <label>텍스트 1 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <label data-i18n-en="Text line 1 (press Enter or click elsewhere after typing)">텍스트 1 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
                 <input type="text" id="text1" value="한글로 입력하는" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
-                <label>텍스트 1 폰트 선택</label>
+                <label data-i18n-en="Text line 1 font">텍스트 1 폰트 선택</label>
                 <select id="font1Select" onchange="onFont1Change()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
                 </select>
                 <input type="file" id="font1Upload" accept=".ttf,.otf" style="display:none">
             </div>
-            <div class="control-group"><label>텍스트 1 크기: <span id="valSize1">11</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="11" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트1 장평: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트1 자간: <span id="valT1Spacing">1.0</span></label><input type="range" id="t1Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트1 굵기: <span id="valT1Offset">0.0</span></label><input type="range" id="t1Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text line 1 size">텍스트 1 크기</span>: <span id="valSize1">11</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="11" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 1 width">텍스트1 장평</span>: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 1 letter spacing">텍스트1 자간</span>: <span id="valT1Spacing">1.0</span></label><input type="range" id="t1Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 1 thickness">텍스트1 굵기</span>: <span id="valT1Offset">0.0</span></label><input type="range" id="t1Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">3. 텍스트 2</div>
+            <div class="section-label" data-i18n-en="3. Text Line 2">3. 텍스트 2</div>
             <div class="control-group">
-                <label>텍스트 2 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <label data-i18n-en="Text line 2 (press Enter or click elsewhere after typing)">텍스트 2 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
                 <input type="text" id="text2" value="네임플레이트" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
-                <label>텍스트 2 폰트 선택</label>
+                <label data-i18n-en="Text line 2 font">텍스트 2 폰트 선택</label>
                 <select id="font2Select" onchange="onFont2Change()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex2 ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
                 </select>
                 <input type="file" id="font2Upload" accept=".ttf,.otf" style="display:none">
             </div>
-            <div class="control-group"><label>텍스트 2 크기: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="50" step="0.5" value="14" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트2 장평: <span id="valT2ScaleX">1.0</span></label><input type="range" id="t2ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트2 자간: <span id="valT2Spacing">1.0</span></label><input type="range" id="t2Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트2 굵기: <span id="valT2Offset">0.0</span></label><input type="range" id="t2Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text line 2 size">텍스트 2 크기</span>: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="50" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 2 width">텍스트2 장평</span>: <span id="valT2ScaleX">1.0</span></label><input type="range" id="t2ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 2 letter spacing">텍스트2 자간</span>: <span id="valT2Spacing">1.0</span></label><input type="range" id="t2Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 2 thickness">텍스트2 굵기</span>: <span id="valT2Offset">0.0</span></label><input type="range" id="t2Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">4. 텍스트 3</div>
+            <div class="section-label" data-i18n-en="4. Text Line 3">4. 텍스트 3</div>
             <div class="control-group">
-                <label>텍스트 3 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <label data-i18n-en="Text line 3 (press Enter or click elsewhere after typing)">텍스트 3 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
                 <input type="text" id="text3" value="스위핑&amp;멀티컬러" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
             </div>
             <div class="control-group">
-                <label>텍스트 3 폰트 선택</label>
+                <label data-i18n-en="Text line 3 font">텍스트 3 폰트 선택</label>
                 <select id="font3Select" onchange="onFont3Change()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex3 ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
                 </select>
                 <input type="file" id="font3Upload" accept=".ttf,.otf" style="display:none">
             </div>
-            <div class="control-group"><label>텍스트 3 크기: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트3 장평: <span id="valT3ScaleX">1.0</span></label><input type="range" id="t3ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트3 자간: <span id="valT3Spacing">1.0</span></label><input type="range" id="t3Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트3 굵기: <span id="valT3Offset">0.0</span></label><input type="range" id="t3Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text line 3 size">텍스트 3 크기</span>: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 3 width">텍스트3 장평</span>: <span id="valT3ScaleX">1.0</span></label><input type="range" id="t3ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 3 letter spacing">텍스트3 자간</span>: <span id="valT3Spacing">1.0</span></label><input type="range" id="t3Spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text 3 thickness">텍스트3 굵기</span>: <span id="valT3Offset">0.0</span></label><input type="range" id="t3Offset" min="-1.0" max="2.0" step="0.1" value="0.0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">5. 이모지</div>
+            <div class="section-label" data-i18n-en="5. Emoji">5. 이모지</div>
             <div class="control-group">
-                <label>왼쪽 이모지</label>
+                <label data-i18n-en="Left emoji">왼쪽 이모지</label>
                 <input type="text" id="emojiLeft" class="emoji-input" value="🦈" oninput="scheduleUpdate()">
             </div>
-            <div class="control-group"><label>왼쪽 이모지 위치: <span id="valLeftOffset">0.5</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Left emoji position">왼쪽 이모지 위치</span>: <span id="valLeftOffset">0.5</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
             <div class="control-group">
-                <label>오른쪽 이모지</label>
+                <label data-i18n-en="Right emoji">오른쪽 이모지</label>
                 <input type="text" id="emojiRight" class="emoji-input" value="♥" oninput="scheduleUpdate()">
             </div>
-            <div class="control-group"><label>오른쪽 이모지 위치: <span id="valRightOffset">0.5</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
-            <p style="font-size: 0.85em; margin: -6px 0 14px;">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
+            <div class="control-group"><label><span data-i18n-en="Right emoji position">오른쪽 이모지 위치</span>: <span id="valRightOffset">0.5</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
+            <p style="font-size: 0.85em; margin: -6px 0 14px;"><span data-i18n-en="🔎 Not sure how to type an emoji? Find one you like in the">🔎 이모지를 어떻게 입력하는지 모르겠다면 →</span> <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);" data-i18n-en="Noto Emoji list">Noto Emoji 목록</a><span data-i18n-en=", then copy and paste it here.">에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</span></p>
 
-            <div class="section-label">6. 바닥판 설정</div>
-            <div class="control-group"><label>바닥판 오프셋: <span id="valBaseOffset">4</span>mm</label><input type="range" id="baseOffset" min="0" max="15" step="0.5" value="4" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>바닥판 높이: <span id="valBaseHeight">3</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>회전체 각도: <span id="valCutAngle">65</span>°</label><input type="range" id="cutAngle" min="5" max="350" step="1" value="65" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>회전체 중심과의 거리: <span id="valTextRadius">7</span>mm</label><input type="range" id="textRadius" min="3" max="30" step="0.5" value="7" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="6. Base Plate Settings">6. 바닥판 설정</div>
+            <div class="control-group"><label><span data-i18n-en="Base plate offset">바닥판 오프셋</span>: <span id="valBaseOffset">4</span>mm</label><input type="range" id="baseOffset" min="0" max="15" step="0.5" value="4" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Base plate height">바닥판 높이</span>: <span id="valBaseHeight">3</span>mm</label><input type="range" id="baseHeight" min="1" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Sweep angle">회전체 각도</span>: <span id="valCutAngle">65</span>°</label><input type="range" id="cutAngle" min="5" max="350" step="1" value="65" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Distance from sweep center">회전체 중심과의 거리</span>: <span id="valTextRadius">7</span>mm</label><input type="range" id="textRadius" min="3" max="30" step="0.5" value="7" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">7. 색상</div>
-            <div class="color-row"><span>텍스트1</span><input type="color" id="colText1" value="#FF5733" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>텍스트2</span><input type="color" id="colText2" value="#33FF57" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>텍스트3</span><input type="color" id="colText3" value="#3357FF" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>왼쪽 이모지</span><input type="color" id="colEmojiL" value="#FFD700" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>오른쪽 이모지</span><input type="color" id="colEmojiR" value="#FF69B4" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>바닥판</span><input type="color" id="colBase" value="#FFFFFF" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="7. Colors">7. 색상</div>
+            <div class="color-row"><span data-i18n-en="Text 1">텍스트1</span><input type="color" id="colText1" value="#FF5733" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Text 2">텍스트2</span><input type="color" id="colText2" value="#33FF57" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Text 3">텍스트3</span><input type="color" id="colText3" value="#3357FF" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Left emoji">왼쪽 이모지</span><input type="color" id="colEmojiL" value="#FFD700" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Right emoji">오른쪽 이모지</span><input type="color" id="colEmojiR" value="#FF69B4" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Base plate">바닥판</span><input type="color" id="colBase" value="#FFFFFF" oninput="scheduleUpdate()"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -254,7 +257,7 @@
                     prevValue = cacheKey;
                     onFontResolved(font, cacheKey);
                 }, function () {
-                    alert('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.');
+                    alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
                     select.value = prevValue;
                 });
             });
@@ -820,7 +823,7 @@
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: params.colBase }));
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            const filename = (params.text1 || params.text2 || params.text3 || 'nameplate') + '_nameplate.stl';
+            const filename = (params.text1 || params.text2 || params.text3 || LangCore.pick('이름표', 'nameplate')) + LangCore.pick('_이름표.stl', '_nameplate.stl');
             ParametricCore.exportSTL(exportGroup, filename);
 
             mesh.geometry.dispose();
@@ -850,7 +853,7 @@
 
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            const filename = (params.text1 || params.text2 || params.text3 || 'nameplate') + '_nameplate.3mf';
+            const filename = (params.text1 || params.text2 || params.text3 || LangCore.pick('이름표', 'nameplate')) + LangCore.pick('_이름표.3mf', '_nameplate.3mf');
             ThreeMFCore.export3MF(exportGroup, filename);
 
             mesh.geometry.dispose();

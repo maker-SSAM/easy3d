@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리4 - 돌려 닫는 보관통 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 4 - Screw-Top Container - Elementary Parametric Design Studio">갤러리4 - 돌려 닫는 보관통 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -15,6 +16,7 @@
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 회전 압출/꼬임 압출 조합 → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
@@ -130,28 +132,29 @@
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>보관통 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
+            <h3 data-i18n-en="Container Settings">보관통 설정</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* Creates threads that really mesh between the body and the lid. You can twist the lid to open and close it.">* 몸체와 뚜껑에 진짜로 맞물리는 나사산을 만듭니다. 뚜껑을 돌려서 열고 닫을 수 있어요.</p>
 
-            <div class="check-row"><input type="checkbox" id="assembledView" onchange="scheduleUpdate()"><label for="assembledView">조립된 모습 보기</label></div>
+            <div class="check-row"><input type="checkbox" id="assembledView" onchange="scheduleUpdate()"><label for="assembledView" data-i18n-en="Show assembled view">조립된 모습 보기</label></div>
 
-            <div class="control-group"><label>안지름: <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="100" step="1" value="30" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>안쪽 높이: <span id="valHeight">50</span>mm</label><input type="range" id="height" min="20" max="150" step="1" value="50" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>뚜껑 높이: <span id="valHead">10</span>mm</label><input type="range" id="head" min="10" max="50" step="1" value="10" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>모따기: <span id="valChamfer">1</span>mm</label><input type="range" id="chamfer" min="0" max="3" step="0.2" value="1" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Inner diameter">안지름</span>: <span id="valDiameter">30</span>mm</label><input type="range" id="diameter" min="10" max="100" step="1" value="30" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Inner height">안쪽 높이</span>: <span id="valHeight">50</span>mm</label><input type="range" id="height" min="20" max="150" step="1" value="50" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Lid height">뚜껑 높이</span>: <span id="valHead">10</span>mm</label><input type="range" id="head" min="10" max="50" step="1" value="10" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Chamfer">모따기</span>: <span id="valChamfer">1</span>mm</label><input type="range" id="chamfer" min="0" max="3" step="0.2" value="1" oninput="scheduleUpdate()"></div>
 
-            <div class="check-row"><input type="checkbox" id="knurl1On" onchange="scheduleUpdate()"><label for="knurl1On">1차 무늬 사용 (시계 방향)</label></div>
-            <div class="check-row"><input type="checkbox" id="knurl2On" onchange="scheduleUpdate()"><label for="knurl2On">2차 무늬 사용 (반시계 방향)</label></div>
-            <div class="control-group"><label>그립 각도: <span id="valAngle">35</span>°</label><input type="range" id="angle" min="0" max="70" step="1" value="35" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>그립 간격: <span id="valDistPct">80</span>%</label><input type="range" id="distPct" min="0" max="500" step="10" value="80" oninput="scheduleUpdate()"></div>
+            <div class="check-row"><input type="checkbox" id="knurl1On" onchange="scheduleUpdate()"><label for="knurl1On" data-i18n-en="Use primary pattern (clockwise)">1차 무늬 사용 (시계 방향)</label></div>
+            <div class="check-row"><input type="checkbox" id="knurl2On" onchange="scheduleUpdate()"><label for="knurl2On" data-i18n-en="Use secondary pattern (counterclockwise)">2차 무늬 사용 (반시계 방향)</label></div>
+            <div class="control-group"><label><span data-i18n-en="Grip angle">그립 각도</span>: <span id="valAngle">35</span>°</label><input type="range" id="angle" min="0" max="70" step="1" value="35" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Grip spacing">그립 간격</span>: <span id="valDistPct">80</span>%</label><input type="range" id="distPct" min="0" max="500" step="10" value="80" oninput="scheduleUpdate()"></div>
 
-            <div class="color-row"><span>몸체 색</span><input type="color" id="colBody" value="#00ff88" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colLid" value="#d400ff" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Body color">몸체 색</span><input type="color" id="colBody" value="#00ff88" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Lid color">뚜껑 색</span><input type="color" id="colLid" value="#d400ff" oninput="scheduleUpdate()"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -550,7 +553,7 @@
             const exportGroup = new THREE.Group();
             exportGroup.add(bodyMesh);
             exportGroup.add(lidMesh);
-            ParametricCore.exportSTL(exportGroup, `보관통_${Math.round(g.D)}mm.stl`);
+            ParametricCore.exportSTL(exportGroup, LangCore.pick(`보관통_${Math.round(g.D)}mm.stl`, `container_${Math.round(g.D)}mm.stl`));
 
             g.bodyGeo.dispose();
             g.lidGeo.dispose();
@@ -582,7 +585,7 @@
             const exportGroup = new THREE.Group();
             exportGroup.add(bodyMesh);
             exportGroup.add(lidMesh);
-            ThreeMFCore.export3MF(exportGroup, `보관통_${Math.round(g.D)}mm.3mf`);
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`보관통_${Math.round(g.D)}mm.3mf`, `container_${Math.round(g.D)}mm.3mf`));
 
             g.bodyGeo.dispose();
             g.lidGeo.dispose();

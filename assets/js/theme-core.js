@@ -50,8 +50,12 @@ window.ThemeCore = (function () {
 
         function updateLabel() {
             const isDark = currentTheme() === 'dark';
-            btn.textContent = isDark ? '☀️ 라이트모드' : '🌙 다크모드';
-            btn.setAttribute('aria-label', isDark ? '라이트모드로 전환' : '다크모드로 전환');
+            // 다크모드 버튼 자체의 라벨도 영어 전환 대상이다 — lang-core.js가 이 파일보다
+            // 먼저 로드되어 있다는 보장이 없어(theme-core.js가 항상 먼저 로드됨) 매번
+            // window.LangCore 존재 여부를 확인하고, 없으면 한글 그대로 보여준다.
+            const pick = window.LangCore ? window.LangCore.pick : function (ko) { return ko; };
+            btn.textContent = isDark ? pick('☀️ 라이트모드', '☀️ Light mode') : pick('🌙 다크모드', '🌙 Dark mode');
+            btn.setAttribute('aria-label', isDark ? pick('라이트모드로 전환', 'Switch to light mode') : pick('다크모드로 전환', 'Switch to dark mode'));
         }
         updateLabel();
 
@@ -60,6 +64,7 @@ window.ThemeCore = (function () {
             updateLabel();
         });
         window.addEventListener('themechange', updateLabel);
+        window.addEventListener('langchange', updateLabel);
 
         return btn;
     }

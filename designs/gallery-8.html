@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 8 - Clicker Cap Maker - Elementary Parametric Design Studio">갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -18,6 +19,7 @@
     <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
@@ -99,35 +101,36 @@
         function defaultCapText(idx) { return DEFAULT_CAP_TEXT[idx] || ''; }
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>클리커 뚜껑 만들기</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;">
+            <h3 data-i18n-en="Clicker Cap Maker">클리커 뚜껑 만들기</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="Type text into an empty grid cell to place a cap there; clear the text to remove it. Font, size, weight, and colors apply equally to every cap.">
                 아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
                 뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;">뚜껑 배치 및 글씨 (5×5)</label>
+            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (5×5)">뚜껑 배치 및 글씨 (5×5)</label>
             <div id="capGrid" class="cap-grid"></div>
-            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요. 글씨체를 'Noto Emoji'로 선택하면 이모지가 원활하게 표시돼요.</p>
-            <p style="font-size: 0.8em; margin: 0 0 20px;">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
+            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it. Choose the 'Noto Emoji' font for emoji to display properly.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요. 글씨체를 'Noto Emoji'로 선택하면 이모지가 원활하게 표시돼요.</p>
+            <p style="font-size: 0.8em; margin: 0 0 20px;" data-i18n-en-html="🔎 Not sure how to type an emoji? Browse the <a href='https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs' target='_blank' rel='noopener' style='color: var(--home-link-color);'>Noto Emoji list</a> and copy-paste the one you want.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
 
             <div class="control-group">
-                <label>글씨체 선택</label>
+                <label data-i18n-en="Choose a font">글씨체 선택</label>
                 <select id="fontSelect" onchange="onFontChange()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__">📁 내 폰트 파일 업로드...</option>
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
                 </select>
                 <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
             </div>
-            <div class="control-group"><label>텍스트 크기: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트 굵기: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>텍스트 돌출 높이: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Protrusion height">텍스트 돌출 높이</span>: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
 
-            <div class="color-row"><span>뚜껑 색</span><input type="color" id="colCap" value="#b4b4b4" oninput="scheduleUpdate()"></div>
-            <div class="color-row"><span>글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Cap color">뚜껑 색</span><input type="color" id="colCap" value="#b4b4b4" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Text color">글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -242,7 +245,7 @@
                 currentFontFile = cacheKey;
                 updateModel();
             }, function () {
-                alert('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.');
+                alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
                 select.value = fontSelectPrevValue;
             });
         });
@@ -374,7 +377,7 @@
             if (!meshes.length) return;
             const exportGroup = new THREE.Group();
             meshes.forEach(function (m) { exportGroup.add(m); });
-            ParametricCore.exportSTL(exportGroup, '클리커_뚜껑_세트.stl');
+            ParametricCore.exportSTL(exportGroup, LangCore.pick(`클리커_뚜껑_세트.stl`, `clicker_cap_set.stl`));
             meshes.forEach(function (m) {
                 m.geometry.dispose();
                 if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
@@ -390,7 +393,7 @@
             if (!meshes.length) return;
             const exportGroup = new THREE.Group();
             meshes.forEach(function (m) { exportGroup.add(m); });
-            ThreeMFCore.export3MF(exportGroup, '클리커_뚜껑_세트.3mf');
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`클리커_뚜껑_세트.3mf`, `clicker_cap_set.3mf`));
             meshes.forEach(function (m) {
                 m.geometry.dispose();
                 if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });

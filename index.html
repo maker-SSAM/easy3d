@@ -9,8 +9,10 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Elementary Parametric Design Studio">초등 파라메트릭 디자인 스튜디오</title>
     <script src="assets/js/theme-core.js"></script>
+    <script src="assets/js/lang-core.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <!-- 갤러리 카드 미리보기는 각 갤러리 기본값 모델을 미리 구워둔 GLB(assets/previews/)를
          읽어서 보여준다 — Manifold/폰트 WASM을 메인화면에서 직접 돌리지 않아도 된다. -->
@@ -30,6 +32,10 @@
             --theme-toggle-bg: #232427;
             --theme-toggle-border: rgba(0,0,0,0.3);
             --theme-toggle-color: #e4e4e4;
+            /* 영어 전환 버튼: 다크모드처럼 "반대쪽 미리보기" 색 트릭이 필요 없어서 중립 색을 쓴다. */
+            --lang-toggle-bg: #fff;
+            --lang-toggle-border: rgba(0,0,0,0.12);
+            --lang-toggle-color: #222;
         }
         :root[data-theme="dark"] {
             --page-bg: #17181b;
@@ -42,6 +48,9 @@
             --theme-toggle-bg: #ffffff;
             --theme-toggle-border: rgba(0,0,0,0.08);
             --theme-toggle-color: #222;
+            --lang-toggle-bg: #232427;
+            --lang-toggle-border: rgba(0,0,0,0.3);
+            --lang-toggle-color: #e4e4e4;
         }
 
         html, body {
@@ -69,24 +78,38 @@
            미디어 쿼리에서 display:inline으로 켠다). */
         .title-break { display: none; }
 
-        #themeToggle {
+        /* 다크모드 버튼 + 영어 전환 버튼을 우측 상단에 나란히 묶어둔다(사용자 요청: 영어 버튼을
+           다크모드 버튼 바로 옆에 배치). */
+        .header-actions {
             position: absolute;
             top: 24px;
             right: 24px;
+            display: flex;
+            gap: 8px;
+        }
+        #themeToggle, #langToggle {
             width: 128px;
             box-sizing: border-box;
             padding: 8px 14px;
             font-size: 0.85rem;
             font-weight: bold;
             border-radius: 6px;
-            border: 1px solid var(--theme-toggle-border);
-            background: var(--theme-toggle-bg);
-            color: var(--theme-toggle-color);
             cursor: pointer;
             text-align: center;
             white-space: nowrap;
         }
+        #themeToggle {
+            border: 1px solid var(--theme-toggle-border);
+            background: var(--theme-toggle-bg);
+            color: var(--theme-toggle-color);
+        }
         #themeToggle:hover { box-shadow: 0 2px 6px var(--card-shadow); }
+        #langToggle {
+            border: 1px solid var(--lang-toggle-border);
+            background: var(--lang-toggle-bg);
+            color: var(--lang-toggle-color);
+        }
+        #langToggle:hover { box-shadow: 0 2px 6px var(--card-shadow); }
 
         /* 4열 고정 그리드(2줄이면 최대 8개) */
         #gallery {
@@ -108,9 +131,20 @@
                 grid-template-columns: 1fr;
             }
             .title-break { display: inline; }
-            /* 오른쪽 위 다크모드 버튼(top:24~62px)과 2줄이 된 제목이 겹치지 않도록
-               제목 시작 위치를 버튼 아래로 내린다. */
-            header { padding-top: 88px; }
+            /* 오른쪽 위 버튼 영역(다크모드+영어 전환, 2줄이 된 제목이 겹치지 않도록
+               제목 시작 위치를 버튼 아래로 내린다. 버튼 두 개가 한 줄에 다 안 들어가는
+               좁은 화면에서는 줄바꿈(flex-wrap)하고 폭을 줄여서 잘리지 않게 한다. */
+            header { padding-top: 112px; }
+            .header-actions {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                max-width: calc(100% - 48px);
+            }
+            #themeToggle, #langToggle {
+                width: auto;
+                font-size: 0.78rem;
+                padding: 7px 10px;
+            }
         }
 
         .design-card {
@@ -199,9 +233,12 @@
 <body>
 
     <header>
-        <button id="themeToggle" type="button"></button>
-        <h1>초등 파라메트릭 <br class="title-break">디자인 스튜디오</h1>
-        <p>회원가입 없이, 로그인 없이, 수치만 조정하여 나만의 3D디자인을 만들고 파일로 내려받아요.</p>
+        <div class="header-actions">
+            <button id="langToggle" type="button"></button>
+            <button id="themeToggle" type="button"></button>
+        </div>
+        <h1 data-i18n-en-html="Elementary Parametric <br class=&quot;title-break&quot;>Design Studio">초등 파라메트릭 <br class="title-break">디자인 스튜디오</h1>
+        <p data-i18n-en="Adjust numbers to create your own 3D design — no sign-up, no login — and download the file.">회원가입 없이, 로그인 없이, 수치만 조정하여 나만의 3D디자인을 만들고 파일로 내려받아요.</p>
     </header>
 
     <div id="gallery"></div>
@@ -215,7 +252,7 @@
             const btn = document.getElementById('themeToggle');
             function updateLabel() {
                 const isDark = ThemeCore.currentTheme() === 'dark';
-                btn.textContent = isDark ? '☀️ 라이트모드' : '🌙 다크모드';
+                btn.textContent = isDark ? LangCore.pick('☀️ 라이트모드', '☀️ Light mode') : LangCore.pick('🌙 다크모드', '🌙 Dark mode');
             }
             updateLabel();
             btn.addEventListener('click', function () {
@@ -223,6 +260,23 @@
                 updateLabel();
             });
             window.addEventListener('themechange', updateLabel);
+            window.addEventListener('langchange', updateLabel);
+        })();
+
+        // 영어 전환 버튼(다크모드 버튼 바로 옆). 다크모드 토글과 동일한 구조 — 실제 적용/저장/
+        // 탭 간 동기화는 lang-core.js가 맡고, 여기서는 버튼 라벨 갱신과 클릭 연결만 한다.
+        (function setupLangToggle() {
+            const btn = document.getElementById('langToggle');
+            function updateLabel() {
+                const isEn = LangCore.currentLang() === 'en';
+                btn.textContent = isEn ? '🌐 한국어' : '🌐 English';
+            }
+            updateLabel();
+            btn.addEventListener('click', function () {
+                LangCore.toggleLang();
+                updateLabel();
+            });
+            window.addEventListener('langchange', updateLabel);
         })();
 
         // 갤러리에 노출할 디자인 목록. 각 카드의 미리보기는 해당 갤러리를 기본값 그대로 열었을
@@ -238,7 +292,9 @@
         const designs = [
             {
                 title: '보석 만들기',
+                titleEn: 'Gem Maker',
                 description: '면 개수와 비율을 조절해 나만의 보석을 만들어보세요',
+                descriptionEn: 'Adjust the number of facets and proportions to design your own gem',
                 url: 'designs/gallery-1.html',
                 glb: 'assets/previews/gallery-1.glb',
                 zoom: 1.00,
@@ -246,7 +302,9 @@
             },
             {
                 title: '물결무늬 꽃병',
+                titleEn: 'Wavy Vase',
                 description: '곡선의 모양을 조절하여 나만의 꽃병을 만들어 보세요',
+                descriptionEn: 'Shape the curve to design your own vase',
                 url: 'designs/gallery-2.html',
                 glb: 'assets/previews/gallery-2.glb',
                 wobble: true,
@@ -256,7 +314,9 @@
             },
             {
                 title: '꼬임디자인 연필꽂이',
+                titleEn: 'Twisted Pen Holder',
                 description: '다각형 단면을 비틀어서 나만의 연필꽂이를 만들어보세요',
+                descriptionEn: 'Twist a polygon cross-section to design your own pen holder',
                 url: 'designs/gallery-3.html',
                 glb: 'assets/previews/gallery-3.glb',
                 zoom: 1.20,
@@ -265,7 +325,9 @@
             },
             {
                 title: '나사 뚜껑 통',
+                titleEn: 'Screw-Top Container',
                 description: '돌려서 여닫는 나만의 보관통을 만들어보세요',
+                descriptionEn: 'Design your own container with a twist-open lid',
                 url: 'designs/gallery-4.html',
                 glb: 'assets/previews/gallery-4.glb',
                 zoom: 1.50,
@@ -274,7 +336,9 @@
             },
             {
                 title: '이름표 열쇠고리',
+                titleEn: 'Name Tag Keychain',
                 description: '이름과 이모지를 넣어 나만의 이름표를 만들어 보세요',
+                descriptionEn: 'Add your name and an emoji to design your own name tag',
                 url: 'designs/gallery-5.html',
                 glb: 'assets/previews/gallery-5.glb',
                 zoom: 1.80,
@@ -283,7 +347,9 @@
             },
             {
                 title: '회전돌출 명패',
+                titleEn: 'Sweeping Nameplate',
                 description: '3줄 텍스트와 이모지가 돌출된 나만의 명패를 만들어 보세요',
+                descriptionEn: 'Design your own nameplate with 3 lines of raised text and an emoji',
                 url: 'designs/gallery-6.html',
                 glb: 'assets/previews/gallery-6.glb',
                 zoom: 1.50,
@@ -292,7 +358,9 @@
             },
             {
                 title: '클리커 몸체 만들기',
+                titleEn: 'Clicker Body Maker',
                 description: '원하는 칸을 배치하여 나만의 클리커 몸체 만들기',
+                descriptionEn: 'Place the cells you want to build your own clicker body',
                 url: 'designs/gallery-7.html',
                 glb: 'assets/previews/gallery-7.glb',
                 zoom: 1.20,
@@ -301,7 +369,9 @@
             },
             {
                 title: '클리커 뚜껑 만들기',
+                titleEn: 'Clicker Cap Maker',
                 description: '원하는 폰트와 글씨로 나만의 클리커 뚜껑 만들기',
+                descriptionEn: 'Choose a font and words to design your own clicker cap',
                 url: 'designs/gallery-8.html',
                 glb: 'assets/previews/gallery-8.glb',
                 zoom: 1.20,
@@ -326,8 +396,9 @@
 
             const infoEl = document.createElement('div');
             infoEl.className = 'design-info';
-            infoEl.innerHTML = `<h3>${design.title}</h3><p>${design.description}</p>`;
+            infoEl.innerHTML = `<h3 data-i18n-en="${design.titleEn}">${design.title}</h3><p data-i18n-en="${design.descriptionEn}">${design.description}</p>`;
             card.appendChild(infoEl);
+            LangCore.applyTranslations(infoEl);
 
             galleryEl.appendChild(card);
 

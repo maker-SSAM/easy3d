@@ -7,7 +7,8 @@
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <title>갤러리3 - 꼬임 연필꽂이 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 3 - Twisted Pen Holder - Elementary Parametric Design Studio">갤러리3 - 꼬임 연필꽂이 (Manifold-3D) - 초등 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -15,6 +16,7 @@
     <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
     <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 2D 단면 → 꼬임 압출(twist extrude)/볼록 껍질(hull) → Manifold-3D 솔리드 → three.js
@@ -65,38 +67,39 @@
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3>꼬임 연필꽂이 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;">* 다각형 단면을 비틀어서 만드는 나만의 연필꽂이입니다. 위쪽이 뚫려있어요.</p>
+            <h3 data-i18n-en="Twisted Pen Holder Settings">꼬임 연필꽂이 설정</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* Your own pen holder made by twisting a polygon cross-section. The top is open.">* 다각형 단면을 비틀어서 만드는 나만의 연필꽂이입니다. 위쪽이 뚫려있어요.</p>
 
-            <div class="section-label">1. 크기</div>
-            <div class="control-group"><label>아랫지름: <span id="valBaseDiameter">80</span>mm</label><input type="range" id="baseDiameter" min="20" max="200" step="1" value="80" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>윗지름: <span id="valTopDiameter">80</span>mm</label><input type="range" id="topDiameter" min="20" max="300" step="1" value="80" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>높이: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="20" max="300" step="1" value="100" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label>벽 두께: <span id="valWallThickness">3</span>mm</label><input type="range" id="wallThickness" min="0.8" max="10" step="0.1" value="3" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="1. Size">1. 크기</div>
+            <div class="control-group"><label><span data-i18n-en="Bottom diameter">아랫지름</span>: <span id="valBaseDiameter">80</span>mm</label><input type="range" id="baseDiameter" min="20" max="200" step="1" value="80" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Top diameter">윗지름</span>: <span id="valTopDiameter">80</span>mm</label><input type="range" id="topDiameter" min="20" max="300" step="1" value="80" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="20" max="300" step="1" value="100" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Wall thickness">벽 두께</span>: <span id="valWallThickness">3</span>mm</label><input type="range" id="wallThickness" min="0.8" max="10" step="0.1" value="3" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">2. 단면 모양</div>
+            <div class="section-label" data-i18n-en="2. Cross-section shape">2. 단면 모양</div>
             <div class="control-group">
-                <label>단면 모양</label>
+                <label data-i18n-en="Cross-section shape">단면 모양</label>
                 <select id="crossection" onchange="scheduleUpdate()">
-                    <option value="3">삼각형 (3면)</option>
-                    <option value="4">사각형 (4면)</option>
-                    <option value="5">오각형 (5면)</option>
-                    <option value="6" selected>육각형 (6면)</option>
-                    <option value="7">칠각형 (7면)</option>
-                    <option value="8">팔각형 (8면)</option>
-                    <option value="9">구각형 (9면)</option>
-                    <option value="10">십각형 (10면)</option>
+                    <option value="3" data-i18n-en="Triangle (3 sides)">삼각형 (3면)</option>
+                    <option value="4" data-i18n-en="Square (4 sides)">사각형 (4면)</option>
+                    <option value="5" data-i18n-en="Pentagon (5 sides)">오각형 (5면)</option>
+                    <option value="6" selected data-i18n-en="Hexagon (6 sides)">육각형 (6면)</option>
+                    <option value="7" data-i18n-en="Heptagon (7 sides)">칠각형 (7면)</option>
+                    <option value="8" data-i18n-en="Octagon (8 sides)">팔각형 (8면)</option>
+                    <option value="9" data-i18n-en="Nonagon (9 sides)">구각형 (9면)</option>
+                    <option value="10" data-i18n-en="Decagon (10 sides)">십각형 (10면)</option>
                 </select>
             </div>
-            <div class="control-group"><label>꼬임 각도: <span id="valTwist">90</span>°</label><input type="range" id="twist" min="0" max="360" step="1" value="90" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Twist angle">꼬임 각도</span>: <span id="valTwist">90</span>°</label><input type="range" id="twist" min="0" max="360" step="1" value="90" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label">3. 색상</div>
-            <div class="color-row"><span>연필꽂이</span><input type="color" id="col" value="#ff5050" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="3. Color">3. 색상</div>
+            <div class="color-row"><span data-i18n-en="Pen holder">연필꽂이</span><input type="color" id="col" value="#ff5050" oninput="scheduleUpdate()"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
 
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
@@ -253,7 +256,7 @@
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            ParametricCore.exportSTL(exportGroup, '꼬임_연필꽂이.stl');
+            ParametricCore.exportSTL(exportGroup, LangCore.pick(`꼬임_연필꽂이.stl`, `twisted_pen_holder.stl`));
 
             mesh.geometry.dispose();
             mesh.material.dispose();
@@ -278,7 +281,7 @@
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
-            ThreeMFCore.export3MF(exportGroup, '꼬임_연필꽂이.3mf');
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`꼬임_연필꽂이.3mf`, `twisted_pen_holder.3mf`));
 
             mesh.geometry.dispose();
             mesh.material.dispose();

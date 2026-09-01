@@ -6,6 +6,8 @@
       "firebase.json",
       "**/.*",
       ".git/**",
+      ".github/**",
+      ".claude/**",
       "**/node_modules/**",
       "USB_제출용/**",
       "sever_mac.command"

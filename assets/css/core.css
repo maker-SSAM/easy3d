@@ -226,7 +226,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    width: 150px;
+    width: 160px; /* 영문 모드 "Hide dimensions" 등 긴 라벨이 버튼 폭보다 넘치는 것 방지 */
     box-sizing: border-box;
     background: var(--viewcube-bg);
     padding: 8px;

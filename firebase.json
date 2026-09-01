@@ -10,7 +10,9 @@
       ".claude/**",
       "**/node_modules/**",
       "USB_제출용/**",
-      "sever_mac.command"
+      "sever_mac.command",
+      "serve.bat",
+      "serve.ps1"
     ]
   }
 }

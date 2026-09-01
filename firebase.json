@@ -5,8 +5,10 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      ".git/**",
       "**/node_modules/**",
-      "USB_제출용/**"
+      "USB_제출용/**",
+      "sever_mac.command"
     ]
   }
 }

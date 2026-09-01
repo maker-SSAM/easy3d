@@ -87,6 +87,17 @@
             display: flex;
             gap: 8px;
         }
+
+        .visitor-counter {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            display: flex;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .visitor-counter span { font-weight: bold; color: var(--text-color); }
         #themeToggle, #langToggle {
             width: 128px;
             box-sizing: border-box;
@@ -148,6 +159,7 @@
         }
 
         .design-card {
+            position: relative;
             display: block;
             background: var(--card-bg);
             border-radius: 12px;
@@ -160,6 +172,19 @@
         .design-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 8px 20px var(--card-shadow-hover);
+        }
+
+        .design-download-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 2;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 0.75rem;
+            pointer-events: none;
         }
 
         .design-preview {
@@ -229,10 +254,13 @@
             border-radius: 12px;
         }
     </style>
+    <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
 
     <header>
+        <div class="visitor-counter" id="visitorCounter"></div>
         <div class="header-actions">
             <button id="langToggle" type="button"></button>
             <button id="themeToggle" type="button"></button>
@@ -277,6 +305,35 @@
                 updateLabel();
             });
             window.addEventListener('langchange', updateLabel);
+        })();
+
+        // GoatCounter 공개 카운터 JSON endpoint 조회 헬퍼. 사이트 설정에서 "Allow adding
+        // visitor counts on your website"를 켜야 동작하고, 값은 최대 4시간까지 캐시된다.
+        const GOATCOUNTER_BASE = 'https://maker-ssam.goatcounter.com';
+        function fetchGoatCounterCount(path, query) {
+            let url = GOATCOUNTER_BASE + '/counter/' + encodeURIComponent(path) + '.json';
+            if (query) url += '?' + query;
+            return fetch(url)
+                .then(function (res) { return res.ok ? res.json() : null; })
+                .then(function (data) { return data ? data.count : null; })
+                .catch(function () { return null; });
+        }
+
+        // 헤더 왼쪽 위: 전체 방문자 수 / 오늘 방문자 수.
+        (function setupVisitorCounter() {
+            const el = document.getElementById('visitorCounter');
+            const today = new Date().toISOString().slice(0, 10);
+            Promise.all([
+                fetchGoatCounterCount('TOTAL'),
+                fetchGoatCounterCount('TOTAL', 'start=' + today + '&end=' + today),
+            ]).then(function (results) {
+                const total = results[0];
+                const todayCount = results[1];
+                if (total === null && todayCount === null) return;
+                el.innerHTML =
+                    '<span>total: ' + (total || '0') + '</span>' +
+                    '<span>today: ' + (todayCount || '0') + '</span>';
+            });
         })();
 
         // 갤러리에 노출할 디자인 목록. 각 카드의 미리보기는 해당 갤러리를 기본값 그대로 열었을
@@ -399,6 +456,19 @@
             infoEl.innerHTML = `<h3 data-i18n-en="${design.titleEn}">${design.title}</h3><p data-i18n-en="${design.descriptionEn}">${design.description}</p>`;
             card.appendChild(infoEl);
             LangCore.applyTranslations(infoEl);
+
+            // 카드 왼쪽 위: 이 디자인의 STL 다운로드 횟수. core.js의 exportSTL()이 기록하는
+            // 'download' + location.pathname 이벤트와 같은 경로로 조회해야 값이 맞는다.
+            const downloadBadge = document.createElement('div');
+            downloadBadge.className = 'design-download-badge';
+            downloadBadge.style.display = 'none';
+            card.appendChild(downloadBadge);
+            const downloadPath = 'download' + new URL(design.url, location.href).pathname;
+            fetchGoatCounterCount(downloadPath).then(function (count) {
+                if (count === null) return;
+                downloadBadge.textContent = 'download: ' + count;
+                downloadBadge.style.display = '';
+            });
 
             galleryEl.appendChild(card);
 

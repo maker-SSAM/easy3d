@@ -638,6 +638,14 @@ window.ParametricCore = (function () {
 
     function exportSTL(modelGroup, filename) {
         if (!modelGroup) return;
+
+        if (window.goatcounter && typeof window.goatcounter.count === 'function') {
+            window.goatcounter.count({
+                path: 'download' + location.pathname,
+                title: document.title,
+                event: true,
+            });
+        }
         // 화면 표시는 three.js 관례대로 Y-up으로 만드는데, 3D 프린트 슬라이서(큐라, 프루사슬라이서
         // 등)는 보통 Z축을 "위"로 본다(Z-up). 그대로 내보내면 모델이 옆으로 누운 것처럼 보인다
         // — 실제로 겪은 문제. 내보낼 때만 지오메트리를 복제해서 Z-up으로 회전시키고, 화면에

@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "easy3d",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "USB_제출용/**"
+    ]
+  }
+}

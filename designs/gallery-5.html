@@ -350,7 +350,34 @@
             // 3층: 테두리 링 (바깥 offset - 안쪽 offset)
             const borderOuterXS = track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW));
             const borderInnerXS = track(masterWithRing.offset(p.outlineW + p.innerMargin));
-            const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
+            let borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
+
+            // 글자 안쪽의 작은 구멍(예: "이"의 ㅇ 속공간)은 바깥쪽 offset에서는 완전히
+            // 메워지는데 안쪽(더 작은) offset에서는 아직 살짝 안 메워지고 남을 수 있다 —
+            // 이 상태로 위에서 바깥-안쪽을 빼면, 메인 테두리 루프와 안 이어진 아주 작은
+            // 테두리 섬 조각(잔해물)이 글자 속에 남는다. decompose()로 서로 떨어진
+            // 조각들을 나눠서, 진짜 테두리 한 칸보다 훨씬 작은(면적이 테두리 두께의
+            // 제곱 몇 배 수준밖에 안 되는) 조각만 잔해물로 보고 제거한다 — 이모지처럼
+            // 의도적으로 멀리 떨어져 있는 정상적인 별도 테두리 루프는 그보다 훨씬 커서
+            // 영향받지 않는다.
+            if (borderRingXS && !borderRingXS.isEmpty()) {
+                const ringPieces = borderRingXS.decompose();
+                if (ringPieces.length > 1) {
+                    const debrisThreshold = Math.max(p.borderW, 0.1) * Math.max(p.borderW, 0.1) * 4;
+                    const keptPieces = [];
+                    ringPieces.forEach(function (piece) {
+                        track(piece);
+                        if (piece.area() > debrisThreshold) keptPieces.push(piece);
+                    });
+                    if (keptPieces.length && keptPieces.length !== ringPieces.length) {
+                        let cleaned = keptPieces[0];
+                        for (let i = 1; i < keptPieces.length; i++) cleaned = track(cleaned.add(keptPieces[i]));
+                        borderRingXS = cleaned;
+                    }
+                } else {
+                    ringPieces.forEach(function (piece) { piece.delete(); });
+                }
+            }
 
             let holeXS = null;
             if (p.keyringOn) {

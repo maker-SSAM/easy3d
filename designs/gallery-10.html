@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- 예전 GitHub Pages 주소(maker-ssam.github.io)로 들어온 방문자를 새 대표 주소
+         (easy3d.web.app)로 자동 이동시킨다 — 두 도메인이 같은 브랜치를 그대로 서빙하고
+         있어서, 안 그러면 방문자/다운로드 카운트가 두 주소에 나뉘어 잡힌다. 다른 리소스
+         로딩 전 최대한 일찍 실행되도록 <head> 맨 위에 둔다. -->
+    <script>(function(){if(location.hostname==='maker-ssam.github.io'){location.replace('https://easy3d.web.app'+location.pathname.replace(/^\/easy3d/,'')+location.search+location.hash);}})();</script>
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 10 - Personalized Whistle Maker - Parametric Design Studio for Beginners">갤러리10 - 이름 호루라기 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
+    <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
+    <!-- 폰트 → 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱 공용 모듈 (갤러리5/6/8과 공유) -->
+    <script src="../assets/js/font-core.js"></script>
+    <!-- 호루라기 STL(원본 메시) + 글자/이모지 윤곽선을 Manifold-3D 솔리드로 만들어 하나로
+         합치는 데 쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직
+         스크립트도 type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <script type="module" src="../assets/js/manifold-core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
+        .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
+        .emoji-input { width: 100%; box-sizing: border-box; font-size: 1.2em; text-align: center; padding: 6px; }
+    </style>
+    <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+
+    <script type="module">
+        // 갤러리10: 호루라기 몸체(STL)에 텍스트 1줄 + 이모지 1줄을 새긴다. 기법 자체는
+        // 갤러리8(클리커 뚜껑)과 동일하다 — 뚜껑 대신 호루라기 몸체를 로드하고, 그 위의
+        // 평평한 윗면(실측: y=12 높이, x[-11,11]·z[-21.5,26.35] 범위가 완전히 평평 — 키링
+        // 구멍 부분만 z≈-21.5 부근에서 잘림) 위에 글자를 얹는다.
+        //
+        // 텍스트와 이모지는 다른 갤러리와 같은 방향(읽는 방향 = X축)으로 눕히고, 두 줄을
+        // 호루라기의 긴 축(Z) 방향으로 위아래 쌓는다(참고 사진처럼 이름이 위, 그림이 아래).
+        // 윗면이 가로 22mm로 좁기 때문에 글자 수가 많으면 옆으로 튀어나올 수 있다 —
+        // 텍스트 크기 슬라이더로 줄여서 맞추게 한다(자동 축소는 하지 않음).
+        //
+        // 원작자(NIPRO)에게 리믹스/커스터마이저 활용 허가를 받은 뒤 사용할 것 — 다른 리믹스
+        // 갤러리(7·8)처럼 허가 스크린샷을 assets/licenses/에 남기고 이 주석에 날짜를 적을 것.
+        // TODO: 허가 확보 전에는 배포하지 말 것.
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://makerworld.com/ko/models/1299040-improved-ultra-powerful-sibato-whistle',
+            licenseType: 'STANDARD',
+            licenseLabel: '표준 디지털 파일 라이선스'
+        });
+
+        const FONT_OPTIONS = [
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
+        ];
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf');
+        const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
+
+        const DEFAULTS = {
+            text: '호루라기', fontIndex: DEFAULT_FONT_INDEX,
+            fontSize: 8, fontWeight: 0, textProtrude: 0.6,
+            emoji: '🐬', emojiSize: 9, emojiProtrude: 0.6,
+            lineGap: 3, groupOffset: 2,
+            colBody: '#ffca28', colText: '#212121', colEmoji: '#e53935'
+        };
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3 data-i18n-en="Personalized Whistle Maker">이름 호루라기 만들기</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="* Emboss one line of text and one line of emoji onto the flat top of the whistle body.">* 호루라기 몸체 윗면에 텍스트 한 줄과 이모지 한 줄을 도드라지게 새깁니다.</p>
+
+            <div class="section-label" data-i18n-en="1. Basic Settings">1. 기본 설정</div>
+            <div class="control-group"><label><span data-i18n-en="Overall position">전체 위치</span>: <span id="valGroupOffset">2</span>mm</label><input type="range" id="groupOffset" min="-15" max="20" step="0.5" value="2" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Gap between text and emoji">텍스트-이모지 간격</span>: <span id="valLineGap">3</span>mm</label><input type="range" id="lineGap" min="0" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label" data-i18n-en="2. Text">2. 텍스트</div>
+            <div class="control-group">
+                <label data-i18n-en="Enter text (press Enter or click elsewhere after typing)">텍스트 입력 (입력 후 Enter 또는 다른 곳 클릭)</label>
+                <input type="text" id="inputText" value="호루라기" onkeydown="onTextKeydown(event)" onblur="scheduleUpdate()">
+            </div>
+            <div class="control-group">
+                <label data-i18n-en="Choose a font">글씨체 선택</label>
+                <select id="fontSelect" onchange="onFontChange()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
+                </select>
+                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+            </div>
+            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">8</span>mm</label><input type="range" id="fontSize" min="4" max="16" step="0.5" value="8" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text protrusion height">텍스트 돌출 높이</span>: <span id="valTextProtrude">0.6</span>mm</label><input type="range" id="textProtrude" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label" data-i18n-en="3. Emoji">3. 이모지</div>
+            <div class="control-group">
+                <label data-i18n-en="Enter emoji (one or more)">이모지 입력 (하나 이상)</label>
+                <input type="text" id="inputEmoji" class="emoji-input" value="🐬" oninput="scheduleUpdate()">
+            </div>
+            <p style="font-size: 0.85em; margin: -6px 0 14px;" data-i18n-en-html="🔎 Not sure how to enter an emoji? → Find one you like in the <a href=&quot;https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot; style=&quot;color: var(--home-link-color);&quot;>Noto Emoji list</a> and copy-paste it here.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
+            <div class="control-group"><label><span data-i18n-en="Emoji size">이모지 크기</span>: <span id="valEmojiSize">9</span>mm</label><input type="range" id="emojiSize" min="4" max="16" step="0.5" value="9" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Emoji protrusion height">이모지 돌출 높이</span>: <span id="valEmojiProtrude">0.6</span>mm</label><input type="range" id="emojiProtrude" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+
+            <div class="section-label" data-i18n-en="4. Colors">4. 색상</div>
+            <div class="color-row"><span data-i18n-en="Whistle body">호루라기 몸체</span><input type="color" id="colBody" value="#ffca28" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Text">텍스트</span><input type="color" id="colText" value="#212121" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Emoji">이모지</span><input type="color" id="colEmoji" value="#e53935" oninput="scheduleUpdate()"></div>
+        `;
+
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
+
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
+        ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
+
+        // 호루라기 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
+        // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
+        // (Y-up -> Z-up)과 반대 방향으로 한 번 돌려서 불러온다. 그 다음 가로/세로를
+        // 원점(0,0) 중심으로 맞추고, 바닥(y=0)에 닿도록 세운다. (갤러리8과 동일한 정규화)
+        function normalizeGeometry(geo) {
+            geo.rotateX(-Math.PI / 2);
+            geo.computeBoundingBox();
+            const box = geo.boundingBox;
+            const cx = (box.min.x + box.max.x) / 2;
+            const cz = (box.min.z + box.max.z) / 2;
+            geo.translate(-cx, -box.min.y, -cz);
+            geo.computeBoundingBox();
+            return geo;
+        }
+
+        let currentGroup = null;
+        let manifoldReady = false;
+        let updateTimer = null;
+        let textFont = null;
+        let emojiFont = null;
+        // 지금 적용 중인 텍스트 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면
+        // FontCore.loadFontFromFile()이 만들어준 합성 키. readParams()가 이 값을 쓴다
+        // (select.value를 그때그때 다시 인덱싱하면 업로드 폰트일 때 어긋난다).
+        let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
+        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
+
+        function scheduleUpdate() {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 100);
+        }
+
+        function onTextKeydown(event) {
+            if (event.key === 'Enter') scheduleUpdate();
+        }
+
+        function onFontChange() {
+            const select = document.getElementById('fontSelect');
+            if (select.value === '__upload__') {
+                document.getElementById('fontUpload').click();
+                return;
+            }
+            fontSelectPrevValue = select.value;
+            const uploadedFont = FontCore.getFont(select.value);
+            if (uploadedFont) {
+                textFont = uploadedFont;
+                currentFontFile = select.value;
+                updateModel();
+                return;
+            }
+            currentFontFile = FONT_OPTIONS[select.value].file;
+            FontCore.loadFont(currentFontFile, function (font) {
+                textFont = font;
+                updateModel();
+            });
+        }
+
+        document.getElementById('fontUpload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            const select = document.getElementById('fontSelect');
+            if (!file) { select.value = fontSelectPrevValue; return; }
+            FontCore.loadFontFromFile(file, function (font, cacheKey) {
+                const opt = document.createElement('option');
+                opt.value = cacheKey;
+                opt.textContent = '📁 ' + file.name;
+                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
+                select.value = cacheKey;
+                fontSelectPrevValue = cacheKey;
+                textFont = font;
+                currentFontFile = cacheKey;
+                updateModel();
+            }, function () {
+                alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
+                select.value = fontSelectPrevValue;
+            });
+        });
+
+        function resetToDefaults() {
+            document.getElementById('groupOffset').value = DEFAULTS.groupOffset;
+            document.getElementById('lineGap').value = DEFAULTS.lineGap;
+            document.getElementById('inputText').value = DEFAULTS.text;
+            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
+            document.getElementById('fontSize').value = DEFAULTS.fontSize;
+            document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
+            document.getElementById('textProtrude').value = DEFAULTS.textProtrude;
+            document.getElementById('inputEmoji').value = DEFAULTS.emoji;
+            document.getElementById('emojiSize').value = DEFAULTS.emojiSize;
+            document.getElementById('emojiProtrude').value = DEFAULTS.emojiProtrude;
+            document.getElementById('colBody').value = DEFAULTS.colBody;
+            document.getElementById('colText').value = DEFAULTS.colText;
+            document.getElementById('colEmoji').value = DEFAULTS.colEmoji;
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            onFontChange(); // 폰트를 다시 로드하면서 위 값들을 반영해 모델도 재생성한다
+        }
+
+        let whistleGeoNormalized = null; // 원본 호루라기 STL(정규화 완료)
+        let whistleTemplate = null; // 호루라기를 Manifold로 변환해둔 것(부품 색 구분용 originalID 부여) — 매번 다시 만들지 않고 재사용
+        let topY = 0; // 호루라기 윗면(완전히 평평한 면)의 y 높이 — 글자를 그 위에 얹을 기준
+
+        // 글자/이모지가 윗면 어디에 놓이든 확실히 이어붙도록, 아랫부분을 몸체 속으로 조금
+        // 파묻고(EMBED_DEPTH) 그보다 더 위로 도드라지게(protrudeHeight, 슬라이더로 조절)
+        // 만든다. 윗면이 평평하고 벽 두께가 넉넉해서(실측 약 4mm) 이 정도만 겹쳐도 충분하다.
+        const EMBED_DEPTH = 0.6; // mm, 몸체 속으로 겹쳐 넣는 깊이(이음매 보강용, 조절 불가)
+        const PREVIEW_CURVE_SEGMENTS = 24;
+        const EXPORT_CURVE_SEGMENTS = 48;
+
+        // 텍스트 한 줄(또는 이모지 한 줄)의 윤곽선을 압출해 "몸체 윗면에 놓을 솔리드"로
+        // 만든다. extrudeXS() 결과는 이미 읽는 방향 = X축, 위로 돋는 방향 = Y축인 상태라
+        // 별도 회전 없이 그대로 쓴다(다른 갤러리와 동일) — 텍스트/이모지는 호루라기의
+        // 긴 축(Z) 위치(zPos)만 다르게 줘서 위아래로 쌓는다.
+        function buildLineSolid(text, font, fontFile, fontSize, fontWeight, protrudeHeight, zPos, curveSegments) {
+            if (!font || !text || !text.trim()) return null;
+            const contours = FontCore.buildCenteredContours(text, font, fontFile, fontSize, 1.0, curveSegments);
+            if (!contours.length) return null;
+
+            let xs = ManifoldCore.contoursToXS(contours);
+            if (Math.abs(fontWeight) > 0.001) {
+                const widened = xs.offset(fontWeight);
+                xs.delete();
+                xs = widened;
+            }
+            const raised = ManifoldCore.extrudeXS(xs, EMBED_DEPTH + protrudeHeight);
+            xs.delete();
+            const id = raised.originalID();
+            const positioned = ManifoldCore.translate(raised, 0, topY - EMBED_DEPTH, zPos);
+            raised.delete();
+            return { solid: positioned, id: id };
+        }
+
+        // 문자열 윤곽선의 세로(Y) 폭의 절반을 구한다 — 텍스트와 이모지를 호루라기의 긴
+        // 축(Z)으로 위아래로 쌓을 때, 두 줄이 겹치지 않게 벌리려면 글자 "크기" 값이 아니라
+        // 실제 글자 윤곽선의 세로 폭(캡 하이트)이 필요하다(폰트마다/이모지마다 실제 높이가
+        // 다름). buildCenteredContours()가 X·Y 모두 중심 정렬해두므로 Y 최대값이 곧 절반 폭.
+        function lineHalfHeight(text, font, fontFile, size, curveSegments) {
+            if (!font || !text || !text.trim()) return 0;
+            const contours = FontCore.buildCenteredContours(text, font, fontFile, size, 1.0, curveSegments);
+            if (!contours.length) return 0;
+            let minY = Infinity, maxY = -Infinity;
+            contours.forEach(function (pts) {
+                pts.forEach(function (p) { if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; });
+            });
+            return minY > maxY ? 0 : (maxY - minY) / 2;
+        }
+
+        function readParams() {
+            return {
+                text: document.getElementById('inputText').value || '',
+                fontFile: currentFontFile,
+                fontSize: parseFloat(document.getElementById('fontSize').value),
+                fontWeight: parseFloat(document.getElementById('fontWeight').value),
+                textProtrude: parseFloat(document.getElementById('textProtrude').value),
+                emoji: document.getElementById('inputEmoji').value || '',
+                emojiSize: parseFloat(document.getElementById('emojiSize').value),
+                emojiProtrude: parseFloat(document.getElementById('emojiProtrude').value),
+                lineGap: parseFloat(document.getElementById('lineGap').value),
+                groupOffset: parseFloat(document.getElementById('groupOffset').value),
+                colBody: document.getElementById('colBody').value,
+                colText: document.getElementById('colText').value,
+                colEmoji: document.getElementById('colEmoji').value
+            };
+        }
+
+        // 몸체 + 텍스트 + 이모지를 하나로 합친 THREE.Mesh를 만든다. whistleTemplate은
+        // 매번 새로 만들지 않고 재사용한다 — union()은 입력을 소비하지 않으므로(새 결과를
+        // 돌려줄 뿐) 원본은 그대로 살아있고, 합친 결과와 텍스트/이모지 솔리드만 다 쓰고
+        // 나서 정리하면 된다.
+        function buildAssembly(params, curveSegments) {
+            // 텍스트/이모지 각각의 실제 세로 폭(캡 하이트)의 절반을 구해서, 그 절반들과
+            // 사용자가 정한 여백(lineGap)만큼 중심을 벌린다 — 폰트나 이모지마다 실제 높이가
+            // 달라서(크기 슬라이더 값만으로는 부족) 윤곽선을 직접 재야 두 줄이 겹치지 않는다.
+            const textHalf = lineHalfHeight(params.text, textFont, params.fontFile, params.fontSize, curveSegments);
+            const emojiHalf = lineHalfHeight(params.emoji, emojiFont, EMOJI_FONT_FILE, params.emojiSize, curveSegments);
+            let textZ = params.groupOffset;
+            let emojiZ = params.groupOffset;
+            if (textHalf > 0 && emojiHalf > 0) {
+                const centerGap = textHalf + params.lineGap + emojiHalf;
+                textZ = params.groupOffset - centerGap / 2;   // 키링 구멍 쪽(이름을 위쪽에 배치)
+                emojiZ = params.groupOffset + centerGap / 2;  // 마우스피스 쪽(그림을 아래쪽에 배치)
+            }
+
+            let textResult = null;
+            try {
+                textResult = buildLineSolid(params.text, textFont, params.fontFile, params.fontSize, params.fontWeight, params.textProtrude, textZ, curveSegments);
+            } catch (err) {
+                console.error('텍스트 새기기 실패:', err);
+            }
+            let emojiResult = null;
+            try {
+                emojiResult = buildLineSolid(params.emoji, emojiFont, EMOJI_FONT_FILE, params.emojiSize, 0, params.emojiProtrude, emojiZ, curveSegments);
+            } catch (err) {
+                console.error('이모지 새기기 실패:', err);
+            }
+
+            const idToColor = new Map([[whistleTemplate.originalID(), params.colBody]]);
+            let fused = whistleTemplate;
+            let intermediate = null;
+            if (textResult) {
+                idToColor.set(textResult.id, params.colText);
+                intermediate = ManifoldCore.union(fused, textResult.solid);
+                fused = intermediate;
+            }
+            if (emojiResult) {
+                idToColor.set(emojiResult.id, params.colEmoji);
+                const next = ManifoldCore.union(fused, emojiResult.solid);
+                if (intermediate) intermediate.delete();
+                intermediate = next;
+                fused = next;
+            }
+
+            const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.colBody, { roughness: 0.4, metalness: 0.05, envMapIntensity: 0.55 });
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            if (textResult) textResult.solid.delete();
+            if (emojiResult) emojiResult.solid.delete();
+            if (intermediate) intermediate.delete();
+
+            return mesh;
+        }
+
+        function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
+            if (!currentGroup) return;
+            scene.remove(currentGroup);
+            currentGroup.traverse(function (obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                else if (obj.material) obj.material.dispose();
+            });
+            currentGroup = null;
+        }
+
+        function updateModel() {
+            if (!manifoldReady || !whistleTemplate) return;
+
+            document.getElementById('valGroupOffset').innerText = document.getElementById('groupOffset').value;
+            document.getElementById('valLineGap').innerText = document.getElementById('lineGap').value;
+            document.getElementById('valFontSize').innerText = document.getElementById('fontSize').value;
+            document.getElementById('valFontWeight').innerText = document.getElementById('fontWeight').value;
+            document.getElementById('valTextProtrude').innerText = document.getElementById('textProtrude').value;
+            document.getElementById('valEmojiSize').innerText = document.getElementById('emojiSize').value;
+            document.getElementById('valEmojiProtrude').innerText = document.getElementById('emojiProtrude').value;
+
+            const params = readParams();
+            let mesh;
+            try {
+                mesh = buildAssembly(params, PREVIEW_CURVE_SEGMENTS);
+            } catch (err) {
+                console.error('호루라기 모델 생성 실패:', err);
+                return;
+            }
+
+            disposeCurrentThreeMesh();
+            currentGroup = new THREE.Group();
+            currentGroup.add(mesh);
+            scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
+        }
+
+        function downloadSTL() {
+            if (!manifoldReady || !whistleTemplate) return;
+            const params = readParams();
+            let mesh;
+            try {
+                mesh = buildAssembly(params, EXPORT_CURVE_SEGMENTS);
+            } catch (err) {
+                console.error('STL 생성 실패:', err);
+                return;
+            }
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            const textValue = params.text || LangCore.pick('호루라기', 'whistle');
+            ParametricCore.exportSTL(exportGroup, LangCore.pick(`${textValue}_호루라기.stl`, `${textValue}_whistle.stl`));
+            mesh.geometry.dispose();
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
+        }
+
+        function download3MF() {
+            if (!manifoldReady || !whistleTemplate) return;
+            const params = readParams();
+            let mesh;
+            try {
+                mesh = buildAssembly(params, EXPORT_CURVE_SEGMENTS);
+            } catch (err) {
+                console.error('3MF 생성 실패:', err);
+                return;
+            }
+            const exportGroup = new THREE.Group();
+            exportGroup.add(mesh);
+            const textValue = params.text || LangCore.pick('호루라기', 'whistle');
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`${textValue}_호루라기.3mf`, `${textValue}_whistle.3mf`));
+            mesh.geometry.dispose();
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
+        }
+
+        window.scheduleUpdate = scheduleUpdate;
+        window.onTextKeydown = onTextKeydown;
+        window.onFontChange = onFontChange;
+        window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentGroup; };
+        // 갤러리6과 같은 이유로 카드 전용 훅을 따로 둔다 — 이모지 글꼴(NotoEmoji)의 일부
+        // 그림문자(예: 기본값 🐬)는 윤곽선이 매우 복잡해서(실측: curveSegments=24에서
+        // 이모지 하나만으로 정점 3만 개 이상) 기본 미리보기(PREVIEW_CURVE_SEGMENTS=24) 그대로
+        // 구우면 카드 GLB가 쓸데없이 커진다(실측 1.9MB). 220px 썸네일에는 그 정밀도가 전혀
+        // 필요 없으므로, 훨씬 낮은 curveSegments로 다시 만든 뒤에만 굽는다.
+        window.__getCardPreviewGroup = function (curveSegments) {
+            if (!manifoldReady || !whistleTemplate || !textFont || !emojiFont) return null;
+            const params = readParams();
+            const mesh = buildAssembly(params, curveSegments || 3);
+            const group = new THREE.Group();
+            group.add(mesh);
+            return group;
+        };
+
+        const loader = new THREE.STLLoader();
+        loader.load('../assets/models/whistle.stl', function (geo) {
+            whistleGeoNormalized = normalizeGeometry(geo);
+            topY = whistleGeoNormalized.boundingBox.max.y;
+            tryInit();
+        });
+
+        function tryInit() {
+            if (!manifoldReady || !whistleGeoNormalized || whistleTemplate) return;
+            whistleTemplate = ManifoldCore.markAsOriginal(ManifoldCore.fromGeometry(whistleGeoNormalized));
+            onFontChange(); // 기본 폰트 로드 후 첫 모델 생성
+        }
+
+        async function main() {
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            FontCore.loadFont(EMOJI_FONT_FILE, function (font) {
+                emojiFont = font;
+                updateModel();
+            });
+            tryInit();
+        }
+        main();
+    </script>
+</body>
+</html>

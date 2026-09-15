@@ -74,7 +74,7 @@
             <div class="color-row"><span data-i18n-en="Body color">몸체 색</span><input type="color" id="colBase" value="#46b4f5" oninput="updateColors()"></div>
 
             <div class="section-label" data-i18n-en="4. Keyring Hole">4. 키링 구멍</div>
-            <div class="check-row"><input type="checkbox" id="keyringOn" checked onchange="scheduleUpdate()"><label for="keyringOn" data-i18n-en="Enable keyring hole">키링 구멍 사용</label></div>
+            <div class="check-row"><input type="checkbox" id="keyringOn" onchange="scheduleUpdate()"><label for="keyringOn" data-i18n-en="Enable keyring hole">키링 구멍 사용</label></div>
             <div class="control-group"><label><span data-i18n-en="Hole X position">구멍 X 위치</span>: <span id="valKeyringX">-70</span>mm</label><input type="range" id="keyringX" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Hole Y position">구멍 Y 위치</span>: <span id="valKeyringY">-70</span>mm</label><input type="range" id="keyringY" min="-70" max="70" step="1" value="-70" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Hole diameter">구멍 지름</span>: <span id="valKeyringHoleSize">3.5</span>mm</label><input type="range" id="keyringHoleSize" min="2" max="8" step="0.5" value="3.5" oninput="scheduleUpdate()"></div>
@@ -133,7 +133,7 @@
             buildGridUI();
             document.getElementById('colBase').value = '#46b4f5';
             updateColors();
-            document.getElementById('keyringOn').checked = true;
+            document.getElementById('keyringOn').checked = false;
             document.getElementById('keyringX').value = -70;
             document.getElementById('keyringY').value = -70;
             document.getElementById('keyringHoleSize').value = 3.5;

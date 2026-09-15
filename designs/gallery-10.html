@@ -49,13 +49,15 @@
     <script type="module">
         // 갤러리10: 호루라기 몸체(STL)에 텍스트 1줄 + 이모지 1줄을 새긴다. 기법 자체는
         // 갤러리8(클리커 뚜껑)과 동일하다 — 뚜껑 대신 호루라기 몸체를 로드하고, 그 위의
-        // 평평한 윗면(실측: y=12 높이, x[-11,11]·z[-21.5,26.35] 범위가 완전히 평평 — 키링
-        // 구멍 부분만 z≈-21.5 부근에서 잘림) 위에 글자를 얹는다.
+        // 평평한 윗면(원본 실측: y=12 높이, x[-11,11]·z[-21.5,26.35] 범위가 완전히 평평 —
+        // 키링 구멍 부분만 z≈-21.5 부근에서 잘림. "호루라기 크기" 슬라이더로 몸체 전체를
+        // 스케일하면 이 수치들도 그 배율만큼 같이 커지거나 작아진다) 위에 글자를 얹는다.
         //
         // 텍스트와 이모지는 다른 갤러리와 같은 방향(읽는 방향 = X축)으로 눕히고, 두 줄을
         // 호루라기의 긴 축(Z) 방향으로 위아래 쌓는다(참고 사진처럼 이름이 위, 그림이 아래).
-        // 윗면이 가로 22mm로 좁기 때문에 글자 수가 많으면 옆으로 튀어나올 수 있다 —
-        // 텍스트 크기 슬라이더로 줄여서 맞추게 한다(자동 축소는 하지 않음).
+        // 윗면이 가로 22mm(기본 80% 크기에서는 17.6mm)로 좁기 때문에 글자 수가 많으면
+        // 옆으로 튀어나올 수 있다 — 텍스트 크기 슬라이더로 줄여서 맞추게 한다(자동 축소는
+        // 하지 않음).
         //
         // 원작자(NIPRO)에게 리믹스/커스터마이저 활용 허가를 받은 뒤 사용할 것 — 다른 리믹스
         // 갤러리(7·8)처럼 허가 스크린샷을 assets/licenses/에 남기고 이 주석에 날짜를 적을 것.
@@ -82,6 +84,7 @@
         const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
 
         const DEFAULTS = {
+            bodyScale: 80,
             text: '호루라기', fontIndex: DEFAULT_FONT_INDEX,
             fontSize: 8, fontWeight: 0, textProtrude: 0.6,
             emoji: '🐬', emojiSize: 9, emojiProtrude: 0.6,
@@ -94,6 +97,7 @@
             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="* Emboss one line of text and one line of emoji onto the flat top of the whistle body.">* 호루라기 몸체 윗면에 텍스트 한 줄과 이모지 한 줄을 도드라지게 새깁니다.</p>
 
             <div class="section-label" data-i18n-en="1. Basic Settings">1. 기본 설정</div>
+            <div class="control-group"><label><span data-i18n-en="Whistle size">호루라기 크기</span>: <span id="valBodyScale">80</span>%</label><input type="range" id="bodyScale" min="40" max="150" step="5" value="80" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Overall position">전체 위치</span>: <span id="valGroupOffset">2</span>mm</label><input type="range" id="groupOffset" min="-15" max="20" step="0.5" value="2" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Gap between text and emoji">텍스트-이모지 간격</span>: <span id="valLineGap">3</span>mm</label><input type="range" id="lineGap" min="0" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
 
@@ -225,6 +229,7 @@
         });
 
         function resetToDefaults() {
+            document.getElementById('bodyScale').value = DEFAULTS.bodyScale;
             document.getElementById('groupOffset').value = DEFAULTS.groupOffset;
             document.getElementById('lineGap').value = DEFAULTS.lineGap;
             document.getElementById('inputText').value = DEFAULTS.text;
@@ -256,8 +261,11 @@
         // 텍스트 한 줄(또는 이모지 한 줄)의 윤곽선을 압출해 "몸체 윗면에 놓을 솔리드"로
         // 만든다. extrudeXS() 결과는 이미 읽는 방향 = X축, 위로 돋는 방향 = Y축인 상태라
         // 별도 회전 없이 그대로 쓴다(다른 갤러리와 동일) — 텍스트/이모지는 호루라기의
-        // 긴 축(Z) 위치(zPos)만 다르게 줘서 위아래로 쌓는다.
-        function buildLineSolid(text, font, fontFile, fontSize, fontWeight, protrudeHeight, zPos, curveSegments) {
+        // 긴 축(Z) 위치(zPos)만 다르게 줘서 위아래로 쌓는다. topYValue는 호출부(buildAssembly)가
+        // "호루라기 크기" 슬라이더로 스케일된 윗면 높이를 넘겨준다 — 몸체를 줄이거나 키워도
+        // 글자가 항상 그 윗면에 딱 붙어 있게 하기 위함(topY 전역값을 그대로 쓰면 몸체를
+        // 축소했을 때 글자가 표면 위에 뜨거나 파묻힌다).
+        function buildLineSolid(text, font, fontFile, fontSize, fontWeight, protrudeHeight, zPos, topYValue, curveSegments) {
             if (!font || !text || !text.trim()) return null;
             const contours = FontCore.buildCenteredContours(text, font, fontFile, fontSize, 1.0, curveSegments);
             if (!contours.length) return null;
@@ -271,7 +279,7 @@
             const raised = ManifoldCore.extrudeXS(xs, EMBED_DEPTH + protrudeHeight);
             xs.delete();
             const id = raised.originalID();
-            const positioned = ManifoldCore.translate(raised, 0, topY - EMBED_DEPTH, zPos);
+            const positioned = ManifoldCore.translate(raised, 0, topYValue - EMBED_DEPTH, zPos);
             raised.delete();
             return { solid: positioned, id: id };
         }
@@ -293,6 +301,7 @@
 
         function readParams() {
             return {
+                bodyScale: parseFloat(document.getElementById('bodyScale').value) / 100,
                 text: document.getElementById('inputText').value || '',
                 fontFile: currentFontFile,
                 fontSize: parseFloat(document.getElementById('fontSize').value),
@@ -312,8 +321,15 @@
         // 몸체 + 텍스트 + 이모지를 하나로 합친 THREE.Mesh를 만든다. whistleTemplate은
         // 매번 새로 만들지 않고 재사용한다 — union()은 입력을 소비하지 않으므로(새 결과를
         // 돌려줄 뿐) 원본은 그대로 살아있고, 합친 결과와 텍스트/이모지 솔리드만 다 쓰고
-        // 나서 정리하면 된다.
+        // 나서 정리하면 된다. 다만 몸체는 매번 params.bodyScale로 새로 스케일한 사본을
+        // 만들어 쓰므로(원본 whistleTemplate은 건드리지 않음), 이 사본(scaledBody)은
+        // union 여부와 상관없이 항상 따로 정리해줘야 한다.
         function buildAssembly(params, curveSegments) {
+            // 몸체 크기가 바뀌면 윗면 높이(topY)도 그만큼 바뀐다 — 원점(바닥 y=0) 기준으로
+            // 스케일하므로 바닥은 그대로 y=0에 남고 윗면만 비례해서 오르내린다. 글자를 이
+            // 스케일된 높이(scaledTopY)에 얹어야 몸체를 줄이거나 키워도 표면에 딱 붙는다.
+            const scaledTopY = topY * params.bodyScale;
+
             // 텍스트/이모지 각각의 실제 세로 폭(캡 하이트)의 절반을 구해서, 그 절반들과
             // 사용자가 정한 여백(lineGap)만큼 중심을 벌린다 — 폰트나 이모지마다 실제 높이가
             // 달라서(크기 슬라이더 값만으로는 부족) 윤곽선을 직접 재야 두 줄이 겹치지 않는다.
@@ -329,19 +345,20 @@
 
             let textResult = null;
             try {
-                textResult = buildLineSolid(params.text, textFont, params.fontFile, params.fontSize, params.fontWeight, params.textProtrude, textZ, curveSegments);
+                textResult = buildLineSolid(params.text, textFont, params.fontFile, params.fontSize, params.fontWeight, params.textProtrude, textZ, scaledTopY, curveSegments);
             } catch (err) {
                 console.error('텍스트 새기기 실패:', err);
             }
             let emojiResult = null;
             try {
-                emojiResult = buildLineSolid(params.emoji, emojiFont, EMOJI_FONT_FILE, params.emojiSize, 0, params.emojiProtrude, emojiZ, curveSegments);
+                emojiResult = buildLineSolid(params.emoji, emojiFont, EMOJI_FONT_FILE, params.emojiSize, 0, params.emojiProtrude, emojiZ, scaledTopY, curveSegments);
             } catch (err) {
                 console.error('이모지 새기기 실패:', err);
             }
 
+            const scaledBody = ManifoldCore.scale(whistleTemplate, params.bodyScale);
             const idToColor = new Map([[whistleTemplate.originalID(), params.colBody]]);
-            let fused = whistleTemplate;
+            let fused = scaledBody;
             let intermediate = null;
             if (textResult) {
                 idToColor.set(textResult.id, params.colText);
@@ -363,6 +380,7 @@
             if (textResult) textResult.solid.delete();
             if (emojiResult) emojiResult.solid.delete();
             if (intermediate) intermediate.delete();
+            scaledBody.delete();
 
             return mesh;
         }
@@ -382,6 +400,7 @@
         function updateModel() {
             if (!manifoldReady || !whistleTemplate) return;
 
+            document.getElementById('valBodyScale').innerText = document.getElementById('bodyScale').value;
             document.getElementById('valGroupOffset').innerText = document.getElementById('groupOffset').value;
             document.getElementById('valLineGap').innerText = document.getElementById('lineGap').value;
             document.getElementById('valFontSize').innerText = document.getElementById('fontSize').value;

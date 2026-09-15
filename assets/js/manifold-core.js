@@ -224,6 +224,13 @@ window.ManifoldCore = (function () {
         return manifold.rotate([0, 0, deg]);
     }
 
+    // 원점 기준으로 x/y/z 배율만큼 확대/축소(translate/rotate처럼 원본은 그대로 두고 새
+    // Manifold를 돌려준다). sy·sz를 생략하면 sx로 균일 확대/축소한다(갤러리10의 "모델 전체
+    // 크기" 슬라이더처럼 STL 원본을 통째로 스케일할 때 씀).
+    function scale(manifold, sx, sy, sz) {
+        return manifold.scale([sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz]);
+    }
+
     // rawCylinder 등으로 Z-up 좌표계에서 조합한 최종 결과 하나를 three.js Y-up으로 바꾼다.
     // cylinder()/extrudeContours()가 조각 하나하나에 매번 적용하는 것과 동일한 -90도 X축
     // 회전을 최종 결과에 딱 한 번만 적용한다.
@@ -409,6 +416,7 @@ window.ManifoldCore = (function () {
         revolveXS: revolveXS,
         extrudeTwist: extrudeTwist,
         rotateZ: rotateZ,
+        scale: scale,
         toYUp: toYUp,
         toBufferGeometry: toBufferGeometry,
         toThreeMesh: toThreeMesh,

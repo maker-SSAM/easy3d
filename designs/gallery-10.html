@@ -80,15 +80,15 @@
             { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
             { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
         ];
-        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf');
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
         const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
 
         const DEFAULTS = {
             bodyScale: 80,
             text: '호루라기', fontIndex: DEFAULT_FONT_INDEX,
-            fontSize: 8, fontWeight: 0, textProtrude: 0.6,
-            emoji: '🐬', emojiSize: 9, emojiProtrude: 0.6,
-            lineGap: 3, groupOffset: 2,
+            fontSize: 4, fontWeight: 0, textProtrude: 0.8,
+            emoji: '🎶', emojiSize: 7, emojiProtrude: 0.8,
+            lineGap: 2, groupOffset: -4,
             colBody: '#ffca28', colText: '#212121', colEmoji: '#e53935'
         };
 
@@ -98,8 +98,8 @@
 
             <div class="section-label" data-i18n-en="1. Basic Settings">1. 기본 설정</div>
             <div class="control-group"><label><span data-i18n-en="Whistle size">호루라기 크기</span>: <span id="valBodyScale">80</span>%</label><input type="range" id="bodyScale" min="40" max="150" step="5" value="80" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Overall position">전체 위치</span>: <span id="valGroupOffset">2</span>mm</label><input type="range" id="groupOffset" min="-15" max="20" step="0.5" value="2" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Gap between text and emoji">텍스트-이모지 간격</span>: <span id="valLineGap">3</span>mm</label><input type="range" id="lineGap" min="0" max="10" step="0.5" value="3" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Overall position">전체 위치</span>: <span id="valGroupOffset">-4</span>mm</label><input type="range" id="groupOffset" min="-15" max="20" step="0.5" value="-4" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Gap between text and emoji">텍스트-이모지 간격</span>: <span id="valLineGap">2</span>mm</label><input type="range" id="lineGap" min="0" max="10" step="0.5" value="2" oninput="scheduleUpdate()"></div>
 
             <div class="section-label" data-i18n-en="2. Text">2. 텍스트</div>
             <div class="control-group">
@@ -114,18 +114,18 @@
                 </select>
                 <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
             </div>
-            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">8</span>mm</label><input type="range" id="fontSize" min="4" max="16" step="0.5" value="8" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">4</span>mm</label><input type="range" id="fontSize" min="4" max="16" step="0.5" value="4" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Text protrusion height">텍스트 돌출 높이</span>: <span id="valTextProtrude">0.6</span>mm</label><input type="range" id="textProtrude" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text protrusion height">텍스트 돌출 높이</span>: <span id="valTextProtrude">0.8</span>mm</label><input type="range" id="textProtrude" min="0.1" max="3" step="0.1" value="0.8" oninput="scheduleUpdate()"></div>
 
             <div class="section-label" data-i18n-en="3. Emoji">3. 이모지</div>
             <div class="control-group">
                 <label data-i18n-en="Enter emoji (one or more)">이모지 입력 (하나 이상)</label>
-                <input type="text" id="inputEmoji" class="emoji-input" value="🐬" oninput="scheduleUpdate()">
+                <input type="text" id="inputEmoji" class="emoji-input" value="🎶" oninput="scheduleUpdate()">
             </div>
             <p style="font-size: 0.85em; margin: -6px 0 14px;" data-i18n-en-html="🔎 Not sure how to enter an emoji? → Find one you like in the <a href=&quot;https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot; style=&quot;color: var(--home-link-color);&quot;>Noto Emoji list</a> and copy-paste it here.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
-            <div class="control-group"><label><span data-i18n-en="Emoji size">이모지 크기</span>: <span id="valEmojiSize">9</span>mm</label><input type="range" id="emojiSize" min="4" max="16" step="0.5" value="9" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Emoji protrusion height">이모지 돌출 높이</span>: <span id="valEmojiProtrude">0.6</span>mm</label><input type="range" id="emojiProtrude" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Emoji size">이모지 크기</span>: <span id="valEmojiSize">7</span>mm</label><input type="range" id="emojiSize" min="4" max="16" step="0.5" value="7" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Emoji protrusion height">이모지 돌출 높이</span>: <span id="valEmojiProtrude">0.8</span>mm</label><input type="range" id="emojiProtrude" min="0.1" max="3" step="0.1" value="0.8" oninput="scheduleUpdate()"></div>
 
             <div class="section-label" data-i18n-en="4. Colors">4. 색상</div>
             <div class="color-row"><span data-i18n-en="Whistle body">호루라기 몸체</span><input type="color" id="colBody" value="#ffca28" oninput="scheduleUpdate()"></div>

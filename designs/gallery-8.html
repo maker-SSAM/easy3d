@@ -117,7 +117,7 @@
             </p>
             <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (5×5)">뚜껑 배치 및 글씨 (5×5)</label>
             <div id="capGrid" class="cap-grid"></div>
-            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it. Choose the 'Noto Emoji' font for emoji to display properly.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요. 글씨체를 'Noto Emoji'로 선택하면 이모지가 원활하게 표시돼요.</p>
+            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it. If the chosen font doesn't have an emoji, it's automatically drawn with Noto Emoji instead.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요. 선택한 글씨체에 없는 이모지는 자동으로 Noto Emoji로 대신 표시돼요.</p>
             <p style="font-size: 0.8em; margin: 0 0 20px;" data-i18n-en-html="🔎 Not sure how to type an emoji? Browse the <a href='https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs' target='_blank' rel='noopener' style='color: var(--home-link-color);'>Noto Emoji list</a> and copy-paste the one you want.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
 
             <div class="control-group">
@@ -191,6 +191,12 @@
         let manifoldReady = false;
         let updateTimer = null;
         let textFont = null;
+        // 사용자가 고른 글씨체에 없는 글자(주로 이모지)를 대신 그릴 폴백 폰트. 어떤 글씨체를
+        // 선택하든 항상 미리 로드해두고, buildTextSolid()가 FontCore.buildCenteredContours()에
+        // 넘겨서 글자 하나하나 단위로 자동 대체되게 한다 — 그래서 사용자가 굳이 전체 글씨체를
+        // 'Noto Emoji'로 바꾸지 않아도, 이모지가 필요한 칸만 알아서 깨지지 않고 나온다.
+        let emojiFallbackFont = null;
+        const EMOJI_FALLBACK_FILE = 'NotoEmoji-SemiBold.ttf';
         // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면 FontCore.loadFontFromFile()이
         // 만들어준 합성 키. readGlobalParams()가 이 값을 쓴다(select.value를 그때그때 다시
         // 인덱싱하면 업로드 폰트일 때 어긋난다).
@@ -273,7 +279,11 @@
 
         function buildTextSolid(text, fontSize, fontWeight, protrudeHeight, fontFile, curveSegments) {
             if (!textFont || !text.trim()) return null;
-            const contours = FontCore.buildCenteredContours(text, textFont, fontFile, fontSize, 1.0, curveSegments);
+            // 선택한 폰트가 이미 Noto Emoji 자신이면 폴백이 무의미하니 넘기지 않는다.
+            const fallback = (emojiFallbackFont && fontFile !== EMOJI_FALLBACK_FILE)
+                ? { file: EMOJI_FALLBACK_FILE, font: emojiFallbackFont }
+                : null;
+            const contours = FontCore.buildCenteredContours(text, textFont, fontFile, fontSize, 1.0, curveSegments, fallback);
             if (!contours.length) return null;
 
             let xs = ManifoldCore.contoursToXS(contours);
@@ -434,6 +444,10 @@
         async function main() {
             await ManifoldCore.ready;
             manifoldReady = true;
+            FontCore.loadFont(EMOJI_FALLBACK_FILE, function (font) {
+                emojiFallbackFont = font;
+                updateModel(); // 이미 그려진 뒤라면, 폴백이 필요했던 칸을 다시 그려 반영한다
+            });
             tryInit();
         }
         main();

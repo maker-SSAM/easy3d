@@ -112,19 +112,33 @@ window.FontCore = (function () {
     // buildCenteredContours()가 쓸 때마다 새 배열로 복제해서 위치를 옮긴다.
     const glyphShapeCache = new Map();
 
-    function getGlyphShape(fontFile, font, ch, size, curveSegments) {
-        const key = fontFile + '|' + ch + '|' + size + '|' + curveSegments;
+    // 선택한 폰트에 이 글자의 cmap 매핑이 없으면(charToGlyphIndex가 0, 즉 .notdef를
+    // 가리키면) 대신 쓸 폴백 폰트로 바꿔치기한다. OpenType/TrueType 규격상 글리프
+    // 인덱스 0은 항상 .notdef이고 실제 매핑된 문자가 0번일 수는 없으므로, 이 값만으로
+    // "이 폰트엔 이 글자가 없다"를 확실히 판별할 수 있다. 갤러리8처럼 사용자가 고른
+    // 글씨체에 이모지가 없어서 빈 네모(.notdef)로 깨질 때, 그 글자만 Noto Emoji 같은
+    // 폴백 폰트로 대신 그리는 데 쓴다. fallback은 { file, font } 형태(생략 가능).
+    function resolveFontForChar(font, fontFile, ch, fallback) {
+        if (fallback && fallback.font && font.charToGlyphIndex(ch) === 0) {
+            return { font: fallback.font, fontFile: fallback.file };
+        }
+        return { font: font, fontFile: fontFile };
+    }
+
+    function getGlyphShape(fontFile, font, ch, size, curveSegments, fallback) {
+        const resolved = resolveFontForChar(font, fontFile, ch, fallback);
+        const key = resolved.fontFile + '|' + ch + '|' + size + '|' + curveSegments;
         let cached = glyphShapeCache.get(key);
         if (cached) return cached;
 
-        const glyph = font.charToGlyph(ch);
+        const glyph = resolved.font.charToGlyph(ch);
         if (!glyph) {
             cached = { contours: [], advance: 0 };
         } else {
             const path = glyph.getPath(0, 0, size); // x=0 기준 로컬 윤곽선
             cached = {
                 contours: extractGlyphContours(path.commands || [], curveSegments),
-                advance: glyph.advanceWidth / font.unitsPerEm * size
+                advance: glyph.advanceWidth / resolved.font.unitsPerEm * size
             };
         }
         glyphShapeCache.set(key, cached);
@@ -134,12 +148,13 @@ window.FontCore = (function () {
     // 텍스트 한 줄 전체의 글자 윤곽선을 (x=0,y=0 중심 정렬해서) 뽑아낸다 — OpenSCAD
     // text()의 halign="center", valign="center"에 대응(가로뿐 아니라 세로도 중심 정렬).
     // curveSegments: 곡선 하나를 몇 개의 직선 조각으로 근사할지 — 호출부(미리보기/내보내기)가
-    // 원하는 해상도를 넘겨준다.
-    function buildCenteredContours(text, font, fontFile, size, spacingMultiplier, curveSegments) {
+    // 원하는 해상도를 넘겨준다. fallback: { file, font } — 생략하면 폴백 없이 기존과 동일하게
+    // 동작한다(다른 갤러리는 그대로 둬도 영향 없음).
+    function buildCenteredContours(text, font, fontFile, size, spacingMultiplier, curveSegments, fallback) {
         const contours = [];
         let currentX = 0;
         Array.from(text).forEach(function (ch) {
-            const glyphShape = getGlyphShape(fontFile, font, ch, size, curveSegments);
+            const glyphShape = getGlyphShape(fontFile, font, ch, size, curveSegments, fallback);
             glyphShape.contours.forEach(function (localPts) {
                 // 캐시된 로컬 좌표를 그대로 쓰지 않고 새 배열로 복제하면서 현재 위치로 옮긴다.
                 contours.push(localPts.map(function (p) { return [p[0] + currentX, p[1]]; }));

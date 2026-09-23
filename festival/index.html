@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- 예전 GitHub Pages 주소(maker-ssam.github.io)로 들어온 방문자를 새 대표 주소
+         (easy3d.web.app)로 자동 이동시킨다 — 두 도메인이 같은 브랜치를 그대로 서빙하고
+         있어서, 안 그러면 방문자/다운로드 카운트가 두 주소에 나뉘어 잡힌다. 다른 리소스
+         로딩 전 최대한 일찍 실행되도록 <head> 맨 위에 둔다. -->
+    <script>(function(){if(location.hostname==='maker-ssam.github.io'){location.replace('https://easy3d.web.app'+location.pathname.replace(/^\/easy3d/,'')+location.search+location.hash);}})();</script>
+    <!-- 모바일에서 실제 기기 폭 기준으로 레이아웃을 잡게 한다(index.html과 동일한 이유). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
+         외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 8 - Clicker Cap Maker - Parametric Design Studio for Beginners">갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/STLLoader.js"></script>
+    <!-- core.js가 PMREMGenerator로 굽는 가상의 방 환경(IBL 반사광) — 재질에 은은한 반사를 준다 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <!-- 웹 브라우저에서 TTF 폰트의 벡터 패스를 추출하는 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
+    <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
+    <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
+    <script src="../assets/js/font-core.js"></script>
+    <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
+         쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도
+         type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <script type="module" src="../assets/js/manifold-core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
+        .cap-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
+        .cap-grid input {
+            aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
+            border: 2px solid var(--input-border); border-radius: 4px; text-align: center; font-size: 0.85em;
+            background: var(--input-bg); color: var(--text-color);
+        }
+        /* 갤러리7과 같은 계열의 파랑이되, 칸 안에 글씨가 보여야 하니 배경은 옅게(투명도) 처리 */
+        .cap-grid input.filled { background: rgba(33, 150, 243, 0.18); border-color: #1976d2; }
+    </style>
+    <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+
+    <script type="module">
+        // 갤러리8: 클리커 뚜껑을 4x4 격자 위에 배치한다. 갤러리7(몸체)과 같은 칸 간격
+        // (GRID_PITCH)을 써서 몸체 칸과 같은 자리에 놓이게 맞추되, 뚜껑은 몸체와 달리
+        // 낱개로 뗐다 붙이는 부품이라 서로 겹치거나 붙으면 안 된다 — 그래서 갤러리7처럼
+        // union으로 합치지 않고, 칸마다 독립된 솔리드로 남겨둔다.
+        //
+        // 배치 방식도 몸체와 다르다: 켜고 끄는 버튼이 아니라 칸마다 직접 글씨를 입력하는
+        // 칸으로 만들었다 — 칸이 비어있으면 그 자리에 뚜껑이 없고, 글씨를 넣으면 그 자리에
+        // 글씨가 새겨진 뚜껑이 생긴다. 글씨체/크기/굵기/돌출 높이/색은 모든 뚜껑에 공통으로
+        // 적용되는 설정이고, 칸마다 다른 건 글씨 내용뿐이다.
+        //
+        // 뚜껑은 속이 빈 얇은 쉘 구조다(레이캐스팅으로 실측: 윗면 중앙 두께 약 1.5mm).
+        // 그래서 글자를 뚜껑 속으로 너무 깊이 파묻으면(예전 버전의 EMBED_DEPTH=3mm) 쉘을
+        // 뚫고 안쪽 빈 공간까지 튀어나와, 뚜껑을 뒤집어 보면 글자가 밑면으로도 삐져나온
+        // 것처럼 보이는 문제가 있었다 — 실제로 겪은 문제. 윗면 자체는 평평하므로, 아주
+        // 얇게만(EMBED_DEPTH) 겹쳐서 이음매를 확실히 하고 나머지는 전부 표면 위로
+        // 도드라지게(PROTRUDE_HEIGHT, 사용자가 슬라이더로 조절) 압출한다.
+        // 원작자(kongkoka)에게 2026-07-22 MakerWorld 댓글로 비상업적 활용 허가를 받음.
+        // 허가 스크린샷: ../assets/licenses/clicker-permission-kongkoka.png
+        const shell = ParametricCore.mountEditorShell(document.body, null, {
+            sourceUrl: 'https://makerworld.com/ko/models/2854834-customizable-name-word-clicker-keychain#profileId-3184880',
+            licenseType: 'STANDARD',
+            licenseLabel: '표준 디지털 파일 라이선스'
+        });
+
+        const FONT_OPTIONS = [
+            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
+            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
+            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
+            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
+            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
+            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
+            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
+            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
+            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
+            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
+        ];
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf');
+
+        // ---------- 격자 ----------
+        const GRID_SIZE = 5;
+        // 갤러리7(몸체)과 정확히 같은 값 — 몸체 칸과 같은 자리에 뚜껑이 오도록 맞춘다.
+        // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
+        // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
+        const GRID_PITCH = 23.5; // mm
+        // 갤러리7(몸체) 기본 배치와 같은 ㄱ자 모양(row1의 col1·col2, row2의 col2)에 각각
+        // 글씨를 채워서 기본으로 보여준다.
+        const DEFAULT_CAP_TEXT = { 6: '클', 7: '리', 12: '커' };
+
+        // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
+        const DEFAULTS = {
+            fontIndex: DEFAULT_FONT_INDEX,
+            fontSize: 14, fontWeight: 0, protrudeHeight: 0.6,
+            colCap: '#b4b4b4', colText: '#000000'
+        };
+        function defaultCapText(idx) { return DEFAULT_CAP_TEXT[idx] || ''; }
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3 data-i18n-en="Clicker Cap Maker">클리커 뚜껑 만들기</h3>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="Type text into an empty grid cell to place a cap there; clear the text to remove it. Font, size, weight, and colors apply equally to every cap.">
+                아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
+                뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
+            </p>
+            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (5×5)">뚜껑 배치 및 글씨 (5×5)</label>
+            <div id="capGrid" class="cap-grid"></div>
+            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
+            <p style="font-size: 0.8em; margin: 0 0 20px;" data-i18n-en-html="🔎 Not sure how to type an emoji? Browse the <a href='https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs' target='_blank' rel='noopener' style='color: var(--home-link-color);'>Noto Emoji list</a> and copy-paste the one you want.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
+
+            <div class="control-group">
+                <label data-i18n-en="Choose a font">글씨체 선택</label>
+                <select id="fontSelect" onchange="onFontChange()">
+                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
+                </select>
+                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+            </div>
+            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Protrusion height">텍스트 돌출 높이</span>: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+
+            <div class="color-row"><span data-i18n-en="Cap color">뚜껑 색</span><input type="color" id="colCap" value="#b4b4b4" oninput="scheduleUpdate()"></div>
+            <div class="color-row"><span data-i18n-en="Text color">글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
+        `;
+
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
+
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
+        ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
+
+        function capInputs() { return document.querySelectorAll('#capGrid input'); }
+
+        function buildGridUI() {
+            const container = document.getElementById('capGrid');
+            container.innerHTML = '';
+            for (let idx = 0; idx < GRID_SIZE * GRID_SIZE; idx++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = defaultCapText(idx);
+                if (input.value) input.classList.add('filled');
+                input.onkeydown = function (event) { if (event.key === 'Enter') scheduleUpdate(); };
+                input.onblur = function () {
+                    input.classList.toggle('filled', input.value.trim().length > 0);
+                    scheduleUpdate();
+                };
+                container.appendChild(input);
+            }
+        }
+        buildGridUI();
+
+        shell.resetBtn.onclick = function () { resetToDefaults(); };
+
+        function resetToDefaults() {
+            buildGridUI();
+            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
+            document.getElementById('fontSize').value = DEFAULTS.fontSize;
+            document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
+            document.getElementById('protrudeHeight').value = DEFAULTS.protrudeHeight;
+            document.getElementById('colCap').value = DEFAULTS.colCap;
+            document.getElementById('colText').value = DEFAULTS.colText;
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            onFontChange(); // 폰트를 다시 로드하면서 위 값들을 반영해 모델도 재생성한다
+        }
+
+        let currentGroup = null;
+        let manifoldReady = false;
+        let updateTimer = null;
+        let textFont = null;
+        // 사용자가 고른 글씨체에 없는 글자(주로 이모지)를 대신 그릴 폴백 폰트. 어떤 글씨체를
+        // 선택하든 항상 미리 로드해두고, buildTextSolid()가 FontCore.buildCenteredContours()에
+        // 넘겨서 글자 하나하나 단위로 자동 대체되게 한다 — 그래서 사용자가 굳이 전체 글씨체를
+        // 'Noto Emoji'로 바꾸지 않아도, 이모지가 필요한 칸만 알아서 깨지지 않고 나온다.
+        let emojiFallbackFont = null;
+        const EMOJI_FALLBACK_FILE = 'NotoEmoji-SemiBold.ttf';
+        // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면 FontCore.loadFontFromFile()이
+        // 만들어준 합성 키. readGlobalParams()가 이 값을 쓴다(select.value를 그때그때 다시
+        // 인덱싱하면 업로드 폰트일 때 어긋난다).
+        let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
+        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
+
+        // 뚜껑 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
+        // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
+        // (Y-up -> Z-up)과 반대 방향으로 한 번 돌려서 불러온다. 그 다음 가로/세로를
+        // 원점(0,0) 중심으로 맞추고, 바닥(y=0)에 닿도록 세운다.
+        function normalizeGeometry(geo) {
+            geo.rotateX(-Math.PI / 2);
+            geo.computeBoundingBox();
+            const box = geo.boundingBox;
+            const cx = (box.min.x + box.max.x) / 2;
+            const cz = (box.min.z + box.max.z) / 2;
+            geo.translate(-cx, -box.min.y, -cz);
+            geo.computeBoundingBox();
+            return geo;
+        }
+
+        function scheduleUpdate() {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(updateModel, 100);
+        }
+
+        function onFontChange() {
+            const select = document.getElementById('fontSelect');
+            if (select.value === '__upload__') {
+                document.getElementById('fontUpload').click();
+                return;
+            }
+            fontSelectPrevValue = select.value;
+            const uploadedFont = FontCore.getFont(select.value);
+            if (uploadedFont) {
+                textFont = uploadedFont;
+                currentFontFile = select.value;
+                updateModel();
+                return;
+            }
+            currentFontFile = FONT_OPTIONS[select.value].file;
+            FontCore.loadFont(currentFontFile, function (font) {
+                textFont = font;
+                updateModel();
+            });
+        }
+
+        document.getElementById('fontUpload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            e.target.value = '';
+            const select = document.getElementById('fontSelect');
+            if (!file) { select.value = fontSelectPrevValue; return; }
+            FontCore.loadFontFromFile(file, function (font, cacheKey) {
+                const opt = document.createElement('option');
+                opt.value = cacheKey;
+                opt.textContent = '📁 ' + file.name;
+                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
+                select.value = cacheKey;
+                fontSelectPrevValue = cacheKey;
+                textFont = font;
+                currentFontFile = cacheKey;
+                updateModel();
+            }, function () {
+                alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
+                select.value = fontSelectPrevValue;
+            });
+        });
+
+        let capGeoNormalized = null; // 원본 뚜껑 STL(정규화 완료)
+        let capTemplate = null; // 뚜껑을 Manifold로 변환해둔 것(부품 색 구분용 originalID 부여) — 매번 다시 만들지 않고 재사용
+        let capTopY = 0; // 뚜껑 윗면의 y 높이 — 글자를 그 위에 얹을 기준
+
+        // 글자가 뚜껑의 윗면 어디에 놓이든 확실히 이어붙도록, 글자 아랫부분을 뚜껑
+        // 속으로 조금 파묻고(EMBED_DEPTH) 그보다 더 위로 도드라지게(PROTRUDE_HEIGHT) 만든다.
+        // 윗면이 평평해서 이 정도만 겹쳐도 충분하다 — 실측한 윗면 쉘 두께(1.5mm)보다
+        // 확실히 얕게 잡아서, 아무리 깊이 겹쳐도 뚜껑 속 빈 공간까지 뚫고 들어가지 않는다.
+        const EMBED_DEPTH = 0.4; // mm, 뚜껑 속으로 겹쳐 넣는 깊이(이음매 보강용, 조절 불가)
+        const PREVIEW_CURVE_SEGMENTS = 24;
+        const EXPORT_CURVE_SEGMENTS = 48;
+
+        function buildTextSolid(text, fontSize, fontWeight, protrudeHeight, fontFile, curveSegments) {
+            if (!textFont || !text.trim()) return null;
+            // 선택한 폰트가 이미 Noto Emoji 자신이면 폴백이 무의미하니 넘기지 않는다.
+            const fallback = (emojiFallbackFont && fontFile !== EMOJI_FALLBACK_FILE)
+                ? { file: EMOJI_FALLBACK_FILE, font: emojiFallbackFont }
+                : null;
+            const contours = FontCore.buildCenteredContours(text, textFont, fontFile, fontSize, 1.0, curveSegments, fallback);
+            if (!contours.length) return null;
+
+            let xs = ManifoldCore.contoursToXS(contours);
+            if (Math.abs(fontWeight) > 0.001) {
+                const widened = xs.offset(fontWeight);
+                xs.delete();
+                xs = widened;
+            }
+            const raised = ManifoldCore.extrudeXS(xs, EMBED_DEPTH + protrudeHeight);
+            xs.delete();
+            // originalID()는 translate/rotate로 만든 새 Manifold 객체에서는 다시 -1을
+            // 돌려준다(실제로 겪은 문제 — 겉보기엔 위치만 옮긴 것 같아도, ID 조회는
+            // 변형 전 객체에서 미리 해둬야 한다). 그래서 이동시키기 전에 먼저 읽어둔다.
+            const id = raised.originalID();
+            const positioned = ManifoldCore.translateY(raised, capTopY - EMBED_DEPTH);
+            raised.delete();
+            return { solid: positioned, id: id };
+        }
+
+        // 글씨가 채워진 칸 하나에 대해 "뚜껑+글자"를 합친 THREE.Mesh 하나를 만든다.
+        // 격자 위치(x,z)로 지오메트리 자체를 옮겨둔다 — exportSTL()이 mesh.position이 아니라
+        // geometry만 보고 내보내기 때문에, 반드시 geometry.translate()로 위치를 새겨둬야 한다.
+        function buildOneCap(text, x, z, params, curveSegments) {
+            const idToColor = new Map([[capTemplate.originalID(), params.capColor]]);
+            let textResult;
+            try {
+                textResult = buildTextSolid(text, params.fontSize, params.fontWeight, params.protrudeHeight, params.fontFile, curveSegments);
+            } catch (err) {
+                console.error('글자 새기기 실패:', err);
+                textResult = null;
+            }
+
+            let fused = capTemplate;
+            if (textResult) {
+                idToColor.set(textResult.id, params.textColor);
+                fused = ManifoldCore.union(capTemplate, textResult.solid);
+            }
+
+            const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.capColor, { roughness: 0.4, metalness: 0.05, envMapIntensity: 0.55 });
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.geometry.translate(x, 0, z);
+
+            if (textResult) {
+                textResult.solid.delete();
+                fused.delete();
+            }
+            return mesh;
+        }
+
+        function readGlobalParams() {
+            return {
+                fontSize: parseFloat(document.getElementById('fontSize').value),
+                fontWeight: parseFloat(document.getElementById('fontWeight').value),
+                protrudeHeight: parseFloat(document.getElementById('protrudeHeight').value),
+                fontFile: currentFontFile,
+                capColor: document.getElementById('colCap').value,
+                textColor: document.getElementById('colText').value
+            };
+        }
+
+        // 글씨가 채워진 칸마다 뚜껑을 하나씩 만들어 격자 위치에 놓는다. 몸체(갤러리7)와
+        // 달리 union으로 서로 합치지 않는다 — 뚜껑은 낱개 부품이라 붙어있으면 안 된다.
+        function buildCapMeshes(curveSegments) {
+            const params = readGlobalParams();
+            const half = (GRID_SIZE - 1) / 2;
+            const meshes = [];
+            capInputs().forEach(function (input, idx) {
+                const text = input.value || '';
+                if (!text.trim()) return;
+                const row = Math.floor(idx / GRID_SIZE);
+                const col = idx % GRID_SIZE;
+                const x = (col - half) * GRID_PITCH;
+                const z = (row - half) * GRID_PITCH;
+                meshes.push(buildOneCap(text, x, z, params, curveSegments));
+            });
+            return meshes;
+        }
+
+        function disposeCurrentThreeMesh() {
+            ParametricCore.updateDimensionOverlay(scene, null);
+            if (!currentGroup) return;
+            scene.remove(currentGroup);
+            currentGroup.traverse(function (obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                else if (obj.material) obj.material.dispose();
+            });
+            currentGroup = null;
+        }
+
+        function updateModel() {
+            if (!manifoldReady || !capTemplate) return;
+
+            document.getElementById('valFontSize').innerText = document.getElementById('fontSize').value;
+            document.getElementById('valFontWeight').innerText = document.getElementById('fontWeight').value;
+            document.getElementById('valProtrudeHeight').innerText = document.getElementById('protrudeHeight').value;
+
+            const meshes = buildCapMeshes(PREVIEW_CURVE_SEGMENTS);
+            disposeCurrentThreeMesh();
+            currentGroup = new THREE.Group();
+            meshes.forEach(function (m) { currentGroup.add(m); });
+            scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
+        }
+
+        function downloadSTL() {
+            if (!manifoldReady || !capTemplate) return;
+            const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
+            if (!meshes.length) return;
+            const exportGroup = new THREE.Group();
+            meshes.forEach(function (m) { exportGroup.add(m); });
+            ParametricCore.exportSTL(exportGroup, LangCore.pick(`클리커_뚜껑_세트.stl`, `clicker_cap_set.stl`));
+            meshes.forEach(function (m) {
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
+                else m.material.dispose();
+            });
+        }
+
+        // buildOneCap()이 이미 뚜껑색/글자색을 부품별로 입힌 mesh를 만들어주므로(toThreeMesh +
+        // idToColor), downloadSTL과 동일하게 만들고 3MF로만 내보내면 그 색이 그대로 남는다.
+        function download3MF() {
+            if (!manifoldReady || !capTemplate) return;
+            const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
+            if (!meshes.length) return;
+            const exportGroup = new THREE.Group();
+            meshes.forEach(function (m) { exportGroup.add(m); });
+            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`클리커_뚜껑_세트.3mf`, `clicker_cap_set.3mf`));
+            meshes.forEach(function (m) {
+                m.geometry.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
+                else m.material.dispose();
+            });
+        }
+
+        window.scheduleUpdate = scheduleUpdate;
+        window.onFontChange = onFontChange;
+        window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
+        // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        window.__getPreviewGroup = function () { return currentGroup; };
+
+        const loader = new THREE.STLLoader();
+        loader.load('../assets/models/clicker_cap.stl', function (geo) {
+            capGeoNormalized = normalizeGeometry(geo);
+            capTopY = capGeoNormalized.boundingBox.max.y;
+            tryInit();
+        });
+
+        function tryInit() {
+            if (!manifoldReady || !capGeoNormalized || capTemplate) return;
+            capTemplate = ManifoldCore.markAsOriginal(ManifoldCore.fromGeometry(capGeoNormalized));
+            onFontChange(); // 기본 폰트 로드 후 첫 모델 생성
+        }
+
+        async function main() {
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            FontCore.loadFont(EMOJI_FALLBACK_FILE, function (font) {
+                emojiFallbackFont = font;
+                updateModel(); // 이미 그려진 뒤라면, 폴백이 필요했던 칸을 다시 그려 반영한다
+            });
+            tryInit();
+        }
+        main();
+    </script>
+</body>
+</html>

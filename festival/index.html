@@ -37,7 +37,7 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: var(--text-color); }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
-        .cap-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 210px; margin: 0 auto 8px; }
+        .cap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 86px; margin: 0 auto 8px; }
         .cap-grid input {
             aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
             border: 2px solid var(--input-border); border-radius: 4px; text-align: center; font-size: 0.85em;
@@ -95,33 +95,33 @@
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf');
 
         // ---------- 격자 ----------
-        const GRID_SIZE = 5;
+        // 행사용: 몸체를 2구로 준비하므로 뚜껑도 2×2 격자로만 받는다.
+        const GRID_SIZE = 2;
         // 갤러리7(몸체)과 정확히 같은 값 — 몸체 칸과 같은 자리에 뚜껑이 오도록 맞춘다.
         // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
         // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
         const GRID_PITCH = 23.5; // mm
-        // 갤러리7(몸체) 기본 배치와 같은 ㄱ자 모양(row1의 col1·col2, row2의 col2)에 각각
-        // 글씨를 채워서 기본으로 보여준다.
-        const DEFAULT_CAP_TEXT = { 6: '클', 7: '리', 12: '커' };
+        // 기본으로 윗줄 두 칸에 '안', '녕'을 채워 보여준다.
+        const DEFAULT_CAP_TEXT = { 0: '안', 1: '녕' };
 
         // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
         const DEFAULTS = {
             fontIndex: DEFAULT_FONT_INDEX,
             fontSize: 14, fontWeight: 0
         };
-        // 행사용으로 고정한 값(화면에서 조절 불가): 글씨는 -0.6mm 음각, 뚜껑은 회색.
+        // 행사용으로 고정한 값(화면에서 조절 불가): 글씨는 -0.6mm 음각, 뚜껑은 흰색.
         const FIXED_PROTRUDE_HEIGHT = -0.6;
-        const FIXED_CAP_COLOR = '#b4b4b4';
+        const FIXED_CAP_COLOR = '#ffffff';
         const FIXED_TEXT_COLOR = '#000000';
         function defaultCapText(idx) { return DEFAULT_CAP_TEXT[idx] || ''; }
 
         shell.controlsBodyEl.innerHTML = `
             <h3 data-i18n-en="Clicker Cap Maker">클리커 뚜껑 만들기</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="Type text into an empty grid cell to place a cap there; clear the text to remove it. Font, size, weight, and colors apply equally to every cap.">
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="Type text into an empty grid cell to place a cap there; clear the text to remove it. Font, size, and weight apply equally to every cap.">
                 아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
-                뚜껑도 없어져요. 글씨체/크기/굵기/색은 모든 뚜껑에 똑같이 적용돼요.
+                뚜껑도 없어져요. 글씨체/크기/굵기는 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (5×5)">뚜껑 배치 및 글씨 (5×5)</label>
+            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (2×2)">뚜껑 배치 및 글씨 (2×2)</label>
             <div id="capGrid" class="cap-grid"></div>
             <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
             <p style="font-size: 0.8em; margin: 0 0 20px;" data-i18n-en-html="🔎 Not sure how to type an emoji? Browse the <a href='https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs' target='_blank' rel='noopener' style='color: var(--home-link-color);'>Noto Emoji list</a> and copy-paste the one you want.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
@@ -143,17 +143,21 @@
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
         if (window.LangCore) window.LangCore.applyTranslations(document);
 
+        // 2×2 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서 더 가깝게 본다.
+        const FESTIVAL_CAMERA_POSITION = [56, 70, 94];
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
-            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+            initialCameraPosition: FESTIVAL_CAMERA_POSITION
         });
         const scene = viewer.scene;
         const camera = viewer.camera;
         const controls = viewer.controls;
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
-        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
-        ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
-        ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
+        // 행사용 초간단 페이지: 오른쪽 시점/모드/라이선스 패널과 모바일용 ⚙️ 버튼을 통째로 없앤다.
+        ['viewcube-container', 'viewcube-toggle'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
 
         // ---------- 음각 글씨가 잘 보이도록 하는 화면 조명(이 페이지 전용) ----------
         // 글씨를 -0.6mm 음각으로 파내면 홈 바닥이 뚜껑 윗면과 같은 방향(위)을 향해서, 공용
@@ -166,7 +170,7 @@
         // 모든 갤러리가 공유하는 core.js는 건드리지 않는다.
         const KEY_LIGHT_ELEVATION = 35 * Math.PI / 180; // 낮을수록 홈 안 그림자가 길어진다
         const KEY_LIGHT_DISTANCE = 200; // mm, 그림자 카메라 near/far 계산 기준
-        const SHADOW_RANGE = 85; // mm, 5×5 격자 모서리 칸 뚜껑까지 덮는 반경
+        const SHADOW_RANGE = 40; // mm, 2×2 격자 뚜껑 전체를 덮는 반경
         const CAP_ENV_INTENSITY = 0.2; // 뚜껑 재질의 환경광 반영 비율(공용 기본값 0.55)
         (function tuneLightsForEngraving() {
             const key = viewer.lights.key;
@@ -201,6 +205,33 @@
             viewer.lights.fill.intensity = 0.45;
         })();
 
+        // ---------- 모서리 선 표시(화면 전용) ----------
+        // 다면체 탐구 페이지(mathgame.kr)의 "모서리" 옵션처럼, 면이 꺾이는 모서리를 어두운 선으로
+        // 겹쳐 그려서 조명·카메라 방향과 상관없이 음각 글씨 윤곽이 보이게 한다. 화면 미리보기
+        // (updateModel)에만 붙인다 — STL/3MF 내보내기는 buildCapMeshes()로 메시를 새로 만들고,
+        // 선(LineSegments)은 원래 내보내기 대상(메시)도 아니라서 파일은 단색 그대로다.
+        // 이 각도보다 크게 꺾인 곳만 선으로 그린다 — 뚜껑의 둥근 모서리(잘게 나뉜 곡면)는 빠지고
+        // 홈 모서리(90°)만 남는다.
+        const EDGE_THRESHOLD_ANGLE = 30; // 도
+        const EDGE_COLOR = 0x333333;
+
+        function addEdgeOverlay(group, meshes) {
+            const edgeGroup = new THREE.Group();
+            meshes.forEach(function (mesh) {
+                // 선이 면과 같은 깊이에 겹쳐 깜빡이지(z-fighting) 않도록 면을 살짝 뒤로 민다.
+                [].concat(mesh.material).forEach(function (mat) {
+                    mat.polygonOffset = true;
+                    mat.polygonOffsetFactor = 1;
+                    mat.polygonOffsetUnits = 1;
+                });
+                edgeGroup.add(new THREE.LineSegments(
+                    new THREE.EdgesGeometry(mesh.geometry, EDGE_THRESHOLD_ANGLE),
+                    new THREE.LineBasicMaterial({ color: EDGE_COLOR })
+                ));
+            });
+            group.add(edgeGroup);
+        }
+
         function capInputs() { return document.querySelectorAll('#capGrid input'); }
 
         function buildGridUI() {
@@ -228,7 +259,7 @@
             document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
             document.getElementById('fontSize').value = DEFAULTS.fontSize;
             document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
-            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
+            ParametricCore.resetCameraTo(camera, controls, FESTIVAL_CAMERA_POSITION);
             onFontChange(); // 폰트를 다시 로드하면서 위 값들을 반영해 모델도 재생성한다
         }
 
@@ -438,6 +469,7 @@
             disposeCurrentThreeMesh();
             currentGroup = new THREE.Group();
             meshes.forEach(function (m) { currentGroup.add(m); });
+            addEdgeOverlay(currentGroup, meshes);
             scene.add(currentGroup);
             ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }

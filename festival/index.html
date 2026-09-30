@@ -11,8 +11,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- 다크모드 첫 페인트 전 적용(깜빡임 방지) — assets/js/theme-core.js의 로직과 동일하되,
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
-    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
-    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <!-- 행사용 페이지: 다크모드/영어 전환 버튼이 없으므로, 같은 주소의 다른 갤러리에서 저장해둔
+         설정(localStorage)이나 폰의 다크모드를 따르지 않고 항상 밝은 화면 + 한국어로 연다. -->
+    <script>document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-lang','ko');</script>
     <title data-i18n-en="Gallery 8 - Clicker Cap Maker - Parametric Design Studio for Beginners">갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
@@ -26,7 +27,6 @@
     <script src="../assets/js/theme-core.js"></script>
     <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
-    <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
     <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
@@ -51,6 +51,32 @@
         @media (max-width: 480px) {
             #viewer { height: 90vw; }
         }
+        /* "디자인 완성하고 보내기"를 누르면 뜨는 두 번째 화면(이름·핸드폰번호 입력). 편집 화면의
+           모델 상태를 그대로 써야 해서 별도 페이지로 이동하지 않고 화면 전체를 덮는 창으로 띄운다. */
+        #submitScreen {
+            position: fixed; inset: 0; z-index: 1000; display: none;
+            align-items: center; justify-content: center; padding: 16px;
+            background: var(--scene-bg, #e0e0e0);
+        }
+        #submitScreen.open { display: flex; }
+        #submitScreen .submit-card {
+            width: 100%; max-width: 360px; box-sizing: border-box; padding: 24px 20px;
+            background: var(--input-bg); color: var(--text-color);
+            border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        #submitScreen h3 { margin: 0 0 8px; }
+        #submitScreen p { margin: 0 0 20px; font-size: 0.85em; color: var(--text-muted); }
+        #submitScreen label { display: block; font-size: 0.9em; margin: 0 0 6px; }
+        #submitScreen input {
+            width: 100%; box-sizing: border-box; margin: 0 0 16px; padding: 12px;
+            font-size: 1.05em; border: 2px solid var(--input-border); border-radius: 6px;
+            background: var(--input-bg); color: var(--text-color);
+        }
+        #submitScreen .submit-error { min-height: 1.2em; margin: -8px 0 12px; font-size: 0.85em; color: #d32f2f; }
+        #submitScreen .submit-actions { display: flex; gap: 8px; }
+        #submitScreen .submit-actions button { flex: 1; padding: 12px; font-size: 1em; border-radius: 6px; cursor: pointer; }
+        #submitScreen .submit-back { border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color); }
+        #submitScreen .submit-send { border: none; background: #4caf50; color: #fff; font-weight: bold; }
     </style>
     <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
@@ -146,7 +172,38 @@
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
 
-        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        // 행사용: STL/3MF 형식 선택 없이 STL 하나로만 받는다. 공용 다운로드 패널 대신 버튼 하나만
+        // 두고, 누르면 이름·핸드폰번호를 적는 두 번째 화면(#submitScreen)을 띄운다.
+        const finishBtn = document.createElement('button');
+        finishBtn.type = 'button';
+        finishBtn.className = 'download-btn';
+        finishBtn.textContent = '디자인 완성하고 보내기';
+        finishBtn.setAttribute('data-i18n-en', 'Finish and send my design');
+        finishBtn.addEventListener('click', function () { openSubmitScreen(); });
+        shell.controlsFooterEl.appendChild(finishBtn);
+
+        const submitScreen = document.createElement('div');
+        submitScreen.id = 'submitScreen';
+        submitScreen.innerHTML = `
+            <div class="submit-card">
+                <h3>디자인 보내기</h3>
+                <p>이름과 핸드폰번호를 적어주세요. 출력이 끝나면 이 번호로 연락드려요.</p>
+                <label for="submitName">이름</label>
+                <input id="submitName" type="text" autocomplete="name" maxlength="20">
+                <label for="submitPhone">핸드폰번호</label>
+                <input id="submitPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="01012345678" maxlength="13">
+                <div class="submit-error" id="submitError"></div>
+                <div class="submit-actions">
+                    <button type="button" class="submit-back" id="submitBack">← 디자인으로</button>
+                    <button type="button" class="submit-send" id="submitSend">보내기</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(submitScreen);
+        document.getElementById('submitBack').addEventListener('click', function () {
+            submitScreen.classList.remove('open');
+        });
+        document.getElementById('submitSend').addEventListener('click', submitDesign);
         if (window.LangCore) window.LangCore.applyTranslations(document);
 
         // 2×2 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서, 폰 화면에서
@@ -487,29 +544,39 @@
             ParametricCore.updateDimensionOverlay(scene, currentGroup);
         }
 
-        function downloadSTL() {
+        function openSubmitScreen() {
             if (!manifoldReady || !capTemplate) return;
-            const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
-            if (!meshes.length) return;
-            const exportGroup = new THREE.Group();
-            meshes.forEach(function (m) { exportGroup.add(m); });
-            ParametricCore.exportSTL(exportGroup, LangCore.pick(`클리커_뚜껑_세트.stl`, `clicker_cap_set.stl`));
-            meshes.forEach(function (m) {
-                m.geometry.dispose();
-                if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
-                else m.material.dispose();
-            });
+            const hasCap = Array.prototype.some.call(capInputs(), function (input) { return input.value.trim(); });
+            if (!hasCap) {
+                alert('뚜껑 칸에 글씨를 먼저 적어주세요.');
+                return;
+            }
+            document.getElementById('submitError').textContent = '';
+            submitScreen.classList.add('open');
+            document.getElementById('submitName').focus();
         }
 
-        // buildOneCap()이 이미 뚜껑색/글자색을 부품별로 입힌 mesh를 만들어주므로(toThreeMesh +
-        // idToColor), downloadSTL과 동일하게 만들고 3MF로만 내보내면 그 색이 그대로 남는다.
-        function download3MF() {
+        // 최종 파일 이름은 "이름(핸드폰번호).STL" — 선생님이 파일 이름만 보고 출력 후 연락할 수
+        // 있게 한다. 번호는 하이픈/공백을 빼고 숫자만 남기고, 이름에서는 파일 이름에 쓸 수 없는
+        // 문자(\ / : * ? " < > | 괄호)를 지운다.
+        function submitDesign() {
+            const errorEl = document.getElementById('submitError');
+            const name = document.getElementById('submitName').value.replace(/[\\/:*?"<>|()]/g, '').trim();
+            const phone = document.getElementById('submitPhone').value.replace(/\D/g, '');
+            if (!name) { errorEl.textContent = '이름을 적어주세요.'; return; }
+            if (!/^01\d{8,9}$/.test(phone)) { errorEl.textContent = '핸드폰번호를 확인해주세요. (예: 01012345678)'; return; }
+            errorEl.textContent = '';
+            downloadSTL(name + '(' + phone + ').STL');
+            submitScreen.classList.remove('open');
+        }
+
+        function downloadSTL(filename) {
             if (!manifoldReady || !capTemplate) return;
             const meshes = buildCapMeshes(EXPORT_CURVE_SEGMENTS);
             if (!meshes.length) return;
             const exportGroup = new THREE.Group();
             meshes.forEach(function (m) { exportGroup.add(m); });
-            ThreeMFCore.export3MF(exportGroup, LangCore.pick(`클리커_뚜껑_세트.3mf`, `clicker_cap_set.3mf`));
+            ParametricCore.exportSTL(exportGroup, filename);
             meshes.forEach(function (m) {
                 m.geometry.dispose();
                 if (Array.isArray(m.material)) m.material.forEach(function (mat) { mat.dispose(); });
@@ -519,8 +586,6 @@
 
         window.scheduleUpdate = scheduleUpdate;
         window.onFontChange = onFontChange;
-        window.downloadSTL = downloadSTL;
-        window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
         window.__getPreviewGroup = function () { return currentGroup; };

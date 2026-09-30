@@ -37,14 +37,20 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: var(--text-color); }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
-        .cap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; width: 86px; margin: 0 auto 8px; }
+        /* 2×2 입력칸은 기존(86px)의 150% 크기로 키워 폰에서도 누르기 쉽게 한다. */
+        .cap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 129px; margin: 0 auto 8px; }
         .cap-grid input {
             aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
-            border: 2px solid var(--input-border); border-radius: 4px; text-align: center; font-size: 0.85em;
+            border: 2px solid var(--input-border); border-radius: 4px; text-align: center; font-size: 1.3em;
             background: var(--input-bg); color: var(--text-color);
         }
         /* 갤러리7과 같은 계열의 파랑이되, 칸 안에 글씨가 보여야 하니 배경은 옅게(투명도) 처리 */
         .cap-grid input.filled { background: rgba(33, 150, 243, 0.18); border-color: #1976d2; }
+        /* 폰(core.css 480px 구간)에서는 3D 화면을 가로:세로 = 1:0.9로 줄이고(공용값 57vh), 남는
+           공간은 아래 설정 창(controls-body, flex:1)이 차지하게 한다. */
+        @media (max-width: 480px) {
+            #viewer { height: 90vw; }
+        }
     </style>
     <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
@@ -143,14 +149,21 @@
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
         if (window.LangCore) window.LangCore.applyTranslations(document);
 
-        // 2×2 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서 더 가깝게 본다.
-        const FESTIVAL_CAMERA_POSITION = [56, 70, 94];
+        // 2×2 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서, 폰 화면에서
+        // 기본 뚜껑(윗줄 두 칸)이 화면 가로를 거의 채우도록 가깝게 본다. 바라보는 중심도
+        // 격자 한가운데가 아니라 윗줄 쪽으로 옮긴다.
+        const FESTIVAL_CAMERA_TARGET = [0, 3, -10];
+        const FESTIVAL_CAMERA_POSITION = [25.1, 34.4, 31.9];
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: FESTIVAL_CAMERA_POSITION
         });
         const scene = viewer.scene;
         const camera = viewer.camera;
         const controls = viewer.controls;
+        // 초기화 버튼의 resetCameraTo()가 controls.reset()으로 이 중심점으로 돌아오도록 저장해둔다.
+        controls.target.set(FESTIVAL_CAMERA_TARGET[0], FESTIVAL_CAMERA_TARGET[1], FESTIVAL_CAMERA_TARGET[2]);
+        controls.update();
+        controls.saveState();
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
         // 행사용 초간단 페이지: 오른쪽 시점/모드/라이선스 패널과 모바일용 ⚙️ 버튼을 통째로 없앤다.

@@ -4,6 +4,7 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      "storage.rules",
       "**/.*",
       ".git/**",
       ".github/**",
@@ -14,5 +15,8 @@
       "serve.bat",
       "serve.ps1"
     ]
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

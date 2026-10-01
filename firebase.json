@@ -14,6 +14,17 @@
       "sever_mac.command",
       "serve.bat",
       "serve.ps1"
+    ],
+    "headers": [
+      {
+        "source": "/festival0*/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
     ]
   },
   "storage": {

@@ -139,6 +139,13 @@ window.ParametricCore = (function () {
         dimensionToggleBtn.className = 'cube-btn';
         cubeContainer.appendChild(dimensionToggleBtn);
 
+        // 모서리 선 켜기/끄기 — 모든 갤러리 공통이라 갤러리마다 bind를 부를 필요 없이 여기서 바로 연결한다.
+        const edgeToggleBtn = document.createElement('button');
+        edgeToggleBtn.type = 'button';
+        edgeToggleBtn.className = 'cube-btn';
+        cubeContainer.appendChild(edgeToggleBtn);
+        bindEdgeToggle(edgeToggleBtn);
+
         const screenshotBtn = document.createElement('button');
         screenshotBtn.type = 'button';
         screenshotBtn.className = 'cube-btn';
@@ -159,7 +166,7 @@ window.ParametricCore = (function () {
             licenseTitle.setAttribute('data-i18n-en', 'License');
             cubeContainer.appendChild(licenseTitle);
 
-            // CC BY / CC BY-SA는 creativecommons.org의 공식 라이선스 문서로 바로 연결한다.
+            // CC BY / BY-SA / BY-NC-SA는 creativecommons.org의 공식 라이선스 문서로 바로 연결한다.
             // 그 외(예: MakerWorld 표준 디지털 파일 라이선스)는 CC 라이선스가 아니라 링크로
             // 보낼 전용 페이지가 없어서, 클릭되지 않는 안내 배지로만 표시한다.
             // 배지 이미지는 creativecommons.org가 라이선스 표시 용도로 공식 배포하는 원본
@@ -177,6 +184,12 @@ window.ParametricCore = (function () {
                     title: 'Creative Commons 저작자표시-동일조건변경허락(BY-SA) 4.0',
                     titleEn: 'Creative Commons Attribution-ShareAlike (BY-SA) 4.0',
                     icon: '../assets/icons/by_sa.svg'
+                },
+                'BY-NC-SA': {
+                    url: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+                    title: 'Creative Commons 저작자표시-비영리-동일조건변경허락(BY-NC-SA) 4.0',
+                    titleEn: 'Creative Commons Attribution-NonCommercial-ShareAlike (BY-NC-SA) 4.0',
+                    icon: '../assets/icons/by_nc_sa.svg'
                 }
             };
             const ccInfo = CC_LICENSES[opts.licenseType];
@@ -578,11 +591,80 @@ window.ParametricCore = (function () {
         dimensionOverlayGroup = null;
     }
 
+    // ---------- 모서리 선 표시(모든 갤러리 공통, 기본 꺼짐) ----------
+    // 면이 꺾이는 모서리를 어두운 선으로 겹쳐 그려서, 같은 색이라 잘 안 보이는 음각 글씨나
+    // 각진 부분의 윤곽을 보이게 하는 화면 전용 옵션. 모든 갤러리가 모델을 새로 그릴 때마다
+    // updateDimensionOverlay(scene, 모델)를 부르므로 거기에 같이 붙여서, 갤러리 파일은 고치지
+    // 않아도 된다. 선은 치수선처럼 scene에 따로 붙는 오버레이라 STL/3MF 내보내기에 안 들어간다.
+    // 계산이 무거운 편이라(삼각형마다 인접 면 비교) 켜져 있을 때만 만든다.
+    // EDGE_THRESHOLD_ANGLE보다 크게 꺾인 곳만 선으로 그린다 — 둥근 곡면(잘게 나뉜 삼각형)은
+    // 빠지고 진짜 모서리(예: 글씨 옆면 90°)만 남는다.
+    const EDGE_THRESHOLD_ANGLE = 30; // 도
+    const EDGE_COLOR = 0x333333;
+    let edgeOverlayGroup = null;
+    let edgeOverlayVisible = false;
+    let edgeOverlayScene = null;
+    let edgeOverlayTarget = null;
+
+    function clearEdgeOverlay() {
+        if (!edgeOverlayGroup) return;
+        if (edgeOverlayGroup.parent) edgeOverlayGroup.parent.remove(edgeOverlayGroup);
+        edgeOverlayGroup.traverse(function (obj) {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) obj.material.dispose();
+        });
+        edgeOverlayGroup = null;
+    }
+
+    function rebuildEdgeOverlay() {
+        clearEdgeOverlay();
+        if (!edgeOverlayVisible || !edgeOverlayScene || !edgeOverlayTarget) return;
+        edgeOverlayGroup = new THREE.Group();
+        edgeOverlayTarget.updateMatrixWorld(true);
+        edgeOverlayTarget.traverse(function (obj) {
+            if (!obj.isMesh || !obj.visible) return;
+            // 선이 면과 같은 깊이에 겹쳐 깜빡이지(z-fighting) 않도록 면을 살짝 뒤로 민다.
+            [].concat(obj.material).forEach(function (mat) {
+                mat.polygonOffset = true;
+                mat.polygonOffsetFactor = 1;
+                mat.polygonOffsetUnits = 1;
+            });
+            const lines = new THREE.LineSegments(
+                new THREE.EdgesGeometry(obj.geometry, EDGE_THRESHOLD_ANGLE),
+                new THREE.LineBasicMaterial({ color: EDGE_COLOR })
+            );
+            // 메시가 position/rotation으로 옮겨져 있어도 선이 그 자리에 오도록 월드 변환을 그대로 쓴다.
+            lines.matrixAutoUpdate = false;
+            lines.matrix.copy(obj.matrixWorld);
+            edgeOverlayGroup.add(lines);
+        });
+        edgeOverlayScene.add(edgeOverlayGroup);
+    }
+
+    function bindEdgeToggle(button) {
+        function updateLabel() {
+            const ko = edgeOverlayVisible ? '🔲 모서리 끄기' : '🔲 모서리 켜기';
+            const en = edgeOverlayVisible ? '🔲 Hide edges' : '🔲 Show edges';
+            button.textContent = window.LangCore ? window.LangCore.pick(ko, en) : ko;
+        }
+        updateLabel();
+        window.addEventListener('langchange', updateLabel);
+        button.addEventListener('click', function () {
+            edgeOverlayVisible = !edgeOverlayVisible;
+            rebuildEdgeOverlay();
+            updateLabel();
+        });
+    }
+
     // targetObject(현재 화면에 있는 모델 그룹/메시)의 바운딩박스를 기준으로 치수선을 다시 그린다.
     // targetObject가 없으면(모델이 비워졌으면) 기존 치수선만 지우고 끝낸다. 갤러리 쪽에서는
     // updateModel()이 scene.add(currentGroup) 직후 이 함수를 부르고, disposeCurrentThreeMesh()
     // 안에서도 (targetObject 없이) 불러서 모델이 사라질 때 치수선도 같이 지운다.
     function updateDimensionOverlay(scene, targetObject) {
+        // 모서리 선도 같은 시점에 새 모델 기준으로 다시 그린다(꺼져 있으면 지우기만 함).
+        edgeOverlayScene = scene;
+        edgeOverlayTarget = targetObject || null;
+        rebuildEdgeOverlay();
         clearDimensionOverlay();
         if (!targetObject) return;
         const box = new THREE.Box3().setFromObject(targetObject);

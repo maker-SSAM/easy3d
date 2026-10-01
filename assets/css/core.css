@@ -282,12 +282,14 @@ html, body {
     overflow: hidden;
     height: 33px; /* 다른 cube-btn(예: "윗면(평면도)")의 실측 렌더 높이와 맞춘 값 */
 }
+/* 배지 이미지는 원래 가로세로 비율을 지킨 채 버튼 안에 들어가게 한다(contain) — fill로 늘리면
+   PNG 배지(표준 디지털 파일 라이선스)와 viewBox 없는 SVG가 버튼 비율대로 늘어나 보였다. */
 .license-btn img,
 .license-badge img {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: fill;
+    object-fit: contain;
 }
 
 /* 클릭되는 링크가 아닌 안내용 배지(예: 전용 라이선스 페이지가 없는 경우) — 다른 버튼과

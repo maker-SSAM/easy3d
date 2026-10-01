@@ -247,13 +247,26 @@ window.ThreeMFCore = (function () {
             '</Relationships>\n';
     }
 
+    // modelGroup -> 3MF 파일 내용(Blob). 다운로드 없이 파일 데이터만 필요할 때(예: 행사용
+    // 페이지가 Storage에 업로드할 때) 쓴다. 부품이 없으면 null.
+    function build3MFBlob(modelGroup) {
+        if (!modelGroup) return null;
+        const parts = collectPartsFromGroup(modelGroup);
+        if (!parts.length) return null;
+        const zipBytes = buildZip([
+            { name: '[Content_Types].xml', data: strToBytes(buildContentTypesXML()) },
+            { name: '_rels/.rels', data: strToBytes(buildRelsXML()) },
+            { name: '3D/3dmodel.model', data: strToBytes(buildModelXML(parts)) }
+        ]);
+        return new Blob([zipBytes], { type: 'model/3mf' });
+    }
+
     // modelGroup: exportSTL()과 동일하게 받는 THREE.Group(부품마다 THREE.Mesh, 색은
     // material.color 또는 material 배열+geometry.groups로 표현). 그 자리에서 바로 다운로드까지
     // 실행한다(exportSTL과 동일한 사용 패턴).
     function export3MF(modelGroup, filename) {
-        if (!modelGroup) return;
-        const parts = collectPartsFromGroup(modelGroup);
-        if (!parts.length) return;
+        const blob = build3MFBlob(modelGroup);
+        if (!blob) return;
 
         // core.js의 exportSTL()과 동일한 다운로드 카운트 기록 — 이게 없으면 STL만 카운트되고
         // 3MF로 받은 다운로드는 갤러리 카드의 다운로드 배지에 전혀 반영되지 않는다.
@@ -267,13 +280,6 @@ window.ThreeMFCore = (function () {
             });
         }
 
-        const zipBytes = buildZip([
-            { name: '[Content_Types].xml', data: strToBytes(buildContentTypesXML()) },
-            { name: '_rels/.rels', data: strToBytes(buildRelsXML()) },
-            { name: '3D/3dmodel.model', data: strToBytes(buildModelXML(parts)) }
-        ]);
-
-        const blob = new Blob([zipBytes], { type: 'model/3mf' });
         const link = document.createElement('a');
         link.style.display = 'none';
         document.body.appendChild(link);
@@ -283,5 +289,5 @@ window.ThreeMFCore = (function () {
         document.body.removeChild(link);
     }
 
-    return { export3MF: export3MF };
+    return { export3MF: export3MF, build3MFBlob: build3MFBlob };
 })();

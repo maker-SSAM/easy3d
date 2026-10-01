@@ -14,7 +14,7 @@
     <!-- 행사용 페이지: 다크모드/영어 전환 버튼이 없으므로, 같은 주소의 다른 갤러리에서 저장해둔
          설정(localStorage)이나 폰의 다크모드를 따르지 않고 항상 밝은 화면 + 한국어로 연다. -->
     <script>document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-lang','ko');</script>
-    <title data-i18n-en="Gallery 8 - Clicker Cap Maker - Parametric Design Studio for Beginners">갤러리8 - 클리커 뚜껑 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <title>클리커 뚜껑 만들기 01</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -84,7 +84,10 @@
 <body>
 
     <script type="module">
-        // 제출 파일을 선생님만 볼 수 있는 Firebase Storage(festival/ 폴더)에 올리는 데 쓴다.
+        // 행사용 페이지는 festival01/, festival02/ 두 벌이다(내용은 같고 번호만 다름). 제출 파일도
+        // 페이지 번호와 같은 Storage 폴더로 나눠 받아서, 어느 페이지로 보냈는지 구분한다.
+        const SUBMIT_FOLDER = 'festival01';
+        // 제출 파일을 선생님만 볼 수 있는 Firebase Storage(SUBMIT_FOLDER 폴더)에 올리는 데 쓴다.
         // 아래 설정값은 웹 페이지에 넣도록 되어 있는 공개용 값이다 — 실제 접근 제한은
         // 저장소 루트의 storage.rules(쓰기만 허용, 읽기/목록 차단)가 한다.
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
@@ -602,7 +605,7 @@
             sendBtn.disabled = true;
             sendBtn.textContent = '보내는 중...';
             try {
-                await uploadBytes(storageRef(submitStorage, 'festival/' + filename), blob, { contentType: 'model/stl' });
+                await uploadBytes(storageRef(submitStorage, SUBMIT_FOLDER + '/' + filename), blob, { contentType: 'model/stl' });
                 saveBlob(blob, filename);
                 document.getElementById('submitDoneText').textContent =
                     name + '님의 디자인이 잘 도착했어요. 출력이 끝나면 ' + phone + ' 번호로 연락드릴게요.';

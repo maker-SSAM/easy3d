@@ -322,9 +322,9 @@
 
             let fused = capTemplate;
             if (textResult) {
-                // 음각이면 파낸 홈의 벽·바닥이 글자 덩어리에서 온 면이라, 여기에 글자색을 입혀
-                // 홈 안쪽이 글자색으로 보이게 한다.
-                idToColor.set(textResult.id, params.textColor);
+                // 음각이면 파낸 홈의 벽·바닥도 뚜껑 색 그대로 둔다(글자색을 입히면 홈 안이 검게 칠해져
+                // 글씨가 튀어나온 것처럼 보인다는 피드백). 글자색은 돌출일 때만 쓴다.
+                if (!textResult.engrave) idToColor.set(textResult.id, params.textColor);
                 fused = textResult.engrave
                     ? ManifoldCore.subtract(capTemplate, textResult.solid)
                     : ManifoldCore.union(capTemplate, textResult.solid);

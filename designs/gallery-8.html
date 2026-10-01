@@ -67,7 +67,7 @@
         // 뚫고 안쪽 빈 공간까지 튀어나와, 뚜껑을 뒤집어 보면 글자가 밑면으로도 삐져나온
         // 것처럼 보이는 문제가 있었다 — 실제로 겪은 문제. 윗면 자체는 평평하므로, 아주
         // 얇게만(EMBED_DEPTH) 겹쳐서 이음매를 확실히 하고 나머지는 전부 표면 위로
-        // 도드라지게(PROTRUDE_HEIGHT, 사용자가 슬라이더로 조절) 압출한다.
+        // 도드라지게(PROTRUDE_HEIGHT, 사용자가 슬라이더로 조절) 압출한다. 음수로 내리면 음각.
         // 원작자(kongkoka)에게 2026-07-22 MakerWorld 댓글로 비상업적 활용 허가를 받음.
         // 허가 스크린샷: ../assets/licenses/clicker-permission-kongkoka.png
         const shell = ParametricCore.mountEditorShell(document.body, null, {
@@ -129,7 +129,7 @@
             </div>
             <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Protrusion height">텍스트 돌출 높이</span>: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="0.1" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Protrusion height">텍스트 돌출 높이</span>: <span id="valProtrudeHeight">0.6</span>mm</label><input type="range" id="protrudeHeight" min="-1.2" max="3" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
 
             <div class="color-row"><span data-i18n-en="Cap color">뚜껑 색</span><input type="color" id="colCap" value="#b4b4b4" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span data-i18n-en="Text color">글자 색</span><input type="color" id="colText" value="#000000" oninput="scheduleUpdate()"></div>
@@ -273,6 +273,10 @@
         // 윗면이 평평해서 이 정도만 겹쳐도 충분하다 — 실측한 윗면 쉘 두께(1.5mm)보다
         // 확실히 얕게 잡아서, 아무리 깊이 겹쳐도 뚜껑 속 빈 공간까지 뚫고 들어가지 않는다.
         const EMBED_DEPTH = 0.4; // mm, 뚜껑 속으로 겹쳐 넣는 깊이(이음매 보강용, 조절 불가)
+        // 돌출 높이를 음수로 내리면 글자 모양대로 윗면을 파내는 음각이 된다. 슬라이더 최솟값(-1.2mm)은
+        // 윗면 쉘 두께(1.5mm)보다 얕게 잡아 바닥이 0.3mm 이상 남게 한다 — 뚜껑 속 빈 공간까지 뚫리지 않는다.
+        // 음각 덩어리는 윗면 밖으로 ENGRAVE_OVERSHOOT만큼 더 내밀어 윗면이 깔끔하게 뚫리게 한다.
+        const ENGRAVE_OVERSHOOT = 0.5; // mm
         const PREVIEW_CURVE_SEGMENTS = 24;
         const EXPORT_CURVE_SEGMENTS = 48;
 
@@ -291,15 +295,16 @@
                 xs.delete();
                 xs = widened;
             }
-            const raised = ManifoldCore.extrudeXS(xs, EMBED_DEPTH + protrudeHeight);
+            const engrave = protrudeHeight < 0;
+            const raised = ManifoldCore.extrudeXS(xs, engrave ? -protrudeHeight + ENGRAVE_OVERSHOOT : EMBED_DEPTH + protrudeHeight);
             xs.delete();
             // originalID()는 translate/rotate로 만든 새 Manifold 객체에서는 다시 -1을
             // 돌려준다(실제로 겪은 문제 — 겉보기엔 위치만 옮긴 것 같아도, ID 조회는
             // 변형 전 객체에서 미리 해둬야 한다). 그래서 이동시키기 전에 먼저 읽어둔다.
             const id = raised.originalID();
-            const positioned = ManifoldCore.translateY(raised, capTopY - EMBED_DEPTH);
+            const positioned = ManifoldCore.translateY(raised, engrave ? capTopY + protrudeHeight : capTopY - EMBED_DEPTH);
             raised.delete();
-            return { solid: positioned, id: id };
+            return { solid: positioned, id: id, engrave: engrave };
         }
 
         // 글씨가 채워진 칸 하나에 대해 "뚜껑+글자"를 합친 THREE.Mesh 하나를 만든다.
@@ -317,8 +322,12 @@
 
             let fused = capTemplate;
             if (textResult) {
+                // 음각이면 파낸 홈의 벽·바닥이 글자 덩어리에서 온 면이라, 여기에 글자색을 입혀
+                // 홈 안쪽이 글자색으로 보이게 한다.
                 idToColor.set(textResult.id, params.textColor);
-                fused = ManifoldCore.union(capTemplate, textResult.solid);
+                fused = textResult.engrave
+                    ? ManifoldCore.subtract(capTemplate, textResult.solid)
+                    : ManifoldCore.union(capTemplate, textResult.solid);
             }
 
             const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.capColor, { roughness: 0.4, metalness: 0.05, envMapIntensity: 0.55 });

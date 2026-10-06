@@ -38,7 +38,7 @@
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .color-row span { font-size: 0.9em; color: var(--text-color); }
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
-        /* 2×2 입력칸은 기존(86px)의 150% 크기로 키워 폰에서도 누르기 쉽게 한다. */
+        /* 2×1 입력칸은 기존(86px)의 150% 크기로 키워 폰에서도 누르기 쉽게 한다. */
         .cap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 129px; margin: 0 auto 8px; }
         .cap-grid input {
             aspect-ratio: 1; width: 100%; box-sizing: border-box; padding: 0;
@@ -146,14 +146,15 @@
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf');
 
         // ---------- 격자 ----------
-        // 행사용: 몸체를 2구로 준비하므로 뚜껑도 2×2 격자로만 받는다.
-        const GRID_SIZE = 2;
+        // 행사용: 몸체를 2구로 준비하므로 뚜껑도 2칸×1줄 격자로만 받는다.
+        const GRID_COLS = 2;
+        const GRID_ROWS = 1;
         // 갤러리7(몸체)과 정확히 같은 값 — 몸체 칸과 같은 자리에 뚜껑이 오도록 맞춘다.
         // 뚜껑 지름(약 21mm)이 이 간격(23.5mm)보다 작아서, 몸체처럼 겹치게 할 필요 없이
         // 이 값 그대로 놓아도 뚜껑끼리 자연스럽게 틈이 생기고 서로 붙지 않는다.
         const GRID_PITCH = 23.5; // mm
-        // 기본으로 왼쪽 위 칸부터 '교', '크', '협', '🙂'을 채워 보여준다.
-        const DEFAULT_CAP_TEXT = { 0: '교', 1: '크', 2: '협', 3: '🙂' };
+        // 기본으로 두 칸에 '안', '녕'을 채워 보여준다.
+        const DEFAULT_CAP_TEXT = { 0: '안', 1: '녕' };
 
         // "초기화" 버튼이 되돌릴 기본값 — 아래 controlsBodyEl의 초기 HTML 값과 반드시 일치해야 한다.
         const DEFAULTS = {
@@ -173,7 +174,7 @@
                 아래 격자의 빈칸에 글씨를 입력하면 그 자리에 뚜껑이 생기고, 글씨를 지우면
                 뚜껑도 없어져요. 글씨체/크기/굵기는 모든 뚜껑에 똑같이 적용돼요.
             </p>
-            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (2×2)">뚜껑 배치 및 글씨 (2×2)</label>
+            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Cap placement and text (2×1)">뚜껑 배치 및 글씨 (2×1)</label>
             <div id="capGrid" class="cap-grid"></div>
             <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 4px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
             <p style="font-size: 0.8em; margin: 0 0 20px;" data-i18n-en-html="🔎 Not sure how to type an emoji? Browse the <a href='https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs' target='_blank' rel='noopener' style='color: var(--home-link-color);'>Noto Emoji list</a> and copy-paste the one you want.">🔎 이모지를 어떻게 입력하는지 모르겠다면 → <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);">Noto Emoji 목록</a>에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</p>
@@ -237,11 +238,11 @@
         });
         if (window.LangCore) window.LangCore.applyTranslations(document);
 
-        // 2×2 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서, 폰 화면에서
-        // 기본 뚜껑(2×2 네 칸 모두)이 화면 가로를 거의 채우도록 가깝게 본다. 바라보는 중심은
+        // 2×1 격자만 담으면 되므로 공용 기본입체 시점(ISO)과 같은 방향에서, 폰 화면에서
+        // 기본 뚜껑(두 칸 모두)이 화면 가로를 거의 채우도록 가깝게 본다. 바라보는 중심은
         // 격자 한가운데다.
-        const FESTIVAL_CAMERA_TARGET = [0, 1, 2];
-        const FESTIVAL_CAMERA_POSITION = [30.3, 38.9, 52.5];
+        const FESTIVAL_CAMERA_TARGET = [0, 3, 0];
+        const FESTIVAL_CAMERA_POSITION = [25.1, 34.4, 41.9];
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
             initialCameraPosition: FESTIVAL_CAMERA_POSITION
         });
@@ -271,7 +272,7 @@
         // 모든 갤러리가 공유하는 core.js는 건드리지 않는다.
         const KEY_LIGHT_ELEVATION = 35 * Math.PI / 180; // 낮을수록 홈 안 그림자가 길어진다
         const KEY_LIGHT_DISTANCE = 200; // mm, 그림자 카메라 near/far 계산 기준
-        const SHADOW_RANGE = 40; // mm, 2×2 격자 뚜껑 전체를 덮는 반경
+        const SHADOW_RANGE = 40; // mm, 2×1 격자 뚜껑 전체를 덮는 반경
         const CAP_ENV_INTENSITY = 0.2; // 뚜껑 재질의 환경광 반영 비율(공용 기본값 0.55)
         (function tuneLightsForEngraving() {
             const key = viewer.lights.key;
@@ -338,7 +339,7 @@
         function buildGridUI() {
             const container = document.getElementById('capGrid');
             container.innerHTML = '';
-            for (let idx = 0; idx < GRID_SIZE * GRID_SIZE; idx++) {
+            for (let idx = 0; idx < GRID_COLS * GRID_ROWS; idx++) {
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.value = defaultCapText(idx);
@@ -534,15 +535,16 @@
         // 달리 union으로 서로 합치지 않는다 — 뚜껑은 낱개 부품이라 붙어있으면 안 된다.
         function buildCapMeshes(curveSegments) {
             const params = readGlobalParams();
-            const half = (GRID_SIZE - 1) / 2;
+            const halfX = (GRID_COLS - 1) / 2;
+            const halfZ = (GRID_ROWS - 1) / 2;
             const meshes = [];
             capInputs().forEach(function (input, idx) {
                 const text = input.value || '';
                 if (!text.trim()) return;
-                const row = Math.floor(idx / GRID_SIZE);
-                const col = idx % GRID_SIZE;
-                const x = (col - half) * GRID_PITCH;
-                const z = (row - half) * GRID_PITCH;
+                const row = Math.floor(idx / GRID_COLS);
+                const col = idx % GRID_COLS;
+                const x = (col - halfX) * GRID_PITCH;
+                const z = (row - halfZ) * GRID_PITCH;
                 meshes.push(buildOneCap(text, x, z, params, curveSegments));
             });
             return meshes;

@@ -259,52 +259,6 @@
             if (el) el.remove();
         });
 
-        // ---------- 음각 글씨가 잘 보이도록 하는 화면 조명(이 페이지 전용) ----------
-        // 글씨를 -0.6mm 음각으로 파내면 홈 바닥이 뚜껑 윗면과 같은 방향(위)을 향해서, 공용
-        // 조명(core.js) 그대로는 윗면과 똑같은 밝기로 칠해져 글씨가 거의 안 보였다 — 공용
-        // 조명은 밝기 대부분을 방향 없는 환경광이 차지하고, 그림자를 내는 주광은 약한 데다
-        // 그림자 범위(440mm)에 비해 해상도(1024)가 낮아 0.6mm 홈 안에는 그림자가 아예 안 생긴다.
-        // 그래서 이 페이지에서만 주광을 왼쪽 뒤 낮은 각도로 옮겨 홈 안에 그림자를 드리우고,
-        // 그림자 범위를 뚜껑 격자 크기로 좁혀 해상도를 올리고, 환경광/보조광을 줄여 그 그림자가
-        // 묻히지 않게 한다. 화면 표시만 바뀌고 모델 색·내보내는 파일(단색)은 그대로다.
-        // 모든 갤러리가 공유하는 core.js는 건드리지 않는다.
-        const KEY_LIGHT_ELEVATION = 35 * Math.PI / 180; // 낮을수록 홈 안 그림자가 길어진다
-        const KEY_LIGHT_DISTANCE = 200; // mm, 그림자 카메라 near/far 계산 기준
-        const SHADOW_RANGE = 40; // mm, 2×1 격자 뚜껑 전체를 덮는 반경
-        const CAP_ENV_INTENSITY = 0.2; // 뚜껑 재질의 환경광 반영 비율(공용 기본값 0.55)
-        (function tuneLightsForEngraving() {
-            const key = viewer.lights.key;
-            // 왼쪽 뒤(-x, -z) 대각선: 기본 시점(오른쪽 앞)의 맞은편에서 빛이 와서 그림자가
-            // 카메라 쪽으로 드리워 보이고, 가로획·세로획 모두 같은 비율로 그림자가 진다.
-            const horiz = Math.cos(KEY_LIGHT_ELEVATION) * KEY_LIGHT_DISTANCE / Math.SQRT2;
-            key.position.set(-horiz, Math.sin(KEY_LIGHT_ELEVATION) * KEY_LIGHT_DISTANCE, -horiz);
-            key.intensity = 1.0;
-            const cam = key.shadow.camera;
-            cam.left = -SHADOW_RANGE;
-            cam.right = SHADOW_RANGE;
-            cam.top = SHADOW_RANGE;
-            cam.bottom = -SHADOW_RANGE;
-            cam.near = KEY_LIGHT_DISTANCE - SHADOW_RANGE;
-            cam.far = KEY_LIGHT_DISTANCE + SHADOW_RANGE;
-            cam.updateProjectionMatrix();
-            key.shadow.mapSize.set(2048, 2048);
-            key.shadow.bias = -0.0003;
-            key.shadow.normalBias = 0.08;
-            // initViewer()가 첫 프레임을 그리면서 이미 1024 크기 그림자 맵을 만들어뒀다 —
-            // 버려둬야 다음 프레임에 바뀐 크기로 새로 만든다.
-            if (key.shadow.map) {
-                key.shadow.map.dispose();
-                key.shadow.map = null;
-            }
-
-            viewer.lights.hemi.intensity = 0.15;
-            // 보조광은 기본 시점(카메라) 쪽에서 낮은 각도(15°)로 비춘다 — 주광을 등진 뚜껑
-            // 옆면(카메라를 향한 면)은 밝혀주되, 위를 향한 홈 바닥은 거의 비추지 않아 그림자가
-            // 그대로 남는다. 위에서 비추면 홈 바닥까지 밝혀서 글씨가 다시 흐려진다.
-            viewer.lights.fill.position.set(100, 52, 166);
-            viewer.lights.fill.intensity = 0.45;
-        })();
-
         // ---------- 모서리 선 표시(화면 전용) ----------
         // 다면체 탐구 페이지(mathgame.kr)의 "모서리" 옵션처럼, 면이 꺾이는 모서리를 어두운 선으로
         // 겹쳐 그려서 조명·카메라 방향과 상관없이 음각 글씨 윤곽이 보이게 한다. 화면 미리보기
@@ -506,7 +460,7 @@
                 }
             }
 
-            const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.capColor, { roughness: 0.4, metalness: 0.05, envMapIntensity: CAP_ENV_INTENSITY });
+            const mesh = ManifoldCore.toThreeMesh(fused, idToColor, params.capColor, { roughness: 0.4, metalness: 0.05, envMapIntensity: 0.55 });
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             mesh.geometry.translate(x, 0, z);

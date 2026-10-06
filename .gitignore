@@ -2,3 +2,7 @@
 USB_제출용/
 .firebase/
 .claude/worktrees/
+
+# OS 찌꺼기 (OneDrive는 윈도우로 동기화하지 않음)
+.DS_Store
+Thumbs.db

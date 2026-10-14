@@ -8,6 +8,7 @@
 2. [x] 3MF 파일 다운로드
 3. [x] 로컬 폰트 업로드
 4. [x] 모바일 반응형
+5. [ ] 외부 스크립트 무결성 검사(SRI) — **메이커 페스티벌 행사가 끝난 뒤** 진행
 
 **순서를 이렇게 정한 이유**: 다크모드/3MF/폰트 업로드는 각각 화면에 새 버튼(테마 토글, 3MF 다운로드 버튼, 폰트 업로드 옵션)을 추가하는 작업입니다. 모바일 대응은 결국 "이 모든 요소가 좁은 화면에서도 잘 배치되게 만드는" 작업이라, UI 구성이 최종적으로 확정된 뒤 마지막에 한 번에 처리하는 게 버튼 추가할 때마다 반응형을 다시 손보는 것보다 효율적입니다.
 
@@ -40,3 +41,14 @@
 - 필요한 작업: 좁은 화면에서 사이드바를 접이식/하단시트 형태로 전환, 드래그 리사이저(`#resizer`, 마우스 전용 상호작용)를 터치 환경에서 숨기기, OrbitControls의 터치 제스처(회전/확대)가 실제로 잘 동작하는지 확인, 작은 상호작용 요소(예: 클리커 몸체/뚜껑 갤러리의 5×5 격자 버튼, 셀당 약 38px)의 터치 크기 점검, 뷰큐브·다크모드 토글·다운로드 버튼들이 좁은 화면에서 겹치지 않는지 재확인.
 - `index.html`의 카드 그리드는 이미 부분적인 모바일 대응이 되어 있음(`@media (max-width: 720px)`에서 `auto-fit, minmax(220px, 1fr)`로 전환) — 편집화면 쪽은 아직 전무함.
 - **성능 위험 요소**: 이번 세션에서 멀티컬러 이름표 갤러리가 최적화 후에도 미리보기 정점 수가 100만 개를 넘는 것을 확인함 — 데스크톱 GPU에서는 괜찮지만 저사양 모바일 기기에서는 버벅일 가능성이 있음. 이 단계에서 레이아웃/터치뿐 아니라 갤러리 전반의 정점 수 점검도 함께 하면 좋음.
+
+## 5. 외부 스크립트 무결성 검사(SRI)
+
+- **배경**: 2026-10-07 자동 보안 점검(VibeScan)에서 "CDN에서 불러오는 스크립트에 무결성 체크가 없다"는 지적을 받음. 같은 점검의 nosniff·클릭재킹 지적은 `firebase.json` 보안 헤더로 이미 조치함. 행사 직전이라 페이지가 깨질 위험을 피하려고 이 항목만 행사 뒤로 미룸.
+- **대상**: HTML의 `<script src="https://cdn.jsdelivr.net/...">` 7종 — `three@0.146.0`의 `three.min.js`, `OrbitControls.js`, `RoomEnvironment.js`, `STLExporter.js`, `STLLoader.js`, `GLTFLoader.js`와 `opentype.js@1.3.4/dist/opentype.min.js`. `index.html`, `designs/gallery-*.html`, `festival01/02/index.html`에 흩어져 있음(`USB_제출용/`은 오프라인용이라 제외 여부 따로 판단).
+- **방법 (둘 중 하나)**
+  - **(권장) 직접 넣기**: 위 파일들을 `assets/vendor/` 등에 내려받아 상대 경로로 불러오기. CDN 변조 걱정이 없어지고, CDN이 막힌 학교 망에서도 동작함.
+  - **integrity 속성**: 각 `<script>`에 `integrity="sha384-…" crossorigin="anonymous"` 추가. 해시는 실제 파일을 내려받아 계산(`openssl dgst -sha384 -binary 파일 | openssl base64 -A`). jsDelivr는 `access-control-allow-origin: *`를 보내므로 `crossorigin="anonymous"`로 동작함(2026-10-07 확인).
+- **주의**
+  - 해시가 한 글자라도 틀리면 브라우저가 스크립트를 막아 3D 화면이 하얗게 나옴. 바로 실제 사이트에 올리지 말고 `firebase hosting:channel:deploy sri-test`(미리보기 채널)로 먼저 올려 갤러리·메인화면·행사 페이지를 모두 열어 본 뒤 배포.
+  - `import`로 불러오는 모듈에는 `integrity`를 붙일 수 없음: `assets/js/manifold-core.js`의 `manifold-3d@3.5.1`(+ 함께 받는 `.wasm`), 행사 페이지의 Firebase SDK(`gstatic.com`). manifold는 "직접 넣기"로 처리할 수 있고, Firebase SDK는 구글 서버라 그대로 둬도 됨.

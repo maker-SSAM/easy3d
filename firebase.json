@@ -4,6 +4,7 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      "storage.rules",
       "**/.*",
       ".git/**",
       ".github/**",
@@ -13,6 +14,37 @@
       "sever_mac.command",
       "serve.bat",
       "serve.ps1"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'self'"
+          }
+        ]
+      },
+      {
+        "source": "/festival0*/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
     ]
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

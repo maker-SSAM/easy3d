@@ -45,6 +45,15 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/assets/css/festival.css",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ]
   },

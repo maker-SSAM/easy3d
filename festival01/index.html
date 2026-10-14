@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="festival">
 <head>
     <meta charset="UTF-8">
     <!-- 예전 GitHub Pages 주소(maker-ssam.github.io)로 들어온 방문자를 새 대표 주소
@@ -16,6 +16,9 @@
     <script>document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-lang','ko');</script>
     <title>만나자, 교크협! - 3D프린터팀</title>
     <link rel="stylesheet" href="../assets/css/core.css">
+    <!-- 행사장 모바일 페이지(교크협 전북지회 패스)와 톤을 맞춘 행사 전용 디자인 + 그 페이지와 같은 글씨체 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+    <link rel="stylesheet" href="../assets/css/festival.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
@@ -130,6 +133,9 @@
         // 행사용 독립 페이지: 메인 사이트로 나가는 홈 버튼은 없애고 초기화 버튼만 남긴다.
         const homeLinkEl = document.querySelector('.home-link');
         if (homeLinkEl) homeLinkEl.remove();
+        // 그 자리(머리줄 왼쪽)에는 행사장 페이지처럼 ★ 로고와 이름을 둔다.
+        shell.controlsHeaderEl.insertAdjacentHTML('afterbegin',
+            '<div class="fest-brand"><span class="fest-brand-mark">★</span>3D프린팅 분과</div>');
 
         const FONT_OPTIONS = [
             { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
@@ -169,24 +175,28 @@
         function defaultCapText(idx) { return DEFAULT_CAP_TEXT[idx] || ''; }
 
         shell.controlsBodyEl.innerHTML = `
-            <h3 data-i18n-en="Let's meet, Gyokeuphyeop!">만나자, 교크협!</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 16px;" data-i18n-en="We are the 3D printing group of the Gyokeuphyeop regular network. If you design your cap in advance and send it in, we will print it as a multicolor keycap. (Colors are random.)">
+            <h3 data-i18n-en-html="Let's meet, Gyokeuphyeop<span class='fest-bang'>!</span>">만나자, 교크협<span class="fest-bang">!</span></h3>
+            <p class="fest-lead" data-i18n-en="We are the 3D printing group of the Gyokeuphyeop regular network. If you design your cap in advance and send it in, we will print it as a multicolor keycap. (Colors are random.)">
                 교크협 정기네트워크의 3D프린팅 분과입니다. 사전에 미리 디자인을 제작하여 보내주시는 분들은 '멀티컬러' 프린팅 키캡을 출력 해 드립니다.(색상은 랜덤입니다.)
             </p>
-            <label style="display:block; font-size:0.9em; color:var(--text-color); margin-bottom:8px;" data-i18n-en="Text (2×1)">글씨 (2×1)</label>
-            <div id="capGrid" class="cap-grid"></div>
-            <p style="font-size: 0.8em; color: var(--text-muted); margin: 8px 0 20px;" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
+            <section class="fest-card">
+                <label class="fest-card-title" data-i18n-en="Text (2×1)">글씨 (2×1)</label>
+                <div id="capGrid" class="cap-grid"></div>
+                <p class="fest-hint" data-i18n-en="Press Enter or click elsewhere after typing in a cell to apply it.">칸을 입력한 뒤 Enter 또는 다른 곳을 클릭하면 반영돼요.</p>
+            </section>
 
-            <div class="control-group">
-                <label data-i18n-en="Choose a font">글씨체 선택</label>
-                <select id="fontSelect" onchange="onFontChange()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
-            </div>
-            <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            <section class="fest-card">
+                <div class="control-group">
+                    <label data-i18n-en="Choose a font">글씨체 선택</label>
+                    <select id="fontSelect" onchange="onFontChange()">
+                        ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
+                        <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
+                    </select>
+                    <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+                </div>
+                <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
+                <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
+            </section>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);

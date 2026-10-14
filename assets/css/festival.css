@@ -1,0 +1,215 @@
+/* 행사용 페이지(festival01/, festival02/) 전용 디자인 — 행사장 모바일 페이지(교크협 전북지회 패스,
+   tca.tcreator.kr/manaja)와 톤을 맞춘다. 색·글씨체·모양은 그 페이지의 값을 그대로 옮겼다
+   (2026-10-15 확인): Pretendard, 크림 배경, 남색 글씨, 코랄 강조, 파스텔(버터·라일락·민트).
+   <html class="festival">일 때만 적용되므로 core.css를 같이 쓰는 갤러리 페이지에는 영향이 없다.
+   행사 페이지는 항상 밝은 화면으로 열므로(페이지 맨 위 인라인 스크립트) 다크모드 값은 두지 않는다. */
+
+html.festival {
+    --mj-bg: #FFF8F1;
+    --mj-ink: #1E1B2E;
+    --mj-sub: #5B5670;
+    --mj-butter: #FFE7A3;
+    --mj-lilac: #D9D2FF;
+    --mj-mint: #BDEBD9;
+    --mj-peach: #FFD3C2;
+    --mj-coral: #F2766B;
+    --mj-coral-strong: #D94F45;
+    --mj-ring: rgba(30, 27, 46, 0.12);
+    --mj-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+    /* core.css 공용 변수를 행사 색으로 바꿔 끼운다 — 공용 스타일이 쓰는 곳은 따로 손대지 않아도 따라온다. */
+    --panel-bg: var(--mj-bg);
+    --panel-accent-bg: var(--mj-bg);
+    --panel-border: var(--mj-ring);
+    --text-color: var(--mj-ink);
+    --text-muted: var(--mj-sub);
+    --home-link-color: var(--mj-coral-strong); /* 슬라이더 값 숫자 밑줄 색 */
+    --input-bg: #ffffff;
+    --input-border: var(--mj-ring);
+    --viewer-bg: var(--mj-lilac);
+    --scene-bg: #DDD7FF; /* 3D 화면 배경(core.js initViewer가 읽어감) — 라일락보다 한 톤 밝게 */
+}
+
+/* 버터·라일락·민트 빛 번짐(행사 페이지의 흐린 원 3개)을 배경 그라디언트로 옮긴 것. */
+html.festival body {
+    font-family: var(--mj-font);
+    color: var(--mj-ink);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(255, 231, 163, 0.75), transparent 42%),
+        radial-gradient(circle at 100% 38%, rgba(217, 210, 255, 0.6), transparent 40%),
+        radial-gradient(circle at 35% 100%, rgba(189, 235, 217, 0.55), transparent 45%),
+        var(--mj-bg);
+    -webkit-font-smoothing: antialiased;
+}
+html.festival button, html.festival input, html.festival select { font-family: inherit; }
+
+/* ---------- 머리줄: 왼쪽 로고(★ + 이름), 오른쪽 초기화 ---------- */
+html.festival #controls { background: transparent; box-shadow: none; }
+html.festival .controls-header {
+    justify-content: space-between;
+    background: transparent;
+    border-bottom: 0;
+}
+.fest-brand {
+    display: flex; align-items: center; gap: 10px; min-width: 0;
+    font-size: 1.15rem; font-weight: 900; letter-spacing: -0.025em; color: var(--mj-ink);
+    white-space: nowrap;
+}
+.fest-brand-mark {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--mj-ink); color: var(--mj-butter); font-size: 0.85rem;
+}
+html.festival .reset-btn {
+    padding: 8px 16px; border-radius: 999px; border: 0;
+    background: #fff; color: var(--mj-ink);
+    font-size: 0.85rem; font-weight: 700;
+    box-shadow: 0 0 0 1px var(--mj-ring);
+}
+html.festival .reset-btn:hover { background: var(--mj-butter); box-shadow: 0 0 0 1px var(--mj-ring); }
+
+/* ---------- 본문 ---------- */
+html.festival .controls-body h3 {
+    margin: 4px 0 10px;
+    font-size: 2.1rem; font-weight: 900; line-height: 1.05; letter-spacing: -0.055em;
+    color: var(--mj-ink);
+}
+.fest-bang { color: var(--mj-coral); }
+.fest-lead {
+    margin: 0 0 18px;
+    font-size: 1rem; font-weight: 600; line-height: 1.6; color: var(--mj-sub);
+    word-break: keep-all;
+}
+
+/* 흰 카드 — 행사 페이지의 일정표 카드처럼 크게 둥글고 옅은 테두리. */
+.fest-card {
+    margin: 0 0 14px; padding: 20px;
+    border-radius: 28px; background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 0 0 1px var(--mj-ring), 0 24px 48px -32px rgba(30, 27, 46, 0.35);
+}
+.fest-card-title {
+    display: block; margin: 0 0 14px;
+    font-size: 1rem; font-weight: 900; letter-spacing: -0.025em; color: var(--mj-ink);
+}
+.fest-hint {
+    margin: 12px 0 0; text-align: center;
+    font-size: 0.85rem; font-weight: 600; line-height: 1.45; color: var(--mj-sub);
+    word-break: keep-all;
+}
+
+/* 글씨 칸 — 행사 페이지 미션 동그라미처럼, 빈 칸은 점선 테두리, 채운 칸은 버터색. */
+html.festival .cap-grid { width: 176px; gap: 12px; margin: 0 auto; }
+html.festival .cap-grid input {
+    border: 2.5px dashed rgba(30, 27, 46, 0.25); border-radius: 22px;
+    background: #fff; color: var(--mj-ink);
+    font-size: 2rem; font-weight: 800;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+html.festival .cap-grid input.filled { border-style: solid; border-color: var(--mj-ink); background: var(--mj-butter); }
+html.festival .cap-grid input:focus { outline: none; border-style: solid; border-color: var(--mj-coral-strong); box-shadow: 0 0 0 4px rgba(242, 118, 107, 0.25); }
+
+/* 설정(글씨체·크기·굵기) */
+html.festival .control-group { margin-bottom: 18px; }
+html.festival .control-group:last-child { margin-bottom: 0; }
+html.festival .control-group label { font-size: 0.95rem; font-weight: 700; color: var(--mj-ink); }
+html.festival select {
+    -webkit-appearance: none; appearance: none;
+    height: 48px; padding: 0 44px 0 16px;
+    border: 0; border-radius: 16px; background-color: #fff;
+    box-shadow: 0 0 0 1px var(--mj-ring);
+    font-size: 1rem; font-weight: 700; color: var(--mj-ink);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231E1B2E' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 18px center;
+    cursor: pointer;
+}
+html.festival select:focus { outline: none; box-shadow: 0 0 0 2px var(--mj-ink); }
+html.festival input[type="range"] { padding: 0; border: 0; background: transparent; accent-color: var(--mj-ink); height: 28px; }
+html.festival .range-row { gap: 10px; }
+html.festival .range-step-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: 0;
+    background: #fff; color: var(--mj-ink); font-size: 1.15rem; font-weight: 700;
+    box-shadow: 0 0 0 1px var(--mj-ring);
+}
+html.festival .range-step-btn:hover { background: var(--mj-ink); color: var(--mj-butter); border-color: transparent; }
+html.festival .range-value-editable { color: var(--mj-coral-strong); font-weight: 900; }
+
+/* ---------- 보내기 버튼 — 행사 페이지의 코랄 알약 버튼 ---------- */
+html.festival .controls-footer { background: transparent; border-top: 0; }
+html.festival .download-btn {
+    min-height: 56px; padding: 0 24px; border-radius: 999px;
+    background: var(--mj-coral-strong); color: #fff;
+    font-size: 1.2rem; font-weight: 900; letter-spacing: -0.025em;
+    box-shadow: 0 18px 36px -16px rgba(217, 79, 69, 0.9);
+}
+html.festival .download-btn::after { content: "→"; margin-left: 0.3em; }
+html.festival .download-btn:hover { background: #C8433A; }
+html.festival .download-btn:active { transform: translateY(1px); }
+
+/* ---------- 이름·번호 입력 화면 ---------- */
+html.festival #submitScreen {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(255, 231, 163, 0.8), transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(217, 210, 255, 0.8), transparent 45%),
+        var(--mj-bg);
+}
+html.festival #submitScreen .submit-card {
+    padding: 28px 22px; border-radius: 32px; background: #fff;
+    box-shadow: 0 0 0 1px var(--mj-ring), 0 40px 80px -40px rgba(30, 27, 46, 0.45);
+}
+html.festival #submitScreen h3 { margin: 0 0 8px; font-size: 1.6rem; font-weight: 900; letter-spacing: -0.05em; }
+html.festival #submitScreen p { font-size: 0.95rem; font-weight: 600; line-height: 1.5; color: var(--mj-sub); word-break: keep-all; }
+html.festival #submitScreen label { font-size: 0.95rem; font-weight: 700; color: var(--mj-ink); }
+html.festival #submitScreen input {
+    height: 52px; padding: 0 16px; border: 0; border-radius: 16px;
+    background: #fff; box-shadow: 0 0 0 1px var(--mj-ring);
+    font-size: 1.05rem; font-weight: 700; color: var(--mj-ink);
+}
+html.festival #submitScreen input:focus { outline: none; box-shadow: 0 0 0 2px var(--mj-ink); }
+html.festival #submitScreen .submit-error { color: var(--mj-coral-strong); font-weight: 700; }
+html.festival #submitScreen .submit-actions { gap: 10px; }
+html.festival #submitScreen .submit-actions button { min-height: 52px; border-radius: 999px; font-size: 1rem; font-weight: 900; }
+html.festival #submitScreen .submit-back { border: 0; background: #fff; color: var(--mj-ink); box-shadow: 0 0 0 1px var(--mj-ring); }
+html.festival #submitScreen .submit-send { background: var(--mj-coral-strong); box-shadow: 0 18px 36px -16px rgba(217, 79, 69, 0.9); }
+html.festival #submitScreen .submit-send:disabled { opacity: 0.6; }
+
+/* ---------- 폰 화면 ----------
+   core.css(480px 구간)는 초기화·보내기 버튼을 맨 위 한 줄로 모으지만, 행사 페이지에서는 행사장
+   페이지처럼 ① 로고+초기화 머리줄 ② 3D 화면 카드 ③ 설정(스크롤) ④ 맨 아래 큰 보내기 버튼으로
+   나눈다. 머리줄·버튼을 감싼 .controls-topbar를 박스 없이(display:contents) 풀어서 header와
+   footer를 따로 배치한다. */
+@media (max-width: 480px) {
+    html.festival body { background-color: var(--mj-bg); }
+    html.festival .controls-topbar { display: contents; }
+    html.festival .controls-header {
+        display: flex; order: 1; flex-shrink: 0; width: 100%;
+        padding: 12px 16px; box-sizing: border-box;
+    }
+    html.festival .controls-topbar .reset-btn {
+        flex: 0 0 auto; padding: 8px 16px; font-size: 0.85rem; border-radius: 999px;
+        box-shadow: 0 0 0 1px var(--mj-ring);
+    }
+    html.festival #viewer {
+        order: 3; flex: none;
+        width: auto; margin: 0 16px; height: 72vw;
+        border-radius: 32px; overflow: hidden;
+        box-shadow: 0 0 0 1px var(--mj-ring), 0 32px 64px -36px rgba(30, 27, 46, 0.5);
+    }
+    /* 스크롤할 때 내용이 3D 화면 아래 경계에서 칼같이 잘리지 않고 흐려지며 사라지게 한다. */
+    html.festival .controls-body {
+        order: 4; background: transparent;
+        padding: 20px 16px 8px;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+    }
+    html.festival .controls-body h3 { font-size: 2rem; }
+    html.festival .controls-footer {
+        display: block; order: 5; flex-shrink: 0; width: 100%;
+        padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box;
+        background: linear-gradient(to top, var(--mj-bg) 75%, rgba(255, 248, 241, 0));
+    }
+    html.festival .controls-topbar .download-btn {
+        display: flex; width: 100%; min-height: 56px; padding: 0 24px;
+        font-size: 1.15rem; border-radius: 999px;
+        box-shadow: 0 18px 36px -16px rgba(217, 79, 69, 0.9);
+    }
+}

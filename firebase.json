@@ -12,9 +12,9 @@
       "**/node_modules/**",
       "USB_제출용/**",
       "홍보자료/**",
-      "sever_mac.command",
+      "serve.py",
       "serve.bat",
-      "serve.ps1",
+      "serve.command",
       "designs/gallery-10.html",
       "assets/previews/gallery-10.glb",
       "assets/models/whistle.stl"

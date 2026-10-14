@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "main-site",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "serve.ps1"],
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["serve.py"],
       "port": 8099
     },
     {
       "name": "usb-program-copy",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "USB_제출용/program/serve.ps1"],
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["serve.py", "USB_제출용/program"],
       "port": 8099
     }
   ]

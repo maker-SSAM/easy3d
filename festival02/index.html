@@ -574,7 +574,7 @@
                 await uploadBytes(storageRef(submitStorage, SUBMIT_FOLDER + '/' + filename), blob, { contentType: 'model/stl' });
                 saveBlob(blob, filename);
                 document.getElementById('submitDoneText').textContent =
-                    affiliation + ' ' + name + '님의 디자인이 잘 도착했어요.';
+                    affiliation + ' ' + name + '님의 디자인이 잘 도착했어요. 1시간 후 3D프린터 부스에 문의주세요.';
                 document.getElementById('submitForm').style.display = 'none';
                 document.getElementById('submitDone').style.display = '';
             } catch (err) {

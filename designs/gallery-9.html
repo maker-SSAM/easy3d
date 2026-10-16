@@ -13,7 +13,7 @@
          외부 파일 로딩을 기다리지 않도록 일부러 인라인으로 중복해뒀다. -->
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
-    <title data-i18n-en="Gallery 10 - Personalized Whistle Maker - Parametric Design Studio for Beginners">갤러리10 - 나만의 호루라기 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <title data-i18n-en="Gallery 9 - Personalized Whistle Maker - Parametric Design Studio for Beginners">갤러리9 - 나만의 호루라기 만들기 (Manifold-3D) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -29,6 +29,8 @@
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱 공용 모듈 (갤러리5/6/8과 공유) -->
     <script src="../assets/js/font-core.js"></script>
+    <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
+    <script src="../assets/js/font-list.js"></script>
     <!-- 호루라기 STL(원본 메시) + 글자/이모지 윤곽선을 Manifold-3D 솔리드로 만들어 하나로
          합치는 데 쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직
          스크립트도 type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -47,7 +49,7 @@
 <body>
 
     <script type="module">
-        // 갤러리10: 호루라기 몸체(STL)에 텍스트 1줄 + 이모지 1줄을 새긴다. 기법 자체는
+        // 갤러리9: 호루라기 몸체(STL)에 텍스트 1줄 + 이모지 1줄을 새긴다. 기법 자체는
         // 갤러리8(클리커 뚜껑)과 동일하다 — 뚜껑 대신 호루라기 몸체를 로드하고, 그 위의
         // 평평한 윗면(원본 실측: y=12 높이, x[-11,11]·z[-21.5,26.35] 범위가 완전히 평평 —
         // 키링 구멍 부분만 z≈-21.5 부근에서 잘림. "호루라기 크기" 슬라이더로 몸체 전체를
@@ -68,20 +70,9 @@
             licenseLabel: '표준 디지털 파일 라이선스'
         });
 
-        const FONT_OPTIONS = [
-            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
-            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
-            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
-            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
-            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
-            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
-            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
-            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
-            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
-            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
-        ];
+        const FONT_OPTIONS = FontList.OPTIONS; // 폰트 목록: assets/js/font-list.js
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Paperlogy-8ExtraBold.ttf');
-        const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
+        const EMOJI_FONT_FILE = FontList.EMOJI_FILE;
 
         const DEFAULTS = {
             bodyScale: 80,

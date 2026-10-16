@@ -225,7 +225,7 @@ window.ManifoldCore = (function () {
     }
 
     // 원점 기준으로 x/y/z 배율만큼 확대/축소(translate/rotate처럼 원본은 그대로 두고 새
-    // Manifold를 돌려준다). sy·sz를 생략하면 sx로 균일 확대/축소한다(갤러리10의 "모델 전체
+    // Manifold를 돌려준다). sy·sz를 생략하면 sx로 균일 확대/축소한다(갤러리9의 "모델 전체
     // 크기" 슬라이더처럼 STL 원본을 통째로 스케일할 때 씀).
     function scale(manifold, sx, sy, sz) {
         return manifold.scale([sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz]);

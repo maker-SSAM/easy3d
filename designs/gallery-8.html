@@ -29,6 +29,8 @@
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
+    <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
+    <script src="../assets/js/font-list.js"></script>
     <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
          쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도
          type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -76,18 +78,7 @@
             licenseLabel: '표준 디지털 파일 라이선스'
         });
 
-        const FONT_OPTIONS = [
-            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
-            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
-            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
-            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
-            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
-            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
-            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
-            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
-            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
-            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
-        ];
+        const FONT_OPTIONS = FontList.OPTIONS; // 폰트 목록: assets/js/font-list.js
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf');
 
         // ---------- 격자 ----------
@@ -195,7 +186,7 @@
         // 넘겨서 글자 하나하나 단위로 자동 대체되게 한다 — 그래서 사용자가 굳이 전체 글씨체를
         // 'Noto Emoji'로 바꾸지 않아도, 이모지가 필요한 칸만 알아서 깨지지 않고 나온다.
         let emojiFallbackFont = null;
-        const EMOJI_FALLBACK_FILE = 'NotoEmoji-SemiBold.ttf';
+        const EMOJI_FALLBACK_FILE = FontList.EMOJI_FILE;
         // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면 FontCore.loadFontFromFile()이
         // 만들어준 합성 키. readGlobalParams()가 이 값을 쓴다(select.value를 그때그때 다시
         // 인덱싱하면 업로드 폰트일 때 어긋난다).

@@ -28,6 +28,8 @@
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
+    <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
+    <script src="../assets/js/font-list.js"></script>
     <!-- 2D 윤곽선(offset/union) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
          ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -67,20 +69,9 @@
             licenseType: 'BY-SA'
         });
 
-        const FONT_OPTIONS = [
-            { label: 'Noto Serif KR', file: 'NotoSerifKR-Black.ttf' },
-            { label: 'Noto Sans KR', file: 'NotoSansKR-Black.ttf' },
-            { label: 'Paperlogy', file: 'Paperlogy-8ExtraBold.ttf' },
-            { label: 'Cafe24 Ohsquare', file: 'Cafe24Ohsquare-v2.0.ttf' },
-            { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
-            { label: 'Mona12', file: 'Mona12-Bold.ttf' },
-            { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
-            { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
-            { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
-            { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
-        ];
+        const FONT_OPTIONS = FontList.OPTIONS; // 폰트 목록: assets/js/font-list.js
         const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf');
-        const EMOJI_FONT_FILE = 'NotoEmoji-SemiBold.ttf';
+        const EMOJI_FONT_FILE = FontList.EMOJI_FILE;
 
         const DEFAULTS = {
             text: '이름표', fontIndex: DEFAULT_FONT_INDEX,

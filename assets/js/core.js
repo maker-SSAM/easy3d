@@ -606,11 +606,31 @@ window.ParametricCore = (function () {
     let edgeOverlayScene = null;
     let edgeOverlayTarget = null;
 
+    // 메시 지오메트리 -> 그 모서리 선 지오메트리. 갤러리6처럼 바뀐 층만 새로 만들고 나머지
+    // 메시(지오메트리)는 그대로 다시 쓰는 갤러리에서, 안 바뀐 층의 모서리 선을 다시 계산하지
+    // 않게 한다(실측: 갤러리6에서 모서리를 켜면 갱신마다 약 3초가 더 걸렸다). 원본 지오메트리가
+    // dispose되면 선 지오메트리도 같이 지운다 — 매번 메시를 새로 만드는 다른 갤러리는 예전처럼
+    // 갱신마다 새로 계산되고, 버려진 선이 쌓이지도 않는다.
+    const edgeGeometryCache = new WeakMap();
+
+    function getEdgeGeometry(geometry) {
+        let edges = edgeGeometryCache.get(geometry);
+        if (edges) return edges;
+        edges = new THREE.EdgesGeometry(geometry, EDGE_THRESHOLD_ANGLE);
+        edgeGeometryCache.set(geometry, edges);
+        geometry.addEventListener('dispose', function onDispose() {
+            geometry.removeEventListener('dispose', onDispose);
+            edgeGeometryCache.delete(geometry);
+            edges.dispose();
+        });
+        return edges;
+    }
+
     function clearEdgeOverlay() {
         if (!edgeOverlayGroup) return;
         if (edgeOverlayGroup.parent) edgeOverlayGroup.parent.remove(edgeOverlayGroup);
+        // 선 지오메트리는 edgeGeometryCache가 갖고 있으므로 재질만 지운다.
         edgeOverlayGroup.traverse(function (obj) {
-            if (obj.geometry) obj.geometry.dispose();
             if (obj.material) obj.material.dispose();
         });
         edgeOverlayGroup = null;
@@ -630,7 +650,7 @@ window.ParametricCore = (function () {
                 mat.polygonOffsetUnits = 1;
             });
             const lines = new THREE.LineSegments(
-                new THREE.EdgesGeometry(obj.geometry, EDGE_THRESHOLD_ANGLE),
+                getEdgeGeometry(obj.geometry),
                 new THREE.LineBasicMaterial({ color: EDGE_COLOR })
             );
             // 메시가 position/rotation으로 옮겨져 있어도 선이 그 자리에 오도록 월드 변환을 그대로 쓴다.

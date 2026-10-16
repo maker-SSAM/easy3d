@@ -367,14 +367,10 @@
             return minX > maxX ? 0 : (maxX - minX);
         }
 
-        // 텍스트1/2/3 + 이모지L/R + 바닥판 외곽선의 "2D 도형"만 만들어서 돌려준다. 회전체
-        // 돌출(bend)과 바닥판 압출은 여기 포함되지 않는다 — 회전체 각도/반지름/세그먼트나
-        // 바닥판 높이 같은 슬라이더는 이 2D 도형에 전혀 영향을 주지 않으므로, 그런 경우엔
-        // 이 결과를 캐시해서 재사용하고 돌출/압출 단계만 다시 하면 된다(아래 shapeCache 참고).
-        function buildShapes(p, curveSegments) {
-            const scratch = [];
-            function track(m) { scratch.push(m); return m; }
-
+        // 텍스트 3줄의 글자 윤곽선과 줄 간격·이모지 크기/높이 같은 "배치 값"을 계산한다.
+        // 글자 윤곽선은 FontCore가 글자 단위로 캐시하므로 매번 불러도 가볍다. 아래
+        // buildShapes()(내보내기용)와 buildPreviewMeshes()(라이브 미리보기용)가 같이 쓴다.
+        function computeLayout(p, curveSegments) {
             const c1 = p.text1 ? FontCore.buildCenteredContours(p.text1, p.font1, p.font1File, p.size1, p.t1Spacing, curveSegments) : [];
             const c2 = p.text2 ? FontCore.buildCenteredContours(p.text2, p.font2, p.font2File, p.size2, p.t2Spacing, curveSegments) : [];
             const c3 = p.text3 ? FontCore.buildCenteredContours(p.text3, p.font3, p.font3File, p.size3, p.t3Spacing, curveSegments) : [];
@@ -396,49 +392,85 @@
             else if (p.text1 === '' && p.text2 !== '' && p.text3 !== '') specialcharY = distLine23 / 2;
             else if (p.text1 !== '' && p.text3 !== '') specialcharY = (distLine12 + distLine23) / 2;
 
-            // 각 줄: offset(굵기) → scale(장평) → translate(줄 쌓기 위치) 순서로 적용
-            // (OpenSCAD 원본의 t*_2d 모듈과 동일한 순서 — offset이 scale보다 먼저 적용된다).
-            function lineXS(contours, offsetAmt, scaleX, y) {
-                if (!contours.length) return null;
-                let xs = track(ManifoldCore.contoursToXS(contours));
-                if (Math.abs(offsetAmt) > 0.001) xs = track(xs.offset(offsetAmt));
-                if (Math.abs(scaleX - 1) > 0.001) xs = track(xs.scale([scaleX, 1]));
-                if (y) xs = track(xs.translate([0, y]));
-                return xs;
-            }
+            return {
+                c1: c1, c2: c2, c3: c3, textwidth: textwidth,
+                // 줄마다 쌓이는 높이(y): 텍스트1이 맨 위, 텍스트3이 0
+                y1: distLine23 + distLine12, y2: distLine23, y3: 0,
+                specialcharsize: specialcharsize, specialcharY: specialcharY
+            };
+        }
 
-            const text1XS = lineXS(c1, p.t1Offset, p.t1ScaleX, distLine23 + distLine12);
-            const text2XS = lineXS(c2, p.t2Offset, p.t2ScaleX, distLine23);
-            const text3XS = lineXS(c3, p.t3Offset, p.t3ScaleX, 0);
+        // 텍스트 한 줄: offset(굵기) → scale(장평) → translate(줄 쌓기 위치) 순서로 적용
+        // (OpenSCAD 원본의 t*_2d 모듈과 동일한 순서 — offset이 scale보다 먼저 적용된다).
+        // 중간 단계 도형은 바로바로 지우고 마지막 결과만 돌려준다(지우는 건 호출부 몫).
+        function lineXS(contours, offsetAmt, scaleX, y) {
+            if (!contours.length) return null;
+            let xs = ManifoldCore.contoursToXS(contours);
+            function step(next) { xs.delete(); xs = next; }
+            if (Math.abs(offsetAmt) > 0.001) step(xs.offset(offsetAmt));
+            if (Math.abs(scaleX - 1) > 0.001) step(xs.scale([scaleX, 1]));
+            if (y) step(xs.translate([0, y]));
+            return xs;
+        }
 
-            function emojiXS(text, side) {
-                if (!text) return null;
-                const contours = FontCore.buildCenteredContours(text, p.emojiFont, EMOJI_FONT_FILE, specialcharsize * 0.8, 1, curveSegments);
-                if (!contours.length) return null;
-                let xs = track(ManifoldCore.contoursToXS(contours));
-                // 좌우 반전은 이모지가 원점 중심에 있을 때(옮기기 전에) 해야 제자리에서 뒤집힌다.
-                if (side === 'L' ? p.emojiLMirror : p.emojiRMirror) xs = track(xs.scale([-1, 1]));
-                const dist = specialcharsize * (side === 'L' ? p.leftOffset : p.rightOffset);
-                const tx = side === 'L' ? -(textwidth / 2 + dist) : (textwidth / 2 + dist);
-                xs = track(xs.translate([tx, specialcharY]));
-                return xs;
-            }
-            const emojiLXS = emojiXS(p.emojiLeft, 'L');
-            const emojiRXS = emojiXS(p.emojiRight, 'R');
+        // 이모지 하나를 가로 위치(x)만 빼고 만든다 — 크기·좌우 반전·세로 위치(y)까지만 적용.
+        // 가로 위치는 emojiX()로 따로 구한다. 라이브 미리보기는 이 도형으로 3D 층을 만든 뒤
+        // 가로로 옮기기만 하므로, 텍스트 길이가 바뀌어 이모지가 밀려나도 다시 계산하지 않는다.
+        function emojiCenteredXS(text, mirror, p, layout, curveSegments) {
+            if (!text) return null;
+            const contours = FontCore.buildCenteredContours(text, p.emojiFont, EMOJI_FONT_FILE, layout.specialcharsize * 0.8, 1, curveSegments);
+            if (!contours.length) return null;
+            let xs = ManifoldCore.contoursToXS(contours);
+            function step(next) { xs.delete(); xs = next; }
+            // 좌우 반전은 이모지가 원점 중심에 있을 때(옮기기 전에) 해야 제자리에서 뒤집힌다.
+            if (mirror) step(xs.scale([-1, 1]));
+            if (layout.specialcharY) step(xs.translate([0, layout.specialcharY]));
+            return xs;
+        }
 
-            // 바닥판 외곽선: 모든 텍스트+이모지 footprint를 union한 뒤 base_offset만큼 부풀림.
-            let masterXS = null;
-            [text1XS, text2XS, text3XS, emojiLXS, emojiRXS].forEach(function (xs) {
+        function emojiX(side, p, layout) {
+            const dist = layout.specialcharsize * (side === 'L' ? p.leftOffset : p.rightOffset);
+            return side === 'L' ? -(layout.textwidth / 2 + dist) : (layout.textwidth / 2 + dist);
+        }
+
+        // 바닥판 외곽선: 모든 텍스트+이모지 footprint를 union한 뒤 base_offset만큼 부풀림.
+        // 넘겨받은 도형(parts)은 지우지 않고, 합치면서 새로 생긴 중간 도형만 지운다.
+        function baseOutlineXS(parts, baseOffset) {
+            let master = null;
+            let owned = false;
+            parts.forEach(function (xs) {
                 if (!xs) return;
-                masterXS = masterXS ? track(masterXS.add(xs)) : xs;
+                if (!master) { master = xs; return; }
+                const next = master.add(xs);
+                if (owned) master.delete();
+                master = next;
+                owned = true;
             });
-            const baseXS = masterXS ? track(masterXS.offset(p.baseOffset)) : null;
+            if (!master) return null;
+            const base = master.offset(baseOffset);
+            if (owned) master.delete();
+            return base;
+        }
 
-            // 최종 결과로 쓸 것들은 scratch(중간 산출물 정리 목록)에서 빼둔다 — 캐시로 살아남아야
-            // 하므로 여기서 지우면 안 된다. 무효화될 때 disposeShapes()가 대신 지운다.
-            const keep = new Set([text1XS, text2XS, text3XS, emojiLXS, emojiRXS, baseXS].filter(Boolean));
-            scratch.forEach(function (m) { if (m && !keep.has(m) && typeof m.delete === 'function') m.delete(); });
+        // 텍스트1/2/3 + 이모지L/R + 바닥판 외곽선의 "2D 도형"을 (이모지는 가로 위치까지 옮겨서)
+        // 한꺼번에 만들어 돌려준다. STL/3MF 내보내기와 메인화면 카드 GLB가 쓴다.
+        function buildShapes(p, curveSegments) {
+            const layout = computeLayout(p, curveSegments);
+            const text1XS = lineXS(layout.c1, p.t1Offset, p.t1ScaleX, layout.y1);
+            const text2XS = lineXS(layout.c2, p.t2Offset, p.t2ScaleX, layout.y2);
+            const text3XS = lineXS(layout.c3, p.t3Offset, p.t3ScaleX, layout.y3);
 
+            function placedEmojiXS(text, mirror, side) {
+                const centered = emojiCenteredXS(text, mirror, p, layout, curveSegments);
+                if (!centered) return null;
+                const placed = centered.translate([emojiX(side, p, layout), 0]);
+                centered.delete();
+                return placed;
+            }
+            const emojiLXS = placedEmojiXS(p.emojiLeft, p.emojiLMirror, 'L');
+            const emojiRXS = placedEmojiXS(p.emojiRight, p.emojiRMirror, 'R');
+
+            const baseXS = baseOutlineXS([text1XS, text2XS, text3XS, emojiLXS, emojiRXS], p.baseOffset);
             return { text1XS: text1XS, text2XS: text2XS, text3XS: text3XS, emojiLXS: emojiLXS, emojiRXS: emojiRXS, baseXS: baseXS };
         }
 
@@ -448,23 +480,6 @@
                 const xs = shapes[key];
                 if (xs && typeof xs.delete === 'function') xs.delete();
             });
-        }
-
-        let shapeCache = null; // { fingerprint, shapes } — 라이브 미리보기 전용 2D 도형 캐시
-
-        function getPreviewShapes(p, shapeFp) {
-            if (shapeCache && shapeCache.fingerprint === shapeFp) return shapeCache.shapes;
-            if (shapeCache) disposeShapes(shapeCache.shapes);
-            shapeCache = null;
-            let shapes;
-            try {
-                shapes = buildShapes(p, PREVIEW_CURVE_SEGMENTS);
-            } catch (err) {
-                console.error('이름표 도형 생성 실패:', err);
-                return null;
-            }
-            if (shapes) shapeCache = { fingerprint: shapeFp, shapes: shapes };
-            return shapes;
         }
 
         // OpenSCAD bend_engine 포팅 — 2D 도형에 "회전체 돌출(엠보싱)" 효과를 준다. 원본의
@@ -545,38 +560,114 @@
             return moved;
         }
 
-        // 라이브 미리보기용: union 없이 층마다(텍스트1/2/3, 이모지L/R, 바닥판) 독립된
-        // THREE.Mesh를 만든다. 2D 도형은 캐시에서 가져오고(모양이 안 바뀌었으면 재사용),
-        // 돌출/압출/위치는 매번 새로 한다.
-        function buildPreviewMeshes(p, shapeFp) {
-            const shapes = getPreviewShapes(p, shapeFp);
-            if (!shapes) return null;
+        // ---------- 라이브 미리보기: 층별 캐시 ----------
+        // union 없이 층마다(텍스트1/2/3, 이모지L/R, 바닥판) 독립된 THREE.Mesh를 만든다.
+        // 실제로 겪은 문제(2026-10-16) — 예전에는 글씨 한 줄이나 이모지 하나만 바꿔도 6개 층을
+        // 전부 다시 휘어서(bendEmboss) 메시로 만드느라 한 번 바꿀 때마다 1~2초씩 걸렸다(상어
+        // 이모지 층 하나만 0.4~0.6초). 그래서 층마다 "그 층 모양을 정하는 값"으로 지문(key)을
+        // 만들어 메시를 캐시해 두고, 지문이 바뀐 층만 다시 만든다.
+        // 가로 위치(x)는 지문에서 뺀다 — 2D 도형을 x로 옮기는 것은 bendEmboss의 회전들을 거친
+        // 뒤에도 3D에서 똑같이 x로 옮기는 것과 같다(2D x → 회전 압출 축 방향 → 최종 x). 그래서
+        // 이모지는 가로 위치를 뺀 도형으로 만든 메시를 mesh.position.x로만 옮긴다. 텍스트2 기준
+        // 앞뒤 맞춤(computeText2ZShift와 같은 값)도 다시 계산하지 않고 mesh.position.z로 준다.
+        const PREVIEW_LAYER_NAMES = ['text1', 'text2', 'text3', 'emojiL', 'emojiR', 'base'];
+        const previewLayerCache = {}; // 층 이름 -> { key, xs(바닥판 계산용 2D 도형), mesh }
 
-            const layerDefs = [
-                { name: 'text1', build: function () { return bendEmboss(shapes.text1XS, p); }, color: p.colText1 },
-                { name: 'text2', build: function () { return bendEmboss(shapes.text2XS, p); }, color: p.colText2 },
-                { name: 'text3', build: function () { return bendEmboss(shapes.text3XS, p); }, color: p.colText3 },
-                { name: 'emojiL', build: function () { return bendEmboss(shapes.emojiLXS, p); }, color: p.colEmojiL },
-                { name: 'emojiR', build: function () { return bendEmboss(shapes.emojiRXS, p); }, color: p.colEmojiR },
-                { name: 'base', build: function () { return buildBaseSolid(shapes.baseXS, p); }, color: p.colBase }
-            ];
+        function disposePreviewLayer(name) {
+            const entry = previewLayerCache[name];
+            if (!entry) return;
+            if (entry.xs) entry.xs.delete();
+            if (entry.mesh) {
+                if (entry.mesh.parent) entry.mesh.parent.remove(entry.mesh);
+                entry.mesh.geometry.dispose();
+                entry.mesh.material.dispose();
+            }
+            delete previewLayerCache[name];
+        }
 
-            const layers = layerDefs.map(function (def) {
-                return { name: def.name, color: def.color, solid: finalizeLayer(def.build(), p) };
-            }).filter(function (l) { return l.solid; });
-
-            const zShift = computeText2ZShift(layers);
-
-            const meshes = [];
-            layers.forEach(function (l) {
-                const solid = shiftSolidZ(l.solid, zShift);
-                const mesh = meshFromSolid(solid, l.color);
+        // 지문이 같으면 캐시를 그대로 쓰고, 다르면 makeXS()로 2D 도형을, makeSolid(xs)로 3D
+        // 솔리드(Z-up)를 새로 만들어 메시로 바꿔 둔다.
+        function ensurePreviewLayer(name, key, makeXS, makeSolid, p) {
+            const cached = previewLayerCache[name];
+            if (cached && cached.key === key) return cached;
+            disposePreviewLayer(name);
+            const entry = { key: key, xs: makeXS(), mesh: null };
+            previewLayerCache[name] = entry;
+            if (!entry.xs) return entry;
+            const solid = finalizeLayer(makeSolid(entry.xs), p);
+            if (solid) {
+                entry.mesh = meshFromSolid(solid, p[LAYER_COLOR_KEYS[name]]);
                 solid.delete();
-                if (!mesh) return;
-                mesh.userData.layerName = l.name;
-                meshes.push(mesh);
+                if (entry.mesh) {
+                    entry.mesh.userData.layerName = name;
+                    entry.mesh.geometry.computeBoundingBox();
+                }
+            }
+            return entry;
+        }
+
+        function buildPreviewMeshes(p) {
+            const curveSegments = PREVIEW_CURVE_SEGMENTS;
+            const layout = computeLayout(p, curveSegments);
+            // 회전체 돌출·바닥판 높이 관련 값 — 모든 층의 3D 모양에 영향을 준다.
+            const bendKey = [p.textRadius, p.cutAngle, p.facesSegment, p.baseHeight];
+            function bend(xs) { return bendEmboss(xs, p); }
+
+            const lines = [
+                { name: 'text1', text: p.text1, file: p.font1File, size: p.size1, spacing: p.t1Spacing, offset: p.t1Offset, scaleX: p.t1ScaleX, c: layout.c1, y: layout.y1 },
+                { name: 'text2', text: p.text2, file: p.font2File, size: p.size2, spacing: p.t2Spacing, offset: p.t2Offset, scaleX: p.t2ScaleX, c: layout.c2, y: layout.y2 },
+                { name: 'text3', text: p.text3, file: p.font3File, size: p.size3, spacing: p.t3Spacing, offset: p.t3Offset, scaleX: p.t3ScaleX, c: layout.c3, y: layout.y3 }
+            ];
+            const keys = {};
+            lines.forEach(function (l) {
+                keys[l.name] = JSON.stringify([l.text, l.file, l.size, l.spacing, l.offset, l.scaleX, l.y, curveSegments, bendKey]);
+                ensurePreviewLayer(l.name, keys[l.name], function () {
+                    return lineXS(l.c, l.offset, l.scaleX, l.y);
+                }, bend, p);
             });
 
+            const emojis = [
+                { name: 'emojiL', side: 'L', text: p.emojiLeft, mirror: p.emojiLMirror },
+                { name: 'emojiR', side: 'R', text: p.emojiRight, mirror: p.emojiRMirror }
+            ];
+            const xOf = {};
+            emojis.forEach(function (e) {
+                keys[e.name] = JSON.stringify([e.text, e.mirror, layout.specialcharsize, layout.specialcharY, curveSegments, bendKey]);
+                xOf[e.name] = emojiX(e.side, p, layout);
+                ensurePreviewLayer(e.name, keys[e.name], function () {
+                    return emojiCenteredXS(e.text, e.mirror, p, layout, curveSegments);
+                }, bend, p);
+            });
+
+            // 바닥판은 모든 층의 2D 도형(이모지는 가로 위치까지 옮긴 것)을 합친 외곽선이라,
+            // 다른 층의 지문과 이모지 가로 위치가 하나라도 바뀌면 다시 만든다(압출만 해서 가볍다).
+            const baseKey = JSON.stringify([keys, xOf, p.baseOffset, p.baseHeight, p.textRadius]);
+            ensurePreviewLayer('base', baseKey, function () {
+                const placed = [];
+                const parts = ['text1', 'text2', 'text3', 'emojiL', 'emojiR'].map(function (name) {
+                    const xs = previewLayerCache[name] && previewLayerCache[name].xs;
+                    if (!xs || !(name in xOf)) return xs;
+                    const moved = xs.translate([xOf[name], 0]);
+                    placed.push(moved);
+                    return moved;
+                });
+                const baseXS = baseOutlineXS(parts, p.baseOffset);
+                placed.forEach(function (xs) { xs.delete(); });
+                return baseXS;
+            }, function (xs) { return buildBaseSolid(xs, p); }, p);
+
+            // computeText2ZShift()와 같은 값: 완성된 텍스트2의 앞뒤(Z) 중심이 원점에 오도록.
+            const text2Mesh = previewLayerCache.text2 && previewLayerCache.text2.mesh;
+            const zShift = text2Mesh ? -(text2Mesh.geometry.boundingBox.min.z + text2Mesh.geometry.boundingBox.max.z) / 2 : 0;
+
+            const meshes = [];
+            PREVIEW_LAYER_NAMES.forEach(function (name) {
+                const entry = previewLayerCache[name];
+                if (!entry || !entry.mesh) return;
+                entry.mesh.position.set(xOf[name] || 0, 0, zShift);
+                entry.mesh.material.color.set(p[LAYER_COLOR_KEYS[name]]);
+                meshes.push(entry.mesh);
+            });
             return meshes.length ? meshes : null;
         }
 
@@ -674,15 +765,12 @@
             return { solid: fused, idToColor: idToColor };
         }
 
-        function disposeCurrentThreeMesh() {
+        // 화면에서 지금 모델 그룹만 떼어낸다. 메시들은 previewLayerCache가 갖고 있다가 다음
+        // 그룹에 다시 붙이므로 여기서 지우지(dispose) 않는다 — 지우는 건 disposePreviewLayer() 몫.
+        function detachCurrentGroup() {
             ParametricCore.updateDimensionOverlay(scene, null);
             if (!currentGroup) return;
             scene.remove(currentGroup);
-            currentGroup.traverse(function (obj) {
-                if (obj.geometry) obj.geometry.dispose();
-                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
-                else if (obj.material) obj.material.dispose();
-            });
             currentGroup = null;
             currentMeshes = {};
         }
@@ -734,10 +822,9 @@
             };
         }
 
-        // 2D 도형(모양)에 영향을 주는 값들만 뽑아 지문을 만든다 — 이 값이 이전과 같으면
-        // buildShapes()를 다시 돌릴 필요 없이 캐시된 2D 도형을 재사용해도 된다는 뜻이다.
-        // 회전체 각도/반지름/세그먼트, 바닥판 높이, 색상은 일부러 뺐다 — 그 값들은 2D 모양
-        // 자체가 아니라 "돌출/압출" 단계에만 영향을 준다(gallery-4의 두께류와 같은 개념).
+        // 2D 도형(모양)에 영향을 주는 값들만 뽑아 지문을 만든다. 회전체 각도/반지름/세그먼트,
+        // 바닥판 높이, 색상은 일부러 뺐다 — 그 값들은 2D 모양 자체가 아니라 "돌출/압출" 단계에만
+        // 영향을 준다(gallery-4의 두께류와 같은 개념). 아래 geometryFingerprint()가 쓴다.
         function shapeFingerprint(p) {
             return JSON.stringify({
                 text1: p.text1, font1File: p.font1File, size1: p.size1, t1ScaleX: p.t1ScaleX, t1Spacing: p.t1Spacing, t1Offset: p.t1Offset,
@@ -793,13 +880,13 @@
 
             let meshes;
             try {
-                meshes = buildPreviewMeshes(params, shapeFingerprint(params));
+                meshes = buildPreviewMeshes(params);
             } catch (err) {
                 console.error('이름표 미리보기 생성 실패:', err);
                 meshes = null;
             }
 
-            disposeCurrentThreeMesh();
+            detachCurrentGroup();
             if (!meshes) return;
 
             currentGroup = new THREE.Group();

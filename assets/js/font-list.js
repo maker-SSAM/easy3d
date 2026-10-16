@@ -15,9 +15,12 @@ window.FontList = {
         { label: 'Cafe24 Ssurround', file: 'Cafe24Ssurround-v2.0.ttf' },
         { label: 'Mona12', file: 'Mona12-Bold.ttf' },
         { label: 'Cafe24 Proup', file: 'Cafe24PROUP.ttf' },
-        { label: 'Cafe24 Supermagic', file: 'Cafe24Supermagic-Bold-v1.0.ttf' },
-        { label: 'Cafe24 Ssukssuk', file: 'Cafe24SsukssukRegular.ttf' },
-        { label: 'Cafe24 Dongdong', file: 'Cafe24DongdongRegular.ttf' }
+        // 아래 5종은 2026-10-16 추가 (fonts_OFL에서 가져옴, Mulmaru는 woff2를 ttf로 변환)
+        { label: 'Mulmaru', file: 'Mulmaru.ttf' },
+        { label: 'Ghanachocolate', file: 'Ghanachocolate.ttf' },
+        { label: 'Hakgyoansim Eohangkkumigi B', file: 'Hakgyoansim_EohangkkumigiB.ttf' },
+        { label: 'Hakgyoansim TTeokbokki B', file: 'Hakgyoansim_TteokbokkiB.ttf' },
+        { label: 'KCCMurukmuruk', file: 'KCCMurukmuruk.ttf' }
     ],
     // 이모지 전용 폰트 (선택 칸에는 나오지 않고 이모지 줄·이모지 대체 글꼴로만 쓴다)
     EMOJI_FILE: 'NotoEmoji-SemiBold.ttf'

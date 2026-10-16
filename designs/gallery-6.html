@@ -41,6 +41,8 @@
         .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
         .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
         .emoji-input { width: 100%; box-sizing: border-box; font-size: 1.2em; text-align: center; padding: 6px; }
+        .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+        .check-row label { font-size: 0.95em; }
     </style>
     <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
@@ -82,6 +84,7 @@
             text2: '네임플레이트', fontIndex2: FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf'), size2: 14, t2ScaleX: 1.0, t2Spacing: 1.0, t2Offset: 0.0,
             text3: '스위핑&멀티컬러', fontIndex3: FONT_OPTIONS.findIndex(f => f.file === 'Mona12-Bold.ttf'), size3: 10, t3ScaleX: 1.0, t3Spacing: 1.0, t3Offset: 0.0,
             emojiLeft: '🦈', leftOffset: 0.5, emojiRight: '♥', rightOffset: 0.5,
+            emojiLMirror: false, emojiRMirror: false,
             baseOffset: 4, baseHeight: 3, cutAngle: 65, textRadius: 7,
             colText1: '#FF5733', colText2: '#33FF57', colText3: '#3357FF',
             colEmojiL: '#FFD700', colEmojiR: '#FF69B4', colBase: '#FFFFFF'
@@ -159,11 +162,13 @@
                 <input type="text" id="emojiLeft" class="emoji-input" value="🦈" oninput="scheduleUpdate()">
             </div>
             <div class="control-group"><label><span data-i18n-en="Left emoji position">왼쪽 이모지 위치</span>: <span id="valLeftOffset">0.5</span></label><input type="range" id="leftOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
+            <div class="check-row"><input type="checkbox" id="emojiLMirror" onchange="scheduleUpdate()"><label for="emojiLMirror" data-i18n-en="Mirror left emoji horizontally">왼쪽 이모지 좌우 반전</label></div>
             <div class="control-group">
                 <label data-i18n-en="Right emoji">오른쪽 이모지</label>
                 <input type="text" id="emojiRight" class="emoji-input" value="♥" oninput="scheduleUpdate()">
             </div>
             <div class="control-group"><label><span data-i18n-en="Right emoji position">오른쪽 이모지 위치</span>: <span id="valRightOffset">0.5</span></label><input type="range" id="rightOffset" min="0" max="2" step="0.05" value="0.5" oninput="scheduleUpdate()"></div>
+            <div class="check-row"><input type="checkbox" id="emojiRMirror" onchange="scheduleUpdate()"><label for="emojiRMirror" data-i18n-en="Mirror right emoji horizontally">오른쪽 이모지 좌우 반전</label></div>
             <p style="font-size: 0.85em; margin: -6px 0 14px;"><span data-i18n-en="🔎 Not sure how to type an emoji? Find one you like in the">🔎 이모지를 어떻게 입력하는지 모르겠다면 →</span> <a href="https://fonts.google.com/noto/specimen/Noto+Emoji/glyphs" target="_blank" rel="noopener" style="color: var(--home-link-color);" data-i18n-en="Noto Emoji list">Noto Emoji 목록</a><span data-i18n-en=", then copy and paste it here.">에서 원하는 이모지를 찾아 복사·붙여넣기 하세요.</span></p>
 
             <div class="section-label" data-i18n-en="6. Base Plate Settings">6. 바닥판 설정</div>
@@ -307,6 +312,8 @@
             document.getElementById('leftOffset').value = DEFAULTS.leftOffset;
             document.getElementById('emojiRight').value = DEFAULTS.emojiRight;
             document.getElementById('rightOffset').value = DEFAULTS.rightOffset;
+            document.getElementById('emojiLMirror').checked = DEFAULTS.emojiLMirror;
+            document.getElementById('emojiRMirror').checked = DEFAULTS.emojiRMirror;
 
             document.getElementById('baseOffset').value = DEFAULTS.baseOffset;
             document.getElementById('baseHeight').value = DEFAULTS.baseHeight;
@@ -409,6 +416,8 @@
                 const contours = FontCore.buildCenteredContours(text, p.emojiFont, EMOJI_FONT_FILE, specialcharsize * 0.8, 1, curveSegments);
                 if (!contours.length) return null;
                 let xs = track(ManifoldCore.contoursToXS(contours));
+                // 좌우 반전은 이모지가 원점 중심에 있을 때(옮기기 전에) 해야 제자리에서 뒤집힌다.
+                if (side === 'L' ? p.emojiLMirror : p.emojiRMirror) xs = track(xs.scale([-1, 1]));
                 const dist = specialcharsize * (side === 'L' ? p.leftOffset : p.rightOffset);
                 const tx = side === 'L' ? -(textwidth / 2 + dist) : (textwidth / 2 + dist);
                 xs = track(xs.translate([tx, specialcharY]));
@@ -706,6 +715,8 @@
                 leftOffset: parseFloat(document.getElementById('leftOffset').value),
                 emojiRight: document.getElementById('emojiRight').value || '',
                 rightOffset: parseFloat(document.getElementById('rightOffset').value),
+                emojiLMirror: document.getElementById('emojiLMirror').checked,
+                emojiRMirror: document.getElementById('emojiRMirror').checked,
 
                 distance: parseFloat(document.getElementById('distance').value),
                 facesSegment: PREVIEW_FACES_SEGMENT, // 되살리는 방법은 위 PREVIEW_FACES_SEGMENT 선언부 주석 참고
@@ -733,6 +744,7 @@
                 text2: p.text2, font2File: p.font2File, size2: p.size2, t2ScaleX: p.t2ScaleX, t2Spacing: p.t2Spacing, t2Offset: p.t2Offset,
                 text3: p.text3, font3File: p.font3File, size3: p.size3, t3ScaleX: p.t3ScaleX, t3Spacing: p.t3Spacing, t3Offset: p.t3Offset,
                 emojiLeft: p.emojiLeft, leftOffset: p.leftOffset, emojiRight: p.emojiRight, rightOffset: p.rightOffset,
+                emojiLMirror: p.emojiLMirror, emojiRMirror: p.emojiRMirror,
                 distance: p.distance, baseOffset: p.baseOffset
             });
         }

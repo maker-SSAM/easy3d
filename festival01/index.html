@@ -24,7 +24,13 @@
             margin: 8px 0 12px;
             font-size: 2.3rem; font-weight: 900; line-height: 1.05; letter-spacing: -0.055em;
         }
-        .intro .fest-lead { margin-bottom: 20px; }
+        .intro-photo {
+            display: block; width: 100%; height: auto; margin: 4px 0 16px;
+            border-radius: 28px;
+            box-shadow: 0 0 0 1px var(--mj-ring), 0 24px 48px -32px rgba(30, 27, 46, 0.45);
+        }
+        .intro .fest-lead { margin-bottom: 4px; }
+        .intro .fest-lead b { color: var(--mj-coral-strong); font-weight: 800; }
         .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
         .steps li {
             counter-increment: step;
@@ -43,6 +49,9 @@
         }
         .steps b { display: block; color: var(--mj-ink); font-weight: 800; }
         .intro-go { margin-top: auto; padding-top: 8px; }
+        .intro-go .fest-card { margin-bottom: 12px; padding: 16px 20px; }
+        .intro-go .fest-card-title { margin-bottom: 4px; }
+        .intro-go .steps li { padding: 8px 0; }
         .intro-go a {
             display: flex; align-items: center; justify-content: center; box-sizing: border-box;
             width: 100%; min-height: 60px; padding: 0 24px; border-radius: 999px;
@@ -60,21 +69,27 @@
         <div class="intro-head">
             <div class="fest-brand"><span class="fest-brand-mark">★</span>3D프린팅 분과</div>
             <h1>만나자, 교크협<span class="fest-bang">!</span></h1>
+            <img class="intro-photo" src="keycaps.jpg" width="960" height="855"
+                 alt="직접 디자인한 3구 키캡 두 개 — 흰 키캡에 '안녕' 글씨, 선인장·아보카도 그림 키캡">
             <p class="fest-lead">
-                교크협 정기네트워크의 3D프린팅 분과입니다. 사전에 미리 디자인을 제작하여 보내주시는 분들은 '멀티컬러' 프린팅 키캡을 출력 해 드립니다.(색상은 랜덤입니다.)
+                교크협 정기네트워크 3D프린팅 분과입니다.<br>
+                행사에 참석 해주시는 분들께 사진과 같이 직접디자인하는 3구 키캡을 선물로 드립니다.<br>
+                사전에 미리 디자인을 제작하여 보내주시는 분들은 '멀티컬러' 프린팅 키캡을 출력 해 드립니다.<br>
+                당일 디자인 제작은 변수가 있어 실패(?)의 위험성도 있답니다.<br>
+                <b>아래 버튼을 눌러 미리 디자인을 보내주세요!</b>
             </p>
         </div>
 
-        <section class="fest-card">
-            <span class="fest-card-title">이렇게 만들어요</span>
-            <ol class="steps">
-                <li><span><b>글씨 넣기</b>키캡에 새길 글씨를 두 칸(2×1)에 한 글자씩 적어요.</span></li>
-                <li><span><b>모양 고르기</b>글씨체·글씨 크기·굵기를 골라요. 3D 화면을 손가락으로 돌려 볼 수 있어요.</span></li>
-                <li><span><b>보내기</b>‘디자인 완성하고 보내기’를 누르고 이름과 소속을 적어 보내요.</span></li>
-            </ol>
-        </section>
-
+        <!-- 카드는 버튼 바로 위에 붙여, 화면이 길면 둘이 함께 맨 아래로 내려간다(.intro-go의 margin-top:auto). -->
         <div class="intro-go">
+            <section class="fest-card">
+                <span class="fest-card-title">이렇게 만들어요</span>
+                <ol class="steps">
+                    <li><span><b>글씨 넣기</b>키캡에 새길 글씨를 두 칸(2×1)에 한 글자씩 적어요.</span></li>
+                    <li><span><b>모양 고르기</b>글씨체·글씨 크기·굵기를 골라요. 3D 화면을 손가락으로 돌려 볼 수 있어요.</span></li>
+                    <li><span><b>보내기</b>‘디자인 완성하고 보내기’를 누르고 이름과 소속을 적어 보내요.</span></li>
+                </ol>
+            </section>
             <a href="design.html">키캡 디자인하러 가기</a>
         </div>
     </main>

@@ -114,6 +114,10 @@
             color: var(--text-muted);
         }
         .visitor-counter span { font-weight: bold; color: var(--text-color); }
+        /* 휴대폰: 오른쪽 버튼 두 개와 겹치지 않게 두 줄로 */
+        @media (max-width: 600px) {
+            .visitor-counter { flex-direction: column; gap: 2px; }
+        }
         #themeToggle, #langToggle {
             width: 128px;
             box-sizing: border-box;

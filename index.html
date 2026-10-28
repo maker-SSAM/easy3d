@@ -339,21 +339,21 @@
                 .catch(function () { return null; });
         }
 
-        // 헤더 왼쪽 위: 전체 방문자 수 / 오늘 방문자 수.
-        // 오늘 = start만 준다. GoatCounter는 end 날짜를 그날 0시로 읽어서 start=end=오늘이면 늘 0이 나왔다(2026-10-28 고침).
+        // 헤더 왼쪽 위: 전체 방문자 수 / 최근 7일 방문자 수.
+        // 공개 카운터는 날짜만 받고 하루를 UTC 0시(한국 오전 9시)로 나눠서 한국 기준 '오늘'을 만들 수 없다.
+        // start=week 는 지금부터 거꾸로 7일(시각까지)이라 시간대와 상관없이 정확하다(2026-10-28).
         (function setupVisitorCounter() {
             const el = document.getElementById('visitorCounter');
-            const today = new Date().toISOString().slice(0, 10);
             Promise.all([
                 fetchGoatCounterCount('TOTAL'),
-                fetchGoatCounterCount('TOTAL', 'start=' + today),
+                fetchGoatCounterCount('TOTAL', 'start=week'),
             ]).then(function (results) {
                 const total = results[0];
-                const todayCount = results[1];
-                if (total === null && todayCount === null) return;
+                const weekCount = results[1];
+                if (total === null && weekCount === null) return;
                 el.innerHTML =
                     '<span>total: ' + (total || '0') + '</span>' +
-                    '<span>today: ' + (todayCount || '0') + '</span>';
+                    '<span>last 7 days: ' + (weekCount || '0') + '</span>';
             });
         })();
 

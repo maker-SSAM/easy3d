@@ -340,12 +340,13 @@
         }
 
         // 헤더 왼쪽 위: 전체 방문자 수 / 오늘 방문자 수.
+        // 오늘 = start만 준다. GoatCounter는 end 날짜를 그날 0시로 읽어서 start=end=오늘이면 늘 0이 나왔다(2026-10-28 고침).
         (function setupVisitorCounter() {
             const el = document.getElementById('visitorCounter');
             const today = new Date().toISOString().slice(0, 10);
             Promise.all([
                 fetchGoatCounterCount('TOTAL'),
-                fetchGoatCounterCount('TOTAL', 'start=' + today + '&end=' + today),
+                fetchGoatCounterCount('TOTAL', 'start=' + today),
             ]).then(function (results) {
                 const total = results[0];
                 const todayCount = results[1];

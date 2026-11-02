@@ -22,6 +22,13 @@ service firebase.storage {
                             && request.resource.size > 0
                             && request.resource.size < 10 * 1024 * 1024;
     }
+    // 2026jjbs(전주교대 부설초 연수 사이트)의 keycap/ 페이지 — 01번과 같은 두 색 .3MF, 파일 이름은 "이름(소속(학년반))".
+    match /2026jjbs/{fileName} {
+      allow read: if false;
+      allow create, update: if fileName.matches('.+[.]3MF')
+                            && request.resource.size > 0
+                            && request.resource.size < 10 * 1024 * 1024;
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

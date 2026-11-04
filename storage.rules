@@ -8,26 +8,25 @@ rules_version = '2';
 // - 파일 이름에 이름·소속이 들어가므로 읽기/목록 보기는 전부 막는다. 선생님은 Firebase
 //   콘솔(Storage 메뉴)에 로그인해서 파일을 확인·내려받는다(콘솔은 이 규칙의 영향을 받지 않음).
 // - 그 밖의 경로는 모두 막는다.
+// - 2026-11-04 세 폴더 모두 받기를 닫았다. 다시 받으려면 그 폴더의 조건 주석을 되살려 규칙만 배포한다
+//   (페이지의 '제출기간이 아닙니다.' 안내는 규칙에 막힐 때만 나온다. 다시 연 뒤에도 10MB 초과면 나온다).
 service firebase.storage {
   match /b/{bucket}/o {
     match /festival01/{fileName} {
       allow read: if false;
-      allow create, update: if fileName.matches('.+[.]3MF')
-                            && request.resource.size > 0
-                            && request.resource.size < 10 * 1024 * 1024;
+      // 닫음(2026-11-04). 다시 받을 때 조건: fileName.matches('.+[.]3MF') && request.resource.size > 0 && request.resource.size < 10 * 1024 * 1024
+      allow create, update: if false;
     }
     match /festival02/{fileName} {
       allow read: if false;
-      allow create, update: if fileName.matches('.+[.]STL')
-                            && request.resource.size > 0
-                            && request.resource.size < 10 * 1024 * 1024;
+      // 닫음(2026-11-04). 다시 받을 때 조건: fileName.matches('.+[.]STL') && request.resource.size > 0 && request.resource.size < 10 * 1024 * 1024
+      allow create, update: if false;
     }
     // 2026jjbs(전주교대 부설초 연수 사이트)의 keycap/ 페이지 — 01번과 같은 두 색 .3MF, 파일 이름은 "이름(소속(학년반))".
     match /2026jjbs/{fileName} {
       allow read: if false;
-      allow create, update: if fileName.matches('.+[.]3MF')
-                            && request.resource.size > 0
-                            && request.resource.size < 10 * 1024 * 1024;
+      // 닫음(2026-11-04). 다시 받을 때 조건: fileName.matches('.+[.]3MF') && request.resource.size > 0 && request.resource.size < 10 * 1024 * 1024
+      allow create, update: if false;
     }
     match /{allPaths=**} {
       allow read, write: if false;

@@ -543,7 +543,7 @@
         // 최종 파일 이름은 "이름(소속).STL" — 선생님이 파일 이름만 보고 누구 디자인인지 알 수 있게
         // 한다. 이름·소속에서는 파일 이름에 쓸 수 없는 문자(\ / : * ? " < > | 괄호)를 지운다.
         // 이름과 소속이 같으면 같은 파일로 덮어쓴다(마지막으로 보낸 디자인이 남음). 먼저 Storage에
-        // 올리고, 성공하든 실패하든 참가자 폰에도 같은 파일을 내려받게 해서 업로드가 실패했을 때
+        // 올리고, 성공하거나 인터넷 오류로 실패하면 참가자 폰에도 같은 파일을 내려받게 해서 업로드가 실패했을 때
         // 현장에서 대신 받을 수 있게 한다.
         function cleanForFilename(value) { return value.replace(/[\\/:*?"<>|()]/g, '').trim(); }
 
@@ -570,6 +570,8 @@
                 document.getElementById('submitDone').style.display = '';
             } catch (err) {
                 console.error('업로드 실패:', err);
+                // storage.rules로 받기를 닫은 동안에는 이 안내만 보여 준다(파일 저장 없음). 다시 열면 10MB 초과 때만 나온다.
+                if (err.code === 'storage/unauthorized') { errorEl.textContent = '제출기간이 아닙니다.'; return; }
                 saveBlob(blob, filename);
                 errorEl.textContent = '보내기에 실패했어요. 인터넷 연결을 확인하고 다시 눌러주세요. (파일은 폰에 저장했어요)';
             } finally {

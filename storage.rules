@@ -10,6 +10,7 @@ rules_version = '2';
 // - 그 밖의 경로는 모두 막는다.
 // - 2026-11-04 세 폴더 모두 받기를 닫았다. 다시 받으려면 그 폴더의 조건 주석을 되살려 규칙을 배포하고,
 //   그 페이지의 SUBMIT_OPEN을 true로 바꿔 사이트도 배포한다(2026jjbs는 그쪽 저장소 push).
+//   festival01은 설명 페이지(festival01/index.html)의 주석 안 글도 되살린다.
 //   업로드 때 '제출기간이 아닙니다.'는 규칙에 막힐 때 나오므로 다시 연 뒤에도 10MB 초과면 나온다.
 service firebase.storage {
   match /b/{bucket}/o {

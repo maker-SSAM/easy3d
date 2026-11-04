@@ -195,11 +195,14 @@
         // 행사용: STL/3MF 형식 선택 없이 3MF 하나로만 받는다(01번은 흰 뚜껑+검정 글씨 두 색이라
         // 색 정보가 남는 3MF로 보낸다). 공용 다운로드 패널 대신 버튼 하나만
         // 두고, 누르면 이름·소속을 적는 두 번째 화면(#submitScreen)을 띄운다.
+        // 받기를 닫은 동안(storage.rules)은 단추 자리에 바로 안내한다. 다시 받을 때는 true로 바꾼다.
+        const SUBMIT_OPEN = false;
         const finishBtn = document.createElement('button');
         finishBtn.type = 'button';
         finishBtn.className = 'download-btn';
-        finishBtn.textContent = '디자인 완성하고 보내기';
-        finishBtn.setAttribute('data-i18n-en', 'Finish and send my design');
+        finishBtn.textContent = SUBMIT_OPEN ? '디자인 완성하고 보내기' : '제출기간이 아닙니다.';
+        finishBtn.disabled = !SUBMIT_OPEN;
+        if (SUBMIT_OPEN) finishBtn.setAttribute('data-i18n-en', 'Finish and send my design');
         finishBtn.addEventListener('click', function () { openSubmitScreen(); });
         shell.controlsFooterEl.appendChild(finishBtn);
 

@@ -144,6 +144,8 @@ html.festival .download-btn {
 html.festival .download-btn::after { content: "→"; margin-left: 0.3em; }
 html.festival .download-btn:hover { background: #C8433A; }
 html.festival .download-btn:active { transform: translateY(1px); }
+html.festival .download-btn:disabled, html.festival .download-btn:disabled:hover { background: #E4E1DA; color: #5C5850; cursor: default; box-shadow: none; transform: none; }
+html.festival .download-btn:disabled::after { content: none; }
 
 /* ---------- 이름·번호 입력 화면 ---------- */
 html.festival #submitScreen {
@@ -212,4 +214,5 @@ html.festival #submitScreen .submit-send:disabled { opacity: 0.6; }
         font-size: 1.15rem; border-radius: 999px;
         box-shadow: 0 18px 36px -16px rgba(217, 79, 69, 0.9);
     }
+    html.festival .controls-topbar .download-btn:disabled { box-shadow: none; }
 }

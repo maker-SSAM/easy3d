@@ -106,7 +106,7 @@ window.ManifoldCore = (function () {
 
     // OpenSCAD의 polyhedron(points, faces)에 대응 — 임의의 점/면 배열로 작은 Manifold 솔리드를
     // 직접 짓는다. 면은 삼각형이든 볼록 다각형(사각형 등)이든 상관없이 첫 정점 기준 부채꼴로
-    // 삼각분할한다. 갤러리9(볼트/너트)의 실제 나사산 폴리헤드론(Dan Kirshner의
+    // 삼각분할한다. 갤러리4(볼트/너트)의 실제 나사산 폴리헤드론(Dan Kirshner의
     // thread_polyhedron 포팅)처럼, CrossSection 압출로는 만들 수 없는 원시 정점 좌표 형태의
     // 작은 솔리드가 필요할 때 쓴다. OpenSCAD는 "바깥에서 봤을 때 시계 방향" 순서를 쓰는데,
     // Manifold/three.js는 반시계 방향이 바깥을 향하는 관례라, 삼각분할 시 정점 순서를
@@ -225,7 +225,7 @@ window.ManifoldCore = (function () {
     }
 
     // 원점 기준으로 x/y/z 배율만큼 확대/축소(translate/rotate처럼 원본은 그대로 두고 새
-    // Manifold를 돌려준다). sy·sz를 생략하면 sx로 균일 확대/축소한다(갤러리9의 "모델 전체
+    // Manifold를 돌려준다). sy·sz를 생략하면 sx로 균일 확대/축소한다(갤러리99 호루라기의 "모델 전체
     // 크기" 슬라이더처럼 STL 원본을 통째로 스케일할 때 씀).
     function scale(manifold, sx, sy, sz) {
         return manifold.scale([sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz]);

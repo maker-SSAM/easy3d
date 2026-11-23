@@ -47,8 +47,22 @@
             color: var(--text-color);
             font-size: 24px; white-space: pre; outline: none;
             font-family: 'G9Text', 'G9Emoji', sans-serif;
-            font-synthesis: none;
+            /* 글씨체 파일마다 굵은 글꼴이 따로 없으므로 '굵게'는 브라우저가 흉내 내게 둔다(측정용 상자도 같게) */
+            font-synthesis: weight;
         }
+        /* 블록 서식 도구 막대: 글자를 고른 뒤 크기·굵게를 바꾼다(고르지 않으면 전체). */
+        .fmt-row { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+        .fmt-row .fmt-label { font-size: 0.82em; color: var(--text-muted); margin-right: 2px; }
+        .fmt-row button {
+            min-width: 30px; height: 30px; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); color: var(--text-color); cursor: pointer; font-size: 0.9em;
+        }
+        .fmt-row button.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+        .fmt-row input[type="number"] {
+            width: 52px; height: 30px; box-sizing: border-box; text-align: center;
+            border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-bg); color: var(--text-color);
+        }
+        .fmt-hint { font-size: 0.78em; color: var(--text-muted); margin: 0 0 6px; }
         .align-row { display: flex; gap: 6px; margin-bottom: 14px; }
         .align-row button {
             flex: 1; padding: 6px 0; border: 1px solid var(--input-border); border-radius: 4px;
@@ -59,7 +73,7 @@
         #layoutProbe {
             position: absolute; left: -100000px; top: 0; visibility: hidden;
             display: inline-block; white-space: pre;
-            font-family: 'G9Text', 'G9Emoji', sans-serif; font-synthesis: none;
+            font-family: 'G9Text', 'G9Emoji', sans-serif; font-synthesis: weight;
         }
         #layoutProbe .bl { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
         .test-note { font-size: 0.82em; color: var(--text-muted); background: rgba(30,136,229,0.08); border-radius: 6px; padding: 8px 10px; margin-bottom: 16px; }
@@ -80,7 +94,9 @@
         //   3) 글자 하나하나의 실제 위치(Range.getClientRects)를 읽어, 그 자리에 opentype.js로 뽑은
         //      그 글자의 윤곽선을 놓는다. → 줄바꿈·정렬·자간·커닝이 화면과 같은 규칙으로 들어간다.
         //   4) 그 뒤(바닥판·외곽선·테두리·층 쌓기·내보내기)는 갤러리5와 같다.
-        // 다음 단계(블록별 크기·글씨체)도 같은 방법으로 넓힐 수 있는지 보려는 시험판이다.
+        // 2단계(2026-11-23): 글상자에서 글자를 골라 크기(mm)·굵게를 블록마다 바꾼다. 측정용 상자에도 조각마다
+        // 그 크기·굵기로 그려서 위치를 읽고, 입체는 글자마다 그 크기의 윤곽선을 놓는다(굵게는 부풀리기).
+        // 다음 단계(블록별 글씨체·색)도 같은 방법으로 넓힐 수 있는지 보려는 시험판이다.
         const shell = ParametricCore.mountEditorShell(document.body, null, {
             sourceUrl: 'https://makerworld.com/ko/models/2640504-parametric-name-tag-keychain-with-korean-input#profileId-2917401',
             licenseType: 'BY-SA'
@@ -93,7 +109,12 @@
         const PROBE_PX_PER_MM = 10; // 측정용 상자 배율 — 크게 그려서 반올림 오차를 줄인다
 
         const DEFAULTS = {
-            text: '이름표\n두 줄도 돼요 🙂', fontIndex: DEFAULT_FONT_INDEX, align: 'center',
+            // 글상자 내용 = 줄 배열, 줄마다 서식 조각(run) 배열. size가 null이면 '기본 글자 크기'를 따른다.
+            model: [
+                [{ text: '이름표', size: 12, bold: true }],
+                [{ text: '두 줄도 돼요 🙂', size: null, bold: false }]
+            ],
+            fontIndex: DEFAULT_FONT_INDEX, align: 'center',
             fontSize: 8, lineHeight: 1.2, letterSpacing: 0, fontWeight: 0,
             outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
@@ -103,11 +124,21 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3 data-i18n-en="Text Box Name Tag (test)">글상자 이름표 (시험판)</h3>
-            <p class="test-note" data-i18n-en="Test version: type several lines in the box, then choose alignment, line spacing and letter spacing. Press Enter to start a new line.">시험판입니다. 글상자에 여러 줄을 입력하고 정렬·줄 간격·자간을 골라 보세요. 줄은 Enter로 바꿉니다.</p>
+            <p class="test-note" data-i18n-en="Test version: type several lines in the box (Enter for a new line). Select some letters to change their size or make them bold.">시험판입니다. 글상자에 여러 줄을 입력하고(줄은 Enter), 글자를 드래그로 골라 크기나 굵기를 바꿔 보세요.</p>
 
             <div class="section-label" data-i18n-en="1. Text box">1. 글상자</div>
+            <div class="fmt-row" id="fmtRow">
+                <span class="fmt-label" data-i18n-en="Selected:">고른 글자</span>
+                <button type="button" data-act="size-" title="작게" data-i18n-en-title="Smaller">−</button>
+                <input type="number" id="blockSize" min="2" max="60" step="0.5" value="8" title="크기(mm)">
+                <button type="button" data-act="size+" title="크게" data-i18n-en-title="Bigger">+</button>
+                <span class="fmt-label">mm</span>
+                <button type="button" data-act="bold" id="boldBtn" title="굵게" data-i18n-en-title="Bold"><b>B</b></button>
+                <button type="button" data-act="clear" title="서식 지우기" data-i18n-en="Clear">지우기</button>
+            </div>
+            <p class="fmt-hint" data-i18n-en="If nothing is selected, the whole box changes.">글자를 고르지 않고 누르면 글상자 전체가 바뀝니다.</p>
             <div class="control-group">
-                <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="plaintext-only" spellcheck="false"></div></div>
+                <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="true" spellcheck="false"></div></div>
             </div>
             <div class="align-row" id="alignRow">
                 <button type="button" data-align="left" data-i18n-en="Left">왼쪽</button>
@@ -120,7 +151,7 @@
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
             </div>
-            <div class="control-group"><label><span data-i18n-en="Font size">글자 크기</span>: <span id="valFontSize">8</span>mm</label><input type="range" id="fontSize" min="3" max="30" step="0.5" value="8" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Base font size">기본 글자 크기</span>: <span id="valFontSize">8</span>mm</label><input type="range" id="fontSize" min="3" max="30" step="0.5" value="8" oninput="onBaseSizeChange()"></div>
             <div class="control-group"><label><span data-i18n-en="Line spacing">줄 간격</span>: <span id="valLineHeight">1.2</span></label><input type="range" id="lineHeight" min="0.7" max="2.5" step="0.05" value="1.2" oninput="onLayoutStyleChange()"></div>
             <div class="control-group"><label><span data-i18n-en="Letter spacing">자간</span>: <span id="valLetterSpacing">0</span></label><input type="range" id="letterSpacing" min="-0.2" max="0.8" step="0.02" value="0" oninput="onLayoutStyleChange()"></div>
             <div class="control-group"><label><span data-i18n-en="Font weight">글자 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
@@ -210,6 +241,238 @@
         document.getElementById('textBoxWrap').addEventListener('mousedown', function (e) {
             if (e.target === this) { e.preventDefault(); textBox.focus(); }
         });
+        // Enter는 줄바꿈(<br>)만 넣는다 — 브라우저 기본값은 <div>로 문단을 나눠서 구조가 복잡해진다.
+        textBox.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); document.execCommand('insertLineBreak'); }
+        });
+        // 붙여넣기는 글자만(다른 곳의 색·글꼴·링크 서식은 버린다). 끌어다 놓기는 막는다.
+        textBox.addEventListener('paste', function (e) {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\r/g, '');
+            document.execCommand('insertText', false, text);
+        });
+        textBox.addEventListener('drop', function (e) { e.preventDefault(); });
+
+        // ---------- 글상자 내용(모델) ↔ 화면(DOM) ----------
+        // 모델: [[{text, size(mm|null), bold}], ...] — 줄 배열, 줄마다 서식 조각.
+        // 화면: 조각마다 <span class="g9run" data-size data-bold>, 줄 사이 <br>.
+        function baseSize() { return parseFloat(document.getElementById('fontSize').value); }
+
+        function runStyleOf(node) {
+            let size = null, bold = false;
+            for (let el = node.parentNode; el && el !== textBox; el = el.parentNode) {
+                if (el.nodeType !== 1) continue;
+                if (size === null && el.dataset && el.dataset.size) size = parseFloat(el.dataset.size);
+                if ((el.dataset && el.dataset.bold === '1') || el.nodeName === 'B' || el.nodeName === 'STRONG') bold = true;
+            }
+            return { size: size, bold: bold };
+        }
+
+        // root(글상자 또는 그 일부를 복사한 조각) 안의 글을 줄·조각으로 읽는다.
+        // dropTrailingBr: 맨 끝 <br>은 브라우저가 빈 줄을 보이게 하려고 덧붙인 자리표시라 버린다.
+        function parseNodes(root, dropTrailingBr) {
+            const lines = [[]];
+            let pendingBreak = false;
+            function newLine() { lines.push([]); }
+            function pushText(node, text) {
+                const st = runStyleOf(node);
+                const parts = text.split('\n');
+                parts.forEach(function (part, i) {
+                    if (i > 0) newLine();
+                    if (part) lines[lines.length - 1].push({ text: part, size: st.size, bold: st.bold });
+                });
+            }
+            function walk(node) {
+                node.childNodes.forEach(function (child) {
+                    if (child.nodeType === 3) {
+                        if (!child.data) return;
+                        if (pendingBreak) { newLine(); pendingBreak = false; }
+                        pushText(child, child.data);
+                    } else if (child.nodeName === 'BR') {
+                        if (pendingBreak) { newLine(); pendingBreak = false; }
+                        newLine();
+                    } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
+                        const cur = lines[lines.length - 1];
+                        if (cur.length || pendingBreak) newLine();
+                        pendingBreak = false;
+                        walk(child);
+                        // <div>…<br></div>의 끝 <br>은 그 줄의 자리표시라 줄을 하나 더 만들지 않는다
+                        if (child.lastChild && child.lastChild.nodeName === 'BR' && lines.length > 1 && !lines[lines.length - 1].length) lines.pop();
+                        pendingBreak = true;
+                    } else if (child.nodeType === 1) {
+                        walk(child);
+                    }
+                });
+            }
+            walk(root);
+            if (dropTrailingBr && root.lastChild && root.lastChild.nodeName === 'BR' && lines.length > 1 && !lines[lines.length - 1].length) lines.pop();
+            return mergeRuns(lines);
+        }
+        function sameStyle(a, b) { return a.size === b.size && a.bold === b.bold; }
+        function mergeRuns(lines) {
+            return lines.map(function (runs) {
+                const out = [];
+                runs.forEach(function (r) {
+                    const last = out[out.length - 1];
+                    if (last && sameStyle(last, r)) last.text += r.text;
+                    else out.push({ text: r.text, size: r.size, bold: r.bold });
+                });
+                return out;
+            });
+        }
+        function readModel() { return parseNodes(textBox, true); }
+        function modelText(model) { return model.map(function (runs) { return runs.map(function (r) { return r.text; }).join(''); }).join('\n'); }
+
+        // 글상자 속 조각의 화면 크기: 글상자 기본 글자(24px)가 '기본 글자 크기'에 해당하도록 em으로.
+        function applyRunStyle(span) {
+            const size = span.dataset.size ? parseFloat(span.dataset.size) : null;
+            span.style.fontSize = size === null ? '' : (size / baseSize()) + 'em';
+            span.style.fontWeight = span.dataset.bold === '1' ? '700' : '';
+        }
+        function refreshRunSizes() { textBox.querySelectorAll('span.g9run').forEach(applyRunStyle); }
+
+        function renderModel(model) {
+            textBox.textContent = '';
+            model.forEach(function (runs, li) {
+                if (li > 0) textBox.appendChild(document.createElement('br'));
+                runs.forEach(function (r) {
+                    const span = document.createElement('span');
+                    span.className = 'g9run';
+                    if (r.size !== null) span.dataset.size = String(r.size);
+                    if (r.bold) span.dataset.bold = '1';
+                    span.textContent = r.text;
+                    applyRunStyle(span);
+                    textBox.appendChild(span);
+                });
+            });
+            // 마지막 줄이 비어 있으면 그 줄이 보이도록 자리표시 <br>을 하나 더 둔다
+            if (model.length > 1 && !model[model.length - 1].length) textBox.appendChild(document.createElement('br'));
+        }
+
+        // ---------- 고른 글자 위치(글자 수 기준, 줄바꿈 = 1글자) ----------
+        let lastSel = null; // 도구 막대의 숫자 칸을 누르면 글상자 선택이 풀리므로 마지막 선택을 기억해 둔다
+        function offsetAt(node, offset) {
+            const r = document.createRange();
+            r.setStart(textBox, 0);
+            r.setEnd(node, offset);
+            return modelText(parseNodes(r.cloneContents(), false)).length;
+        }
+        function readSelection() {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return null;
+            const r = sel.getRangeAt(0);
+            if (!textBox.contains(r.startContainer) || !textBox.contains(r.endContainer)) return null;
+            return { start: offsetAt(r.startContainer, r.startOffset), end: offsetAt(r.endContainer, r.endOffset) };
+        }
+        function restoreSelection(start, end) {
+            const positions = [];
+            (function collect(node) {
+                node.childNodes.forEach(function (c) {
+                    if (c.nodeType === 3) positions.push({ node: c, len: c.data.length });
+                    else if (c.nodeName === 'BR') positions.push({ br: c, len: 1 });
+                    else collect(c);
+                });
+            })(textBox);
+            function locate(off) {
+                let acc = 0;
+                for (const p of positions) {
+                    if (off <= acc + p.len) {
+                        if (p.node) return [p.node, off - acc];
+                        const idx = Array.prototype.indexOf.call(p.br.parentNode.childNodes, p.br);
+                        return [p.br.parentNode, off - acc === 0 ? idx : idx + 1];
+                    }
+                    acc += p.len;
+                }
+                return [textBox, textBox.childNodes.length];
+            }
+            const a = locate(start), b = locate(end);
+            const r = document.createRange();
+            r.setStart(a[0], a[1]);
+            r.setEnd(b[0], b[1]);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(r);
+        }
+        document.addEventListener('selectionchange', function () {
+            const s = readSelection();
+            if (s) { lastSel = s; updateFmtRow(); }
+        });
+
+        // ---------- 블록 서식 바꾸기 ----------
+        // 모델을 글자 하나하나로 펼쳐 [start, end) 범위 글자의 서식만 바꾼 뒤 다시 묶는다.
+        function explode(model) {
+            const chars = [];
+            model.forEach(function (runs, li) {
+                if (li > 0) chars.push({ br: true });
+                runs.forEach(function (r) {
+                    for (let i = 0; i < r.text.length; i++) chars.push({ ch: r.text[i], size: r.size, bold: r.bold });
+                });
+            });
+            return chars;
+        }
+        function implode(chars) {
+            const lines = [[]];
+            chars.forEach(function (c) {
+                if (c.br) { lines.push([]); return; }
+                lines[lines.length - 1].push({ text: c.ch, size: c.size, bold: c.bold });
+            });
+            return mergeRuns(lines);
+        }
+        function selectedRange(total) {
+            if (lastSel && lastSel.start !== lastSel.end) {
+                return { start: Math.min(lastSel.start, lastSel.end), end: Math.max(lastSel.start, lastSel.end), whole: false };
+            }
+            return { start: 0, end: total, whole: true };
+        }
+        function applyToSelection(change) {
+            const chars = explode(readModel());
+            const sr = selectedRange(chars.length);
+            const targets = chars.slice(sr.start, sr.end).filter(function (c) { return !c.br; });
+            if (!targets.length) return;
+            change(targets);
+            renderModel(implode(chars));
+            if (!sr.whole) { restoreSelection(sr.start, sr.end); lastSel = { start: sr.start, end: sr.end }; }
+            updateFmtRow();
+            scheduleUpdate();
+        }
+        function clampSize(v) { return Math.min(60, Math.max(2, Math.round(v * 2) / 2)); }
+
+        function updateFmtRow() {
+            const chars = explode(readModel());
+            const sr = selectedRange(chars.length);
+            const targets = chars.slice(sr.start, sr.end).filter(function (c) { return !c.br; });
+            const first = targets[0];
+            const sizeInput = document.getElementById('blockSize');
+            if (document.activeElement !== sizeInput) sizeInput.value = first ? (first.size === null ? baseSize() : first.size) : baseSize();
+            document.getElementById('boldBtn').classList.toggle('active', targets.length > 0 && targets.every(function (c) { return c.bold; }));
+        }
+
+        const fmtRow = document.getElementById('fmtRow');
+        // 단추를 눌러도 글상자의 선택이 풀리지 않게
+        fmtRow.querySelectorAll('button').forEach(function (b) { b.addEventListener('mousedown', function (e) { e.preventDefault(); }); });
+        fmtRow.addEventListener('click', function (e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const act = btn.dataset.act;
+            if (act === 'size-' || act === 'size+') {
+                const d = act === 'size+' ? 1 : -1;
+                applyToSelection(function (t) { t.forEach(function (c) { c.size = clampSize((c.size === null ? baseSize() : c.size) + d); }); });
+            } else if (act === 'bold') {
+                applyToSelection(function (t) {
+                    const allBold = t.every(function (c) { return c.bold; });
+                    t.forEach(function (c) { c.bold = !allBold; });
+                });
+            } else if (act === 'clear') {
+                applyToSelection(function (t) { t.forEach(function (c) { c.size = null; c.bold = false; }); });
+            }
+        });
+        document.getElementById('blockSize').addEventListener('change', function () {
+            const v = parseFloat(this.value);
+            if (!isFinite(v)) return;
+            applyToSelection(function (t) { t.forEach(function (c) { c.size = clampSize(v); }); });
+        });
+
+        function onBaseSizeChange() { refreshRunSizes(); updateFmtRow(); scheduleUpdate(); }
 
         // 같은 TTF를 CSS 글꼴로 등록한다 — opentype.js(윤곽선)와 브라우저(배치)가 같은 파일을 쓰게.
         // 'G9Text' 이름에는 지금 고른 글씨체 하나만 올려 둔다(전에 고른 것과 섞이지 않게).
@@ -248,19 +511,9 @@
                 .catch(function (err) { console.error('CSS 글꼴 로딩 실패:', err); });
         }
 
-        function setBoxText(text) {
-            textBox.textContent = text;
-        }
-
-        // contenteditable의 글을 줄 배열로 읽는다. 브라우저가 끝에 덧붙이는 빈 줄 하나는 버린다.
-        function readLines() {
-            let t = textBox.innerText.replace(/\r/g, '');
-            if (t.endsWith('\n')) t = t.slice(0, -1);
-            return t.split('\n');
-        }
+        function cloneModel(model) { return model.map(function (runs) { return runs.map(function (r) { return { text: r.text, size: r.size, bold: r.bold }; }); }); }
 
         function resetToDefaults() {
-            setBoxText(DEFAULTS.text);
             currentAlign = DEFAULTS.align;
             document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
             ['fontSize', 'lineHeight', 'letterSpacing', 'fontWeight', 'outlineW', 'borderW', 'innerMargin', 'outerMargin',
@@ -269,13 +522,17 @@
                 document.getElementById(id).value = DEFAULTS[id];
             });
             document.getElementById('keyringOn').checked = DEFAULTS.keyringOn;
+            renderModel(cloneModel(DEFAULTS.model));
+            lastSel = null;
+            updateFmtRow();
             applyBoxStyle();
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
             onFontChange();
         }
 
         // ---------- 배치: 측정용 상자에서 글자 위치 읽기 ----------
-        // 돌려주는 값: [{ ch, x, y }] — x는 글자 원점(왼쪽), y는 기준선. 단위 mm, y는 위쪽이 +.
+        // 돌려주는 값: [{ ch, x, y, size, bold }] — x는 글자 원점(왼쪽), y는 그 줄의 기준선. 단위 mm, y는 위쪽이 +.
+        // 줄마다 조각(run)을 그 크기·굵기 그대로 그려서, 크기가 섞인 줄도 브라우저가 기준선을 맞춘 대로 읽는다.
         function measureLayout(p) {
             const px = PROBE_PX_PER_MM;
             probe.style.fontSize = (p.fontSize * px) + 'px';
@@ -283,39 +540,50 @@
             probe.style.letterSpacing = p.letterSpacing + 'em';
             probe.style.textAlign = p.align;
             probe.textContent = '';
-            const lineEls = p.lines.map(function (line) {
+            const lineEls = p.lines.map(function (runs) {
                 const div = document.createElement('div');
                 const marker = document.createElement('span');
                 marker.className = 'bl';
                 div.appendChild(marker);
-                const tn = document.createTextNode(line);
-                div.appendChild(tn);
+                const parts = runs.map(function (r) {
+                    const span = document.createElement('span');
+                    const size = r.size === null ? p.fontSize : r.size;
+                    span.style.fontSize = (size * px) + 'px';
+                    if (r.bold) span.style.fontWeight = '700';
+                    const tn = document.createTextNode(r.text);
+                    span.appendChild(tn);
+                    div.appendChild(span);
+                    return { tn: tn, text: r.text, size: size, bold: r.bold };
+                });
                 probe.appendChild(div);
-                return { marker: marker, tn: tn, text: line };
+                return { marker: marker, parts: parts };
             });
             const box = probe.getBoundingClientRect();
             const placed = [];
             const range = document.createRange();
             lineEls.forEach(function (le) {
                 const baseline = le.marker.getBoundingClientRect().bottom;
-                let i = 0;
-                const s = le.text;
-                while (i < s.length) {
-                    const cp = s.codePointAt(i);
-                    const len = cp > 0xffff ? 2 : 1;
-                    const ch = s.substr(i, len);
-                    range.setStart(le.tn, i);
-                    range.setEnd(le.tn, i + len);
-                    const rects = range.getClientRects();
-                    if (rects.length && !/\s/.test(ch)) {
-                        placed.push({
-                            ch: ch,
-                            x: (rects[0].left - box.left) / px,
-                            y: -(baseline - box.top) / px
-                        });
+                le.parts.forEach(function (part) {
+                    let i = 0;
+                    const s = part.text;
+                    while (i < s.length) {
+                        const cp = s.codePointAt(i);
+                        const len = cp > 0xffff ? 2 : 1;
+                        const ch = s.substr(i, len);
+                        range.setStart(part.tn, i);
+                        range.setEnd(part.tn, i + len);
+                        const rects = range.getClientRects();
+                        if (rects.length && !/\s/.test(ch)) {
+                            placed.push({
+                                ch: ch,
+                                x: (rects[0].left - box.left) / px,
+                                y: -(baseline - box.top) / px,
+                                size: part.size, bold: part.bold
+                            });
+                        }
+                        i += len;
                     }
-                    i += len;
-                }
+                });
             });
             return placed;
         }
@@ -326,46 +594,67 @@
             return (cp >= 0xfe00 && cp <= 0xfe0f) || cp === 0x200d || cp === 0x20e3;
         }
 
+        // 글자 윤곽선을 '보통'과 '굵게(크기별)' 묶음으로 나눠 돌려준다. 굵게는 나중에 크기에 비례해 부풀린다.
+        // 돌려주는 값: { normal: [윤곽선…], bold: { 크기(mm): [윤곽선…] } } — 전체가 (0,0) 가운데로 옮겨진 상태.
         function buildTextContours(p, curveSegments) {
             const placed = measureLayout(p);
             const fallback = { file: EMOJI_FONT_FILE, font: emojiFont };
-            const contours = [];
+            const groups = { normal: [], bold: {} };
+            const all = [];
             placed.forEach(function (g) {
                 if (isInvisibleMark(g.ch)) return;
-                const shape = FontCore.getGlyphShape(p.fontFile, textFont, g.ch, p.fontSize, curveSegments, fallback);
+                const shape = FontCore.getGlyphShape(p.fontFile, textFont, g.ch, g.size, curveSegments, fallback);
+                const target = g.bold ? (groups.bold[g.size] = groups.bold[g.size] || []) : groups.normal;
                 shape.contours.forEach(function (pts) {
-                    contours.push(pts.map(function (q) { return [q[0] + g.x, q[1] + g.y]; }));
+                    const moved = pts.map(function (q) { return [q[0] + g.x, q[1] + g.y]; });
+                    target.push(moved);
+                    all.push(moved);
                 });
             });
-            if (!contours.length) return contours;
+            if (!all.length) return null;
             // 전체를 가운데(0,0)로 옮긴다 — 키링 구멍 위치 기준을 갤러리5와 같게.
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            contours.forEach(function (pts) {
+            all.forEach(function (pts) {
                 pts.forEach(function (q) {
                     if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0];
                     if (q[1] < minY) minY = q[1]; if (q[1] > maxY) maxY = q[1];
                 });
             });
             const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-            contours.forEach(function (pts) { pts.forEach(function (q) { q[0] -= cx; q[1] -= cy; }); });
-            return contours;
+            all.forEach(function (pts) { pts.forEach(function (q) { q[0] -= cx; q[1] -= cy; }); });
+            return groups;
         }
 
         // ---------- 모델링 (갤러리5와 같은 층 구조) ----------
         const PREVIEW_CURVE_SEGMENTS = 16;
         const EXPORT_CURVE_SEGMENTS = 48;
         const SIMPLIFY_EPS = 0.005; // mm — 글자 윤곽선 점 줄이기(프린터 노즐 0.4mm보다 80배 작음)
+        // '굵게' 글자를 부풀리는 양(한쪽, 글자 크기에 대한 비율). 8mm 글자면 0.16mm씩 — 획이 0.32mm 굵어진다.
+        // 0.03으로 하면 원래 굵은 글씨체(Noto Sans KR Black, Cafe24 Ssurround)의 12mm '름' 속 공간이 막혔다.
+        // 글상자 화면은 브라우저가 흉내 낸 굵게라 두께가 완전히 같지는 않다.
+        const BOLD_RATIO = 0.02;
 
         function buildShapes(p, curveSegments) {
             const scratch = [];
             function track(m) { scratch.push(m); return m; }
 
             let textXS = null;
-            const textContours = buildTextContours(p, curveSegments);
-            if (textContours.length) {
+            const groups = buildTextContours(p, curveSegments);
+            if (groups) {
                 // 글자 윤곽선 점 줄이기 — 둥근 글씨체로 긴 글을 쓰면 점이 9만 개가 넘어 부풀리기·합치기가
                 // 몇 분 걸렸다(갤러리5 SIMPLIFY_EPS 주석 참고).
-                textXS = track(track(ManifoldCore.contoursToXS(textContours)).simplify(SIMPLIFY_EPS));
+                const toXS = function (contours) { return track(track(ManifoldCore.contoursToXS(contours)).simplify(SIMPLIFY_EPS)); };
+                const pieces = [];
+                if (groups.normal.length) pieces.push(toXS(groups.normal));
+                // 굵게: 글씨체 파일에 굵은 글꼴이 없으므로 그 크기에 비례해 윤곽선을 부풀린다(한쪽 BOLD_RATIO × 크기).
+                Object.keys(groups.bold).forEach(function (sizeKey) {
+                    const size = parseFloat(sizeKey);
+                    const d = size * BOLD_RATIO;
+                    const segs = Math.min(64, Math.max(8, Math.ceil(2 * Math.PI * d / 0.05)));
+                    pieces.push(track(toXS(groups.bold[sizeKey]).offset(d, 'Round', 2, segs)));
+                });
+                textXS = pieces[0];
+                for (let i = 1; i < pieces.length; i++) textXS = track(textXS.add(pieces[i]));
                 if (Math.abs(p.fontWeight) > 0.001) textXS = track(textXS.offset(p.fontWeight));
             }
             const masterXS = textXS;
@@ -538,7 +827,7 @@
 
         function readParams() {
             return {
-                lines: readLines(), align: currentAlign, fontFile: currentFontFile,
+                lines: readModel(), align: currentAlign, fontFile: currentFontFile,
                 fontSize: num('fontSize'), lineHeight: num('lineHeight'), letterSpacing: num('letterSpacing'),
                 fontWeight: num('fontWeight'),
                 outlineW: num('outlineW'), borderW: num('borderW'), innerMargin: num('innerMargin'), outerMargin: num('outerMargin'),
@@ -612,7 +901,7 @@
         }
 
         function fileBaseName(params) {
-            const first = (params.lines.find(function (l) { return l.trim(); }) || '').trim();
+            const first = (modelText(params.lines).split('\n').find(function (l) { return l.trim(); }) || '').trim();
             return (first || LangCore.pick('글상자', 'textbox')).replace(/[\\/:*?"<>|]/g, '').slice(0, 20);
         }
 
@@ -647,6 +936,7 @@
         window.scheduleUpdate = scheduleUpdate;
         window.onFontChange = onFontChange;
         window.onLayoutStyleChange = onLayoutStyleChange;
+        window.onBaseSizeChange = onBaseSizeChange;
         window.download3MF = download3MF;
         window.downloadSTL = downloadSTL;
         window.__getPreviewGroup = function () { return currentGroup; };
@@ -654,7 +944,8 @@
         window.__measureLayout = function () { return measureLayout(readParams()); };
 
         async function main() {
-            setBoxText(DEFAULTS.text);
+            renderModel(cloneModel(DEFAULTS.model));
+            updateFmtRow();
             applyBoxStyle();
             await ManifoldCore.ready;
             manifoldReady = true;

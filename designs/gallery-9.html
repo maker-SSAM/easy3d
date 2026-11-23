@@ -354,6 +354,7 @@
         // ---------- 모델링 (갤러리5와 같은 층 구조) ----------
         const PREVIEW_CURVE_SEGMENTS = 16;
         const EXPORT_CURVE_SEGMENTS = 48;
+        const SIMPLIFY_EPS = 0.005; // mm — 글자 윤곽선 점 줄이기(프린터 노즐 0.4mm보다 80배 작음)
 
         function buildShapes(p, curveSegments) {
             const scratch = [];
@@ -362,7 +363,9 @@
             let textXS = null;
             const textContours = buildTextContours(p, curveSegments);
             if (textContours.length) {
-                textXS = track(ManifoldCore.contoursToXS(textContours));
+                // 글자 윤곽선 점 줄이기 — 둥근 글씨체로 긴 글을 쓰면 점이 9만 개가 넘어 부풀리기·합치기가
+                // 몇 분 걸렸다(갤러리5 SIMPLIFY_EPS 주석 참고).
+                textXS = track(track(ManifoldCore.contoursToXS(textContours)).simplify(SIMPLIFY_EPS));
                 if (Math.abs(p.fontWeight) > 0.001) textXS = track(textXS.offset(p.fontWeight));
             }
             const masterXS = textXS;
@@ -375,9 +378,12 @@
             }
             if (!masterWithRing) return null;
 
-            // 둥근 모서리 조각 수(원 한 바퀴 기준) — 갤러리5와 같음. 미리보기는 덜, 내보내기는 촘촘하게.
-            const offsetSegs = curveSegments >= EXPORT_CURVE_SEGMENTS ? 256 : 96;
-            function grow(xs, delta) { return track(xs.offset(delta, 'Round', 2, offsetSegs)); }
+            // 둥근 모서리 조각 수 — 갤러리5와 같음(조각 길이 기준: 미리보기 0.3mm, 내보내기 0.1mm).
+            const arcEdgeMm = curveSegments >= EXPORT_CURVE_SEGMENTS ? 0.1 : 0.3;
+            function grow(xs, delta) {
+                const segs = Math.min(256, Math.max(8, Math.ceil(2 * Math.PI * Math.abs(delta) / arcEdgeMm)));
+                return track(xs.offset(delta, 'Round', 2, segs));
+            }
 
             const outlineXS = masterXS ? grow(masterXS, p.outlineW) : null;
 

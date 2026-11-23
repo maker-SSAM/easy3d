@@ -629,6 +629,8 @@
         const PREVIEW_CURVE_SEGMENTS = 16;
         const EXPORT_CURVE_SEGMENTS = 48;
         const SIMPLIFY_EPS = 0.005; // mm — 글자 윤곽선 점 줄이기(프린터 노즐 0.4mm보다 80배 작음)
+        const TIDY_EPS = 0.0001; // mm — 완성된 층의 아주 짧은 변 없애기(float32에서 점이 합쳐지지 않게)
+        const KISS_JOIN_MM = 0.001; // mm — 꼭짓점 하나로만 맞닿은 곳 잇기(픽셀 글씨체, 갤러리5 주석 참고)
         // '굵게' 글자를 부풀리는 양(한쪽, 글자 크기에 대한 비율). 8mm 글자면 0.16mm씩 — 획이 0.32mm 굵어진다.
         // 0.03으로 하면 원래 굵은 글씨체(Noto Sans KR Black, Cafe24 Ssurround)의 12mm '름' 속 공간이 막혔다.
         // 글상자 화면은 브라우저가 흉내 낸 굵게라 두께가 완전히 같지는 않다.
@@ -656,6 +658,9 @@
                 textXS = pieces[0];
                 for (let i = 1; i < pieces.length; i++) textXS = track(textXS.add(pieces[i]));
                 if (Math.abs(p.fontWeight) > 0.001) textXS = track(textXS.offset(p.fontWeight));
+                // 꼭짓점 하나로만 맞닿은 곳(픽셀 글씨체)을 잇는다(KISS_JOIN_MM). 다른 층은 이 글자에서
+                // 만들어지므로 여기서 한 번만 한다(층마다 따로 하면 서로 미세하게 어긋남, 갤러리5 주석 참고).
+                textXS = track(textXS.offset(KISS_JOIN_MM, 'Miter', 2));
             }
             const masterXS = textXS;
 
@@ -706,9 +711,14 @@
                 holeXS = track(holeXS.translate([p.keyringX, p.keyringY]));
             }
 
-            const keep = new Set([textXS, outlineXS, baseXS, borderRingXS, holeXS].filter(Boolean));
+            // 층마다 0.0001mm보다 짧은 변을 없앤다(갤러리5 tidy 주석 참고). 부풀리기·합치기에서 거의 같은
+            // 자리의 점 두 개(0.0000004mm 차이)가 생기면, 파일(float32)에 쓸 때 한 점으로 합쳐져 STL에
+            // 폭 0인 벽과 여러 면이 함께 쓰는 모서리가 생겼다(2026-11-23 기본 예시 테두리 층).
+            const tidy = function (xs) { return xs && !xs.isEmpty() ? track(xs.simplify(TIDY_EPS)) : xs; };
+            const out = { textXS: tidy(textXS), outlineXS: tidy(outlineXS), baseXS: tidy(baseXS), borderRingXS: tidy(borderRingXS), holeXS: holeXS };
+            const keep = new Set(Object.values(out).filter(Boolean));
             scratch.forEach(function (m) { if (m && !keep.has(m) && typeof m.delete === 'function') m.delete(); });
-            return { textXS: textXS, outlineXS: outlineXS, baseXS: baseXS, borderRingXS: borderRingXS, holeXS: holeXS };
+            return out;
         }
 
         function disposeShapes(shapes) {

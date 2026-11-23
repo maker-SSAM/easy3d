@@ -290,6 +290,15 @@
         // 몇 분 걸리고 페이지가 멈췄다(2026-11-23). 0.005mm로 줄이면 약 5천 개, 부풀리기 0.05초.
         // 0.005mm는 프린터 노즐(0.4mm)보다 80배 작아서 결과물에서 보이지 않는다.
         const SIMPLIFY_EPS = 0.005;
+        // 완성된 층의 아주 짧은 변 없애기(mm). 부풀리기·합치기에서 거의 같은 자리의 점 두 개
+        // (0.0000004mm 차이)가 생기면, 파일에 쓸 때(float32) 한 점으로 합쳐져 STL에 폭 0인 벽과
+        // 여러 면이 함께 쓰는 모서리가 생겼다(2026-11-23 갤러리9 기본 예시 테두리 층에서 발견).
+        // 0.0001mm보다 덜 휘는 점만 지우므로 모양은 바뀌지 않는다.
+        const TIDY_EPS = 0.0001;
+        // 맞닿은 꼭짓점 잇기(mm). 픽셀 글씨체(Mulmaru 등)는 글자 안 네모 두 개가 꼭짓점 하나로만
+        // 맞닿아, STL에서 한 모서리를 면 4개가 함께 썼다(2026-11-23). 글자 도형을 이만큼 모서리를 뾰족하게
+        // 유지한 채(Miter) 부풀려 맞닿은 곳을 아주 가는 목으로 잇는다. 0.001mm라 결과물에서 보이지 않는다.
+        const KISS_JOIN_MM = 0.001;
 
         // 텍스트/이모지/바닥판/외곽선/테두리/구멍의 "2D 도형"만 만들어서 돌려준다. 압출(두께)과
         // Y 위치는 여기 포함되지 않는다 — 바닥판 두께 같은 슬라이더는 이 2D 도형에 전혀 영향을
@@ -305,6 +314,10 @@
                 textXS = track(track(ManifoldCore.contoursToXS(textContours)).simplify(SIMPLIFY_EPS));
                 if (Math.abs(p.fontWeight) > 0.001) textXS = track(textXS.offset(p.fontWeight));
                 if (Math.abs(p.narrowWiden) > 0.001) textXS = track(textXS.scale([1 + p.narrowWiden / 100, 1]));
+                // 꼭짓점 하나로만 맞닿은 곳(픽셀 글씨체)을 잇는다(KISS_JOIN_MM 주석 참고). 외곽선·테두리·바닥판은
+                // 이 글자에서 만들어지므로 여기서 한 번만 한다 — 층마다 따로 부풀리면 외곽선 0mm일 때
+                // 외곽선 층과 이모지 층이 아주 미세하게 어긋나 STL에 결함이 생겼다.
+                textXS = track(textXS.offset(KISS_JOIN_MM, 'Miter', 2));
             }
 
             // 원본과 동일하게 실제 글자 폭이 아니라 "글자 수 x 크기" 근사값으로 이모지 위치를 잡는다.
@@ -396,12 +409,16 @@
                 holeXS = track(holeXS.translate([p.keyringX, p.keyringY]));
             }
 
+            // 층마다 아주 짧은 변을 없앤다(TIDY_EPS 주석 참고).
+            const tidy = function (xs) { return xs && !xs.isEmpty() ? track(xs.simplify(TIDY_EPS)) : xs; };
+            const out = { textXS: tidy(textXS), emojiLXS: tidy(emojiLXS), emojiRXS: tidy(emojiRXS), outlineXS: tidy(outlineXS), baseXS: tidy(baseXS), borderRingXS: tidy(borderRingXS), holeXS: holeXS };
+
             // 최종적으로 돌려줄 도형들은 scratch(중간 산출물 정리 목록)에서 빼둔다 — 캐시로
             // 살아남아야 하므로 여기서 지우면 안 된다. 무효화될 때 disposeShapes()가 대신 지운다.
-            const keep = new Set([textXS, emojiLXS, emojiRXS, outlineXS, baseXS, borderRingXS, holeXS].filter(Boolean));
+            const keep = new Set(Object.values(out).filter(Boolean));
             scratch.forEach(function (m) { if (m && !keep.has(m) && typeof m.delete === 'function') m.delete(); });
 
-            return { textXS: textXS, emojiLXS: emojiLXS, emojiRXS: emojiRXS, outlineXS: outlineXS, baseXS: baseXS, borderRingXS: borderRingXS, holeXS: holeXS };
+            return out;
         }
 
         function disposeShapes(shapes) {

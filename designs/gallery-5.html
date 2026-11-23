@@ -339,41 +339,38 @@
             // 2층: 글자 외곽선 (텍스트+이모지만, 키링 링은 제외)
             const outlineXS = masterXS ? track(masterXS.offset(p.outlineW)) : null;
 
-            // 1층: 바닥판 (텍스트+이모지+키링 링을 넉넉하게 offset)
-            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
-            const baseXS = track(masterWithRing.offset(baseOffsetAmt));
-
-            // 3층: 테두리 링 (바깥 offset - 안쪽 offset)
-            const borderOuterXS = track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW));
-            const borderInnerXS = track(masterWithRing.offset(p.outlineW + p.innerMargin));
-            let borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
-
-            // 글자 안쪽의 작은 구멍(예: "이"의 ㅇ 속공간)은 바깥쪽 offset에서는 완전히
-            // 메워지는데 안쪽(더 작은) offset에서는 아직 살짝 안 메워지고 남을 수 있다 —
-            // 이 상태로 위에서 바깥-안쪽을 빼면, 메인 테두리 루프와 안 이어진 아주 작은
-            // 테두리 섬 조각(잔해물)이 글자 속에 남는다. decompose()로 서로 떨어진
-            // 조각들을 나눠서, 진짜 테두리 한 칸보다 훨씬 작은(면적이 테두리 두께의
-            // 제곱 몇 배 수준밖에 안 되는) 조각만 잔해물로 보고 제거한다 — 이모지처럼
-            // 의도적으로 멀리 떨어져 있는 정상적인 별도 테두리 루프는 그보다 훨씬 커서
-            // 영향받지 않는다.
-            if (borderRingXS && !borderRingXS.isEmpty()) {
-                const ringPieces = borderRingXS.decompose();
-                if (ringPieces.length > 1) {
-                    const debrisThreshold = Math.max(p.borderW, 0.1) * Math.max(p.borderW, 0.1) * 4;
-                    const keptPieces = [];
-                    ringPieces.forEach(function (piece) {
-                        track(piece);
-                        if (piece.area() > debrisThreshold) keptPieces.push(piece);
-                    });
-                    if (keptPieces.length && keptPieces.length !== ringPieces.length) {
-                        let cleaned = keptPieces[0];
-                        for (let i = 1; i < keptPieces.length; i++) cleaned = track(cleaned.add(keptPieces[i]));
-                        borderRingXS = cleaned;
-                    }
-                } else {
-                    ringPieces.forEach(function (piece) { piece.delete(); });
+            // 이름표의 바닥판·테두리는 "바깥 실루엣 한 바퀴"만 따라가야 한다. 부풀린 모양 안에
+            // 닫힌 빈 공간(디의 ㄷ+ㅣ 사이, 감의 ㄱ·ㅏ·ㅁ 사이, 🙂 얼굴 안쪽 등)이 남으면 그 둘레에도
+            // 테두리가 생기고 바닥판에도 구멍이 뚫린다 — 글자가 클수록 공간이 커져서 더 많이 보인다.
+            // 그래서 바깥 윤곽선(넓이 +, 반시계)만 남기고 구멍 윤곽선(넓이 −)은 버려 안쪽을 메운다.
+            // 구멍 안에 떠 있는 섬(🙂의 눈·입)도 메운 영역에 함께 들어간다. 키링 구멍은 나중에 3D로
+            // 따로 뚫으므로 영향이 없다. 외곽선 층은 글자를 따라가는 층이라 메우지 않는다.
+            function signedArea(poly) {
+                let s = 0;
+                for (let i = 0; i < poly.length; i++) {
+                    const a = poly[i], b = poly[(i + 1) % poly.length];
+                    s += a[0] * b[1] - b[0] * a[1];
                 }
+                return s / 2;
             }
+            function fillHoles(xs) {
+                if (!xs || xs.isEmpty()) return xs;
+                const outers = xs.toPolygons().filter(function (poly) { return signedArea(poly) > 0; });
+                if (!outers.length) return xs;
+                return track(ManifoldCore.contoursToXS(outers));
+            }
+
+            // 1층: 바닥판 (텍스트+이모지+키링 링을 넉넉하게 offset, 안쪽 빈 공간은 메움)
+            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
+            const baseXS = fillHoles(track(masterWithRing.offset(baseOffsetAmt)));
+
+            // 3층: 테두리 링 = 안쪽을 메운 바깥 실루엣 - 그 실루엣을 테두리 두께만큼 안으로 줄인 것.
+            // 안쪽 경계를 글자에서 따로 부풀려 만들면, 바깥에서는 막히고 안쪽에서는 아직 열린 좁은
+            // 통로(큰 글씨의 디 ㄷ·ㅣ 사이 등)가 통째로 테두리로 칠해진다. 실루엣을 안으로 줄이면
+            // 테두리는 항상 바깥 둘레를 도는 띠 하나로만 남고, 통로 안쪽은 바닥판이 보인다.
+            const borderOuterXS = fillHoles(track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW)));
+            const borderInnerXS = track(borderOuterXS.offset(-p.borderW));
+            const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
 
             let holeXS = null;
             if (p.keyringOn) {

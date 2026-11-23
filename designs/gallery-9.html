@@ -46,12 +46,15 @@
             padding: 10px; box-sizing: border-box;
             color: var(--text-color);
             font-size: 24px; white-space: pre; outline: none;
-            font-family: 'G9Text', 'G9Emoji', sans-serif;
+            /* 글씨체는 스크립트가 정한다(글씨체 파일마다 CSS 이름 'G9F<번호>'를 따로 둠, cssFamily()) */
+            font-family: sans-serif;
             /* 글씨체 파일마다 굵은 글꼴이 따로 없으므로 '굵게'는 브라우저가 흉내 내게 둔다(측정용 상자도 같게) */
             font-synthesis: weight;
         }
-        /* 블록 서식 도구 막대: 글자를 고른 뒤 크기·굵게를 바꾼다(고르지 않으면 전체). */
-        .fmt-row { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+        /* 블록 서식 도구 막대: 글자를 고른 뒤 글씨체·크기·굵게를 바꾼다(고르지 않으면 전체).
+           첫 줄 = 글씨체, 둘째 줄 = 크기·굵게·지우기(한 줄에 다 넣으면 좁은 칸에서 '지우기'만 내려갔다). */
+        .fmt-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+        .fmt-row select { flex: 1; min-width: 0; height: 30px; }
         .fmt-row .fmt-label { font-size: 0.82em; color: var(--text-muted); margin-right: 2px; }
         .fmt-row button {
             min-width: 30px; height: 30px; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px;
@@ -73,7 +76,7 @@
         #layoutProbe {
             position: absolute; left: -100000px; top: 0; visibility: hidden;
             display: inline-block; white-space: pre;
-            font-family: 'G9Text', 'G9Emoji', sans-serif; font-synthesis: weight;
+            font-family: sans-serif; font-synthesis: weight;
         }
         #layoutProbe .bl { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
         .test-note { font-size: 0.82em; color: var(--text-muted); background: rgba(30,136,229,0.08); border-radius: 6px; padding: 8px 10px; margin-bottom: 16px; }
@@ -96,7 +99,9 @@
         //   4) 그 뒤(바닥판·외곽선·테두리·층 쌓기·내보내기)는 갤러리5와 같다.
         // 2단계(2026-11-23): 글상자에서 글자를 골라 크기(mm)·굵게를 블록마다 바꾼다. 측정용 상자에도 조각마다
         // 그 크기·굵기로 그려서 위치를 읽고, 입체는 글자마다 그 크기의 윤곽선을 놓는다(굵게는 부풀리기).
-        // 다음 단계(블록별 글씨체·색)도 같은 방법으로 넓힐 수 있는지 보려는 시험판이다.
+        // 3단계(2026-11-24): 고른 글자의 글씨체도 바꾼다. 글씨체 파일마다 CSS 이름(G9F<번호>)을 따로 두어
+        // 글상자·측정용 상자에서 여러 글씨체가 함께 그려지고, 입체는 글자마다 그 글씨체 파일의 윤곽선을 쓴다.
+        // 다음 단계(블록별 색·높이)도 같은 방법으로 넓힐 수 있는지 보려는 시험판이다.
         const shell = ParametricCore.mountEditorShell(document.body, null, {
             sourceUrl: 'https://makerworld.com/ko/models/2640504-parametric-name-tag-keychain-with-korean-input#profileId-2917401',
             licenseType: 'BY-SA'
@@ -109,10 +114,11 @@
         const PROBE_PX_PER_MM = 10; // 측정용 상자 배율 — 크게 그려서 반올림 오차를 줄인다
 
         const DEFAULTS = {
-            // 글상자 내용 = 줄 배열, 줄마다 서식 조각(run) 배열. size가 null이면 '기본 글자 크기'를 따른다.
+            // 글상자 내용 = 줄 배열, 줄마다 서식 조각(run) 배열. size가 null이면 '기본 글자 크기',
+            // font(글씨체 파일 이름)가 null이면 '기본 글씨체'를 따른다.
             model: [
-                [{ text: '이름표', size: 12, bold: true }],
-                [{ text: '두 줄도 돼요 🙂', size: null, bold: false }]
+                [{ text: '이름표', size: 12, bold: true, font: null }],
+                [{ text: '두 줄도 돼요 🙂', size: null, bold: false, font: null }]
             ],
             fontIndex: DEFAULT_FONT_INDEX, align: 'center',
             fontSize: 8, lineHeight: 1.2, letterSpacing: 0, fontWeight: 0,
@@ -124,11 +130,17 @@
 
         shell.controlsBodyEl.innerHTML = `
             <h3 data-i18n-en="Text Box Name Tag (test)">글상자 이름표 (시험판)</h3>
-            <p class="test-note" data-i18n-en="Test version: type several lines in the box (Enter for a new line). Select some letters to change their size or make them bold.">시험판입니다. 글상자에 여러 줄을 입력하고(줄은 Enter), 글자를 드래그로 골라 크기나 굵기를 바꿔 보세요.</p>
+            <p class="test-note" data-i18n-en="Test version: type several lines in the box (Enter for a new line). Select some letters to change their font, size or make them bold.">시험판입니다. 글상자에 여러 줄을 입력하고(줄은 Enter), 글자를 드래그로 골라 글씨체·크기·굵기를 바꿔 보세요.</p>
 
             <div class="section-label" data-i18n-en="1. Text box">1. 글상자</div>
-            <div class="fmt-row" id="fmtRow">
+            <div class="fmt-row">
                 <span class="fmt-label" data-i18n-en="Selected:">고른 글자</span>
+                <select id="blockFont" title="고른 글자의 글씨체">
+                    <option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>
+                    ${FONT_OPTIONS.map(f => `<option value="${f.file}">${f.label}</option>`).join('')}
+                </select>
+            </div>
+            <div class="fmt-row" id="fmtRow">
                 <button type="button" data-act="size-" title="작게" data-i18n-en-title="Smaller">−</button>
                 <input type="number" id="blockSize" min="2" max="60" step="0.5" value="8" title="크기(mm)">
                 <button type="button" data-act="size+" title="크게" data-i18n-en-title="Bigger">+</button>
@@ -146,7 +158,7 @@
                 <button type="button" data-align="right" data-i18n-en="Right">오른쪽</button>
             </div>
             <div class="control-group">
-                <label data-i18n-en="Choose font">글씨체 선택</label>
+                <label data-i18n-en="Base font">기본 글씨체</label>
                 <select id="fontSelect" onchange="onFontChange()">
                     ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
                 </select>
@@ -209,13 +221,11 @@
         let currentMeshes = {};
         let lastGeometryFingerprint = null;
         let manifoldReady = false;
-        let textFont = null;
         let emojiFont = null;
-        let cssFontReady = false; // 글상자·측정용 상자에 쓸 CSS 글꼴(FontFace)이 준비됐는지
+        let emojiCssReady = false;
         let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
         let currentAlign = DEFAULTS.align;
         let updateTimer = null;
-        let fontLoadSeq = 0; // 글씨체를 빠르게 여러 번 바꿀 때 늦게 끝난 옛 요청을 무시하려고
 
         function scheduleUpdate() {
             if (updateTimer) clearTimeout(updateTimer);
@@ -254,18 +264,20 @@
         textBox.addEventListener('drop', function (e) { e.preventDefault(); });
 
         // ---------- 글상자 내용(모델) ↔ 화면(DOM) ----------
-        // 모델: [[{text, size(mm|null), bold}], ...] — 줄 배열, 줄마다 서식 조각.
-        // 화면: 조각마다 <span class="g9run" data-size data-bold>, 줄 사이 <br>.
+        // 모델: [[{text, size(mm|null), bold, font(파일 이름|null)}], ...] — 줄 배열, 줄마다 서식 조각.
+        // 화면: 조각마다 <span class="g9run" data-size data-bold data-font>, 줄 사이 <br>.
         function baseSize() { return parseFloat(document.getElementById('fontSize').value); }
+        function isKnownFont(file) { return FONT_OPTIONS.some(function (f) { return f.file === file; }); }
 
         function runStyleOf(node) {
-            let size = null, bold = false;
+            let size = null, bold = false, font = null;
             for (let el = node.parentNode; el && el !== textBox; el = el.parentNode) {
                 if (el.nodeType !== 1) continue;
                 if (size === null && el.dataset && el.dataset.size) size = parseFloat(el.dataset.size);
+                if (font === null && el.dataset && el.dataset.font && isKnownFont(el.dataset.font)) font = el.dataset.font;
                 if ((el.dataset && el.dataset.bold === '1') || el.nodeName === 'B' || el.nodeName === 'STRONG') bold = true;
             }
-            return { size: size, bold: bold };
+            return { size: size, bold: bold, font: font };
         }
 
         // root(글상자 또는 그 일부를 복사한 조각) 안의 글을 줄·조각으로 읽는다.
@@ -279,7 +291,7 @@
                 const parts = text.split('\n');
                 parts.forEach(function (part, i) {
                     if (i > 0) newLine();
-                    if (part) lines[lines.length - 1].push({ text: part, size: st.size, bold: st.bold });
+                    if (part) lines[lines.length - 1].push({ text: part, size: st.size, bold: st.bold, font: st.font });
                 });
             }
             function walk(node) {
@@ -308,14 +320,14 @@
             if (dropTrailingBr && root.lastChild && root.lastChild.nodeName === 'BR' && lines.length > 1 && !lines[lines.length - 1].length) lines.pop();
             return mergeRuns(lines);
         }
-        function sameStyle(a, b) { return a.size === b.size && a.bold === b.bold; }
+        function sameStyle(a, b) { return a.size === b.size && a.bold === b.bold && a.font === b.font; }
         function mergeRuns(lines) {
             return lines.map(function (runs) {
                 const out = [];
                 runs.forEach(function (r) {
                     const last = out[out.length - 1];
                     if (last && sameStyle(last, r)) last.text += r.text;
-                    else out.push({ text: r.text, size: r.size, bold: r.bold });
+                    else out.push({ text: r.text, size: r.size, bold: r.bold, font: r.font });
                 });
                 return out;
             });
@@ -328,6 +340,7 @@
             const size = span.dataset.size ? parseFloat(span.dataset.size) : null;
             span.style.fontSize = size === null ? '' : (size / baseSize()) + 'em';
             span.style.fontWeight = span.dataset.bold === '1' ? '700' : '';
+            span.style.fontFamily = span.dataset.font ? cssFamily(span.dataset.font) : '';
         }
         function refreshRunSizes() { textBox.querySelectorAll('span.g9run').forEach(applyRunStyle); }
 
@@ -340,6 +353,7 @@
                     span.className = 'g9run';
                     if (r.size !== null) span.dataset.size = String(r.size);
                     if (r.bold) span.dataset.bold = '1';
+                    if (r.font) span.dataset.font = r.font;
                     span.textContent = r.text;
                     applyRunStyle(span);
                     textBox.appendChild(span);
@@ -405,7 +419,7 @@
             model.forEach(function (runs, li) {
                 if (li > 0) chars.push({ br: true });
                 runs.forEach(function (r) {
-                    for (let i = 0; i < r.text.length; i++) chars.push({ ch: r.text[i], size: r.size, bold: r.bold });
+                    for (let i = 0; i < r.text.length; i++) chars.push({ ch: r.text[i], size: r.size, bold: r.bold, font: r.font });
                 });
             });
             return chars;
@@ -414,7 +428,7 @@
             const lines = [[]];
             chars.forEach(function (c) {
                 if (c.br) { lines.push([]); return; }
-                lines[lines.length - 1].push({ text: c.ch, size: c.size, bold: c.bold });
+                lines[lines.length - 1].push({ text: c.ch, size: c.size, bold: c.bold, font: c.font });
             });
             return mergeRuns(lines);
         }
@@ -444,6 +458,8 @@
             const first = targets[0];
             const sizeInput = document.getElementById('blockSize');
             if (document.activeElement !== sizeInput) sizeInput.value = first ? (first.size === null ? baseSize() : first.size) : baseSize();
+            // 고른 글자의 글씨체가 섞여 있으면 첫 글자 것을 보여 준다(크기 칸과 같음)
+            document.getElementById('blockFont').value = first && first.font ? first.font : '';
             document.getElementById('boldBtn').classList.toggle('active', targets.length > 0 && targets.every(function (c) { return c.bold; }));
         }
 
@@ -463,8 +479,14 @@
                     t.forEach(function (c) { c.bold = !allBold; });
                 });
             } else if (act === 'clear') {
-                applyToSelection(function (t) { t.forEach(function (c) { c.size = null; c.bold = false; }); });
+                applyToSelection(function (t) { t.forEach(function (c) { c.size = null; c.bold = false; c.font = null; }); });
             }
+        });
+        // 고른 글자의 글씨체. '(기본 글씨체)'(빈 값)를 고르면 아래 '기본 글씨체'를 따르게 되돌린다.
+        // 이 칸을 누르면 글상자 선택이 풀리지만 마지막 선택(lastSel)에 적용한다(숫자 칸과 같음).
+        document.getElementById('blockFont').addEventListener('change', function () {
+            const file = this.value || null;
+            applyToSelection(function (t) { t.forEach(function (c) { c.font = file; }); });
         });
         document.getElementById('blockSize').addEventListener('change', function () {
             const v = parseFloat(this.value);
@@ -474,44 +496,44 @@
 
         function onBaseSizeChange() { refreshRunSizes(); updateFmtRow(); scheduleUpdate(); }
 
-        // 같은 TTF를 CSS 글꼴로 등록한다 — opentype.js(윤곽선)와 브라우저(배치)가 같은 파일을 쓰게.
-        // 'G9Text' 이름에는 지금 고른 글씨체 하나만 올려 둔다(전에 고른 것과 섞이지 않게).
-        // 한 번 불러온 글꼴은 저장해 두고 다시 고르면 바꿔 끼우기만 한다.
-        const textFaceCache = {};
-        let activeTextFace = null;
-        function setTextCssFont(file) {
-            if (!textFaceCache[file]) {
-                textFaceCache[file] = new FontFace('G9Text', 'url(' + FONTS_BASE + encodeURI(file) + ')').load();
-            }
-            return textFaceCache[file].then(function (face) {
-                if (activeTextFace && activeTextFace !== face) document.fonts.delete(activeTextFace);
-                if (!document.fonts.has(face)) document.fonts.add(face);
-                activeTextFace = face;
-                return face;
-            });
+        // 글씨체 불러오기 — 같은 TTF를 opentype.js(윤곽선)와 CSS 글꼴(배치) 둘 다로 불러온다.
+        // 글씨체 파일마다 CSS 이름을 따로 둔다('G9F' + 목록 번호). 한 글상자에 여러 글씨체가 섞여도
+        // 각 조각이 제 이름으로 그려지고, 글씨체에 없는 글자(이모지)는 'G9Emoji'로 넘어간다.
+        // 한 번 불러온 글씨체는 그대로 두고 다시 쓰기만 한다.
+        function cssFamily(file) {
+            return "'G9F" + FONT_OPTIONS.findIndex(function (f) { return f.file === file; }) + "', 'G9Emoji', sans-serif";
         }
-        const emojiCssFontReady = new FontFace('G9Emoji', 'url(' + FONTS_BASE + encodeURI(EMOJI_FONT_FILE) + ')').load()
-            .then(function (face) { document.fonts.add(face); return face; });
+        const fontState = {}; // 파일 이름 → { ready, promise }
+        function ensureFont(file) {
+            if (fontState[file]) return fontState[file].promise;
+            const st = fontState[file] = { ready: false };
+            const glyph = new Promise(function (resolve) { FontCore.loadFont(file, resolve); });
+            const css = new FontFace('G9F' + FONT_OPTIONS.findIndex(function (f) { return f.file === file; }),
+                'url(' + FONTS_BASE + encodeURI(file) + ')').load().then(function (face) { document.fonts.add(face); });
+            st.promise = Promise.all([glyph, css]).then(function () { st.ready = true; })
+                // 실패하면 그 글씨체는 준비되지 않은 채로 둔다(다시 불러오기를 되풀이하지 않게)
+                .catch(function (err) { console.error('글씨체 로딩 실패:', file, err); st.failed = true; });
+            return st.promise;
+        }
+        function isFontReady(file) { return !!(fontState[file] && fontState[file].ready); }
+        new FontFace('G9Emoji', 'url(' + FONTS_BASE + encodeURI(EMOJI_FONT_FILE) + ')').load()
+            .then(function (face) { document.fonts.add(face); emojiCssReady = true; scheduleUpdate(); })
+            .catch(function (err) { console.error('이모지 CSS 글꼴 로딩 실패:', err); });
+
+        // 입체에 쓰이는 글씨체 파일들(기본 글씨체 + 조각마다 고른 글씨체)
+        function neededFonts(p) {
+            const files = new Set([p.fontFile]);
+            p.lines.forEach(function (runs) { runs.forEach(function (r) { if (r.font) files.add(r.font); }); });
+            return Array.from(files);
+        }
 
         function onFontChange() {
-            const select = document.getElementById('fontSelect');
-            currentFontFile = FONT_OPTIONS[select.value].file;
-            const seq = ++fontLoadSeq;
-            cssFontReady = false;
-            let gotGlyphFont = false, gotCssFont = false, glyphFont = null;
-            function done() {
-                if (seq !== fontLoadSeq || !gotGlyphFont || !gotCssFont) return;
-                textFont = glyphFont;
-                cssFontReady = true;
-                lastGeometryFingerprint = null;
-                updateModel();
-            }
-            FontCore.loadFont(currentFontFile, function (font) { glyphFont = font; gotGlyphFont = true; done(); });
-            Promise.all([setTextCssFont(currentFontFile), emojiCssFontReady]).then(function () { gotCssFont = true; done(); })
-                .catch(function (err) { console.error('CSS 글꼴 로딩 실패:', err); });
+            currentFontFile = FONT_OPTIONS[document.getElementById('fontSelect').value].file;
+            textBox.style.fontFamily = cssFamily(currentFontFile);
+            updateModel();
         }
 
-        function cloneModel(model) { return model.map(function (runs) { return runs.map(function (r) { return { text: r.text, size: r.size, bold: r.bold }; }); }); }
+        function cloneModel(model) { return model.map(function (runs) { return runs.map(function (r) { return { text: r.text, size: r.size, bold: r.bold, font: r.font }; }); }); }
 
         function resetToDefaults() {
             currentAlign = DEFAULTS.align;
@@ -531,7 +553,7 @@
         }
 
         // ---------- 배치: 측정용 상자에서 글자 위치 읽기 ----------
-        // 돌려주는 값: [{ ch, x, y, size, bold }] — x는 글자 원점(왼쪽), y는 그 줄의 기준선. 단위 mm, y는 위쪽이 +.
+        // 돌려주는 값: [{ ch, x, y, size, bold, fontFile }] — x는 글자 원점(왼쪽), y는 그 줄의 기준선. 단위 mm, y는 위쪽이 +.
         // 줄마다 조각(run)을 그 크기·굵기 그대로 그려서, 크기가 섞인 줄도 브라우저가 기준선을 맞춘 대로 읽는다.
         function measureLayout(p) {
             const px = PROBE_PX_PER_MM;
@@ -540,6 +562,7 @@
             probe.style.letterSpacing = p.letterSpacing + 'em';
             probe.style.textAlign = p.align;
             probe.textContent = '';
+            probe.style.fontFamily = cssFamily(p.fontFile);
             const lineEls = p.lines.map(function (runs) {
                 const div = document.createElement('div');
                 const marker = document.createElement('span');
@@ -548,12 +571,14 @@
                 const parts = runs.map(function (r) {
                     const span = document.createElement('span');
                     const size = r.size === null ? p.fontSize : r.size;
+                    const fontFile = r.font || p.fontFile;
                     span.style.fontSize = (size * px) + 'px';
                     if (r.bold) span.style.fontWeight = '700';
+                    if (r.font) span.style.fontFamily = cssFamily(r.font);
                     const tn = document.createTextNode(r.text);
                     span.appendChild(tn);
                     div.appendChild(span);
-                    return { tn: tn, text: r.text, size: size, bold: r.bold };
+                    return { tn: tn, text: r.text, size: size, bold: r.bold, fontFile: fontFile };
                 });
                 probe.appendChild(div);
                 return { marker: marker, parts: parts };
@@ -578,7 +603,7 @@
                                 ch: ch,
                                 x: (rects[0].left - box.left) / px,
                                 y: -(baseline - box.top) / px,
-                                size: part.size, bold: part.bold
+                                size: part.size, bold: part.bold, fontFile: part.fontFile
                             });
                         }
                         i += len;
@@ -603,7 +628,7 @@
             const all = [];
             placed.forEach(function (g) {
                 if (isInvisibleMark(g.ch)) return;
-                const shape = FontCore.getGlyphShape(p.fontFile, textFont, g.ch, g.size, curveSegments, fallback);
+                const shape = FontCore.getGlyphShape(g.fontFile, FontCore.getFont(g.fontFile), g.ch, g.size, curveSegments, fallback);
                 const target = g.bold ? (groups.bold[g.size] = groups.bold[g.size] || []) : groups.normal;
                 shape.contours.forEach(function (pts) {
                     const moved = pts.map(function (q) { return [q[0] + g.x, q[1] + g.y]; });
@@ -875,11 +900,20 @@
             });
         }
 
-        function isReady() { return manifoldReady && textFont && emojiFont && cssFontReady; }
+        // 준비 확인: 쓰이는 글씨체가 덜 불러와졌으면 불러오기를 시작하고(끝나면 다시 그림) false.
+        function isReady(params) {
+            if (!manifoldReady || !emojiFont || !emojiCssReady) return false;
+            const missing = neededFonts(params).filter(function (f) { return !isFontReady(f); });
+            if (!missing.length) return true;
+            if (missing.some(function (f) { return !(fontState[f] && fontState[f].failed); })) {
+                Promise.all(missing.map(ensureFont)).then(scheduleUpdate);
+            }
+            return false;
+        }
 
         function updateModel() {
-            if (!isReady()) return;
             const params = readParams();
+            if (!isReady(params)) return;
             [
                 ['valFontSize', params.fontSize], ['valLineHeight', params.lineHeight],
                 ['valLetterSpacing', params.letterSpacing], ['valFontWeight', params.fontWeight],
@@ -916,8 +950,8 @@
         }
 
         function exportWith(kind) {
-            if (!isReady()) return;
             const params = readParams();
+            if (!isReady(params)) return;
             const scratch = [];
             function track(m) { scratch.push(m); return m; }
             function cleanup() { scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); }); }
@@ -954,6 +988,7 @@
         window.__measureLayout = function () { return measureLayout(readParams()); };
 
         async function main() {
+            textBox.style.fontFamily = cssFamily(currentFontFile);
             renderModel(cloneModel(DEFAULTS.model));
             updateFmtRow();
             applyBoxStyle();

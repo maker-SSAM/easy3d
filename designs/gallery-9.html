@@ -375,7 +375,11 @@
             }
             if (!masterWithRing) return null;
 
-            const outlineXS = masterXS ? track(masterXS.offset(p.outlineW)) : null;
+            // 둥근 모서리 조각 수(원 한 바퀴 기준) — 갤러리5와 같음. 미리보기는 덜, 내보내기는 촘촘하게.
+            const offsetSegs = curveSegments >= EXPORT_CURVE_SEGMENTS ? 256 : 96;
+            function grow(xs, delta) { return track(xs.offset(delta, 'Round', 2, offsetSegs)); }
+
+            const outlineXS = masterXS ? grow(masterXS, p.outlineW) : null;
 
             // 바닥판·테두리는 바깥 실루엣 한 바퀴만 따라간다(갤러리5 2026-11-23 고침과 같음):
             // 안쪽 구멍 윤곽선(넓이 −)은 버려 메운다.
@@ -394,11 +398,12 @@
                 return track(ManifoldCore.contoursToXS(outers));
             }
 
-            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
-            const baseXS = fillHoles(track(masterWithRing.offset(baseOffsetAmt)));
-            const borderOuterXS = fillHoles(track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW)));
-            const borderInnerXS = track(borderOuterXS.offset(-p.borderW));
+            // 테두리 = 안쪽을 메운 바깥 실루엣 − 그 실루엣을 테두리 두께만큼 안으로 줄인 것(갤러리5와 같음,
+            // 안쪽에서 바깥으로 쌓는 방식을 쓰지 않은 이유도 갤러리5 주석 참고). 바닥판은 글자에서 한 번에.
+            const borderOuterXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW));
+            const borderInnerXS = p.borderW > 0 ? grow(borderOuterXS, -p.borderW) : borderOuterXS;
             const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
+            const baseXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW + p.outerMargin));
 
             let holeXS = null;
             if (p.keyringOn) {

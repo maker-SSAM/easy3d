@@ -336,8 +336,14 @@
 
             if (!masterWithRing) return null; // 텍스트/이모지/키링 모두 없음
 
+            // 부풀리기(offset)의 둥근 모서리를 몇 조각으로 나눌지(원 한 바퀴 기준). 지정하지 않으면
+            // Manifold 기본값이 약 1mm 길이 조각이라 굵은 테두리의 바깥 모서리가 각져 보였다
+            // (2026-11-23 비교). 미리보기는 속도를 위해 덜, 내보내기는 촘촘하게 나눈다.
+            const offsetSegs = curveSegments >= EXPORT_CURVE_SEGMENTS ? 256 : 96;
+            function grow(xs, delta) { return track(xs.offset(delta, 'Round', 2, offsetSegs)); }
+
             // 2층: 글자 외곽선 (텍스트+이모지만, 키링 링은 제외)
-            const outlineXS = masterXS ? track(masterXS.offset(p.outlineW)) : null;
+            const outlineXS = masterXS ? grow(masterXS, p.outlineW) : null;
 
             // 이름표의 바닥판·테두리는 "바깥 실루엣 한 바퀴"만 따라가야 한다. 부풀린 모양 안에
             // 닫힌 빈 공간(디의 ㄷ+ㅣ 사이, 감의 ㄱ·ㅏ·ㅁ 사이, 🙂 얼굴 안쪽 등)이 남으면 그 둘레에도
@@ -360,17 +366,18 @@
                 return track(ManifoldCore.contoursToXS(outers));
             }
 
-            // 1층: 바닥판 (텍스트+이모지+키링 링을 넉넉하게 offset, 안쪽 빈 공간은 메움)
-            const baseOffsetAmt = p.outlineW + p.innerMargin + p.borderW + p.outerMargin;
-            const baseXS = fillHoles(track(masterWithRing.offset(baseOffsetAmt)));
-
-            // 3층: 테두리 링 = 안쪽을 메운 바깥 실루엣 - 그 실루엣을 테두리 두께만큼 안으로 줄인 것.
-            // 안쪽 경계를 글자에서 따로 부풀려 만들면, 바깥에서는 막히고 안쪽에서는 아직 열린 좁은
-            // 통로(큰 글씨의 디 ㄷ·ㅣ 사이 등)가 통째로 테두리로 칠해진다. 실루엣을 안으로 줄이면
-            // 테두리는 항상 바깥 둘레를 도는 띠 하나로만 남고, 통로 안쪽은 바닥판이 보인다.
-            const borderOuterXS = fillHoles(track(masterWithRing.offset(p.outlineW + p.innerMargin + p.borderW)));
-            const borderInnerXS = track(borderOuterXS.offset(-p.borderW));
+            // 3층: 테두리 링 = 안쪽을 메운 바깥 실루엣 − 그 실루엣을 테두리 두께만큼 안으로 줄인 것.
+            // 2026-11-23 "안쪽 선까지 부풀려 메운 뒤 바깥으로 늘리기"(B)와 비교했다. B는 테두리 안쪽 선이
+            // 글자를 더 바짝 따라가지만, 글자 사이 틈이 안쪽 선에서는 열리고 바깥에서는 막히는 경우
+            // (큰 글씨 '디감'의 디·감 사이, ㄷ 안쪽) 그 틈 전체가 테두리로 칠해졌고, 간격 0.1mm 차이로도
+            // 결과가 확 바뀌었다. 이 방식(A)은 바깥 실루엣을 안으로 줄이므로 그런 일이 원리적으로 없다.
+            // 둥근 모서리는 grow()가 촘촘하게 나눈다(기본값은 약 1mm 조각이라 굵은 테두리가 각져 보였음).
+            const borderOuterXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW));
+            const borderInnerXS = p.borderW > 0 ? grow(borderOuterXS, -p.borderW) : borderOuterXS;
             const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
+
+            // 1층: 바닥판 = 테두리 바깥에서 바깥 여백만큼 더(글자에서 한 번에 부풀려 메움)
+            const baseXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW + p.outerMargin));
 
             let holeXS = null;
             if (p.keyringOn) {

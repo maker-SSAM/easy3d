@@ -693,10 +693,10 @@
                 return track(ManifoldCore.contoursToXS(outers));
             }
 
-            // 테두리 = 안쪽을 메운 바깥 실루엣 − 그 실루엣을 테두리 두께만큼 안으로 줄인 것(갤러리5와 같음,
-            // 안쪽에서 바깥으로 쌓는 방식을 쓰지 않은 이유도 갤러리5 주석 참고). 바닥판은 글자에서 한 번에.
+            // 테두리 = 글자에서 (외곽선+간격+테두리)만큼 부풀려 메운 것 − (외곽선+간격)만큼 부풀려 메운 것
+            // (갤러리5와 같은 B 방식, 이유와 알려진 성질은 갤러리5 주석 참고). 바닥판도 글자에서 한 번에.
             const borderOuterXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW));
-            const borderInnerXS = p.borderW > 0 ? grow(borderOuterXS, -p.borderW) : borderOuterXS;
+            const borderInnerXS = p.borderW > 0 ? fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin)) : borderOuterXS;
             const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
             const baseXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW + p.outerMargin));
 

@@ -376,14 +376,15 @@
                 return track(ManifoldCore.contoursToXS(outers));
             }
 
-            // 3층: 테두리 링 = 안쪽을 메운 바깥 실루엣 − 그 실루엣을 테두리 두께만큼 안으로 줄인 것.
-            // 2026-11-23 "안쪽 선까지 부풀려 메운 뒤 바깥으로 늘리기"(B)와 비교했다. B는 테두리 안쪽 선이
-            // 글자를 더 바짝 따라가지만, 글자 사이 틈이 안쪽 선에서는 열리고 바깥에서는 막히는 경우
-            // (큰 글씨 '디감'의 디·감 사이, ㄷ 안쪽) 그 틈 전체가 테두리로 칠해졌고, 간격 0.1mm 차이로도
-            // 결과가 확 바뀌었다. 이 방식(A)은 바깥 실루엣을 안으로 줄이므로 그런 일이 원리적으로 없다.
+            // 3층: 테두리 링 = 글자에서 (외곽선+간격+테두리)만큼 부풀려 메운 것 − (외곽선+간격)만큼
+            // 부풀려 메운 것. 테두리 안쪽 선이 글자를 "간격"만큼 바짝 따라간다(B 방식, 2026-11-23 선생님 결정).
+            // 이전 A 방식(바깥 실루엣을 테두리 두께만큼 안으로 줄이기)은 오목한 곳에서 글자와 테두리 사이가
+            // 벌어져 어색했다. B의 알려진 성질: 글자 사이 틈이 안쪽 선에서는 열려 있고 바깥 선에서는 막히면
+            // (큰 글씨 '디감'의 디·감 사이, ㄷ 안쪽 등) 그 틈 전체가 테두리 색으로 칠해진다.
+            // 바깥 선은 글자에서 한 번에 부풀린다(부풀린 것을 또 부풀리면 점이 크게 늘어 느려짐).
             // 둥근 모서리는 grow()가 촘촘하게 나눈다(기본값은 약 1mm 조각이라 굵은 테두리가 각져 보였음).
             const borderOuterXS = fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin + p.borderW));
-            const borderInnerXS = p.borderW > 0 ? grow(borderOuterXS, -p.borderW) : borderOuterXS;
+            const borderInnerXS = p.borderW > 0 ? fillHoles(grow(masterWithRing, p.outlineW + p.innerMargin)) : borderOuterXS;
             const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
 
             // 1층: 바닥판 = 테두리 바깥에서 바깥 여백만큼 더(글자에서 한 번에 부풀려 메움)

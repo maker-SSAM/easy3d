@@ -443,7 +443,7 @@
 
             const meshes = [];
             layerDefs.forEach(function (def) {
-                if (!def.xs) return;
+                if (!def.xs || def.xs.isEmpty()) return; // 빈 층(예: 테두리 두께 0mm)은 건너뛴다
                 let solid = own(ManifoldCore.extrudeXS(def.xs, def.height));
                 if (!def.skipY) solid = own(ManifoldCore.translateY(solid, p.baseThick));
 
@@ -477,7 +477,10 @@
             const parts = [];
 
             function extrudeAndStack(xs, height, color) {
-                if (!xs) return;
+                // 빈 단면(예: 테두리 두께 0mm면 바깥-안쪽 offset이 같아 테두리 링이 비어 버림)을
+                // 압출하면 Manifold가 InvalidConstruction 상태의 입체를 돌려주고, 그걸 union에
+                // 넣으면 결과 전체가 빈 입체가 되어 삼각형 0개짜리 파일이 받아진다. 그래서 건너뛴다.
+                if (!xs || xs.isEmpty()) return;
                 const solid = track(ManifoldCore.extrudeXS(xs, height));
                 idToColor.set(solid.originalID(), color);
                 const positioned = track(ManifoldCore.translateY(solid, p.baseThick));

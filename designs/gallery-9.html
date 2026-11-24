@@ -131,6 +131,22 @@
         const FONTS_BASE = '../assets/fonts/';
         const PROBE_PX_PER_MM = 10; // 측정용 상자 배율 — 크게 그려서 반올림 오차를 줄인다
 
+        // 글씨체 목록 = 사이트 글씨체 + 내 PC에서 가져온 글씨체(파일 업로드·폴더 가져오기).
+        // 키: 사이트 글씨체는 파일 이름, 내 파일은 'upload:이름:크기:수정시각'(FontCore.loadFontFromFile의 키와 같음).
+        // id는 CSS 글꼴 이름('G9F' + id)에 쓴다 — 사이트 글씨체는 목록 순서 그대로.
+        // 내 파일은 목록에 이름만 올려 두고, 실제로 고를 때 그 파일만 읽는다(폴더가 수백 개·1GB여도 멈추지 않게).
+        const fontRegistry = new Map();
+        const fontKeyById = [];
+        function registerFont(key, info) {
+            if (fontRegistry.has(key)) return fontRegistry.get(key);
+            const entry = Object.assign({ key: key, id: fontKeyById.length }, info);
+            fontRegistry.set(key, entry);
+            fontKeyById.push(key);
+            return entry;
+        }
+        FONT_OPTIONS.forEach(function (f) { registerFont(f.file, { label: f.label, url: FONTS_BASE + encodeURI(f.file) }); });
+        function userFontKey(file) { return 'upload:' + file.name + ':' + file.size + ':' + file.lastModified; }
+
         const BOX_PX_PER_MM = 3;    // 글상자 화면 배율(24px = 8mm)
         // 서식 없는 글자의 값. 글상자 서식(블록마다): 크기 size(mm), 자간 ls(em = 글자 크기에 대한 비율),
         // 굵기 wt(mm, 윤곽선을 이만큼 부풀림/줄임), 굵게 bold, 글씨체 font(null = 기본 글씨체),
@@ -152,7 +168,7 @@
                 { lh: LH_DEFAULT, runs: [plainRun('이름표')] },
                 { lh: LH_DEFAULT, runs: [plainRun('두 줄도 돼요 🙂')] }
             ],
-            fontIndex: DEFAULT_FONT_INDEX, align: 'center',
+            fontKey: FONT_OPTIONS[DEFAULT_FONT_INDEX].file, align: 'center',
             outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
             baseThick: 3.0, outlineThick: 0.4, borderThick: 0.6, textThick: 0.8,
@@ -166,11 +182,9 @@
             <div class="section-label" data-i18n-en="1. Text box">1. 글상자</div>
             <div class="fmt-row">
                 <span class="fmt-label" data-i18n-en="Selected:">고른 글자</span>
-                <select id="blockFont" title="고른 글자의 글씨체">
-                    <option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>
-                    ${FONT_OPTIONS.map(f => `<option value="${f.file}">${f.label}</option>`).join('')}
-                </select>
+                <select id="blockFont" title="고른 글자의 글씨체"></select>
             </div>
+            <p class="fmt-hint" id="fontNoteBlock" hidden></p>
             <div class="fmt-grid" id="fmtGrid">
                 ${[['size', '크기(mm)', 'Size (mm)'], ['lh', '줄 간격', 'Line spacing'], ['ls', '자간', 'Letter spacing'], ['wt', '굵기(mm)', 'Weight (mm)']].map(([k, ko, en]) => `
                 <div class="fmt-cell">
@@ -199,9 +213,11 @@
             </div>
             <div class="control-group">
                 <label data-i18n-en="Base font">기본 글씨체</label>
-                <select id="fontSelect" onchange="onFontChange()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                </select>
+                <select id="fontSelect"></select>
+                <p class="fmt-hint" id="fontNoteBase" hidden></p>
+                <!-- 내 PC의 글씨체: 파일 하나(업로드), 폴더 통째(폴더 가져오기). 서버로 보내지 않고 브라우저 안에서만 읽는다. -->
+                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+                <input type="file" id="folderUpload" webkitdirectory multiple style="display:none">
             </div>
 
             <div class="section-label" data-i18n-en="2. Design details">2. 디자인 디테일</div>
@@ -316,7 +332,7 @@
         // 모델: [{ lh, runs: [{ text, size, bold, font, ls, wt, color }] }] — 줄 배열, 줄마다 서식 조각.
         // 화면: 줄마다 <div class="g9line" data-lh>, 조각마다 <span class="g9run" data-*>(값을 모두 적음).
         const RUN_KEYS = ['size', 'bold', 'font', 'ls', 'wt', 'color'];
-        function isKnownFont(file) { return FONT_OPTIONS.some(function (f) { return f.file === file; }); }
+        function isKnownFont(key) { return fontRegistry.has(key); }
         function round2(v) { return Math.round(v * 100) / 100; }
         function cssColorToHex(c) {
             const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
@@ -325,7 +341,7 @@
         }
         function fontFromFamily(fam) {
             const m = /G9F(\d+)/.exec(fam || '');
-            return m && FONT_OPTIONS[+m[1]] ? FONT_OPTIONS[+m[1]].file : null;
+            return m && fontKeyById[+m[1]] ? fontKeyById[+m[1]] : null;
         }
 
         // 글자(텍스트 노드)의 서식: 가까운 조상부터 올라가며 처음 만난 값을 쓴다. 우리가 만든 조각(span.g9run)은
@@ -745,57 +761,269 @@
                 });
             }
         });
-        // 고른 글자의 글씨체. '(기본 글씨체)'(빈 값)를 고르면 아래 '기본 글씨체'를 따르게 되돌린다.
-        blockFont.addEventListener('change', function () {
-            const file = this.value || null;
-            applyToSelection(function (t) { t.forEach(function (c) { c.font = file; }); });
-        });
         // 고른 글자의 색(3MF에서 색이 나뉨). 고르는 동안 바로 바뀐다.
         blockColor.addEventListener('input', function () {
             const col = this.value.toLowerCase();
             applyToSelection(function (t) { t.forEach(function (c) { c.color = col; }); }, 'color');
         });
 
-        // 글씨체 불러오기 — 같은 TTF를 opentype.js(윤곽선)와 CSS 글꼴(배치) 둘 다로 불러온다.
-        // 글씨체 파일마다 CSS 이름을 따로 둔다('G9F' + 목록 번호). 한 글상자에 여러 글씨체가 섞여도
-        // 각 조각이 제 이름으로 그려지고, 글씨체에 없는 글자(이모지)는 'G9Emoji'로 넘어간다.
+        // 글씨체 불러오기 — 같은 글씨체 파일을 opentype.js(윤곽선)와 CSS 글꼴(배치) 둘 다로 불러온다.
+        // 글씨체마다 CSS 이름을 따로 둔다('G9F' + id). 한 글상자에 여러 글씨체가 섞여도 각 조각이
+        // 제 이름으로 그려지고, 글씨체에 없는 글자(이모지)는 'G9Emoji'로 넘어간다.
         // 한 번 불러온 글씨체는 그대로 두고 다시 쓰기만 한다.
-        function cssFamily(file) {
-            return "'G9F" + FONT_OPTIONS.findIndex(function (f) { return f.file === file; }) + "', 'G9Emoji', sans-serif";
+        function cssFamily(key) {
+            const entry = fontRegistry.get(key);
+            return entry ? "'G9F" + entry.id + "', 'G9Emoji', sans-serif" : "'G9Emoji', sans-serif";
         }
-        const fontState = {}; // 파일 이름 → { ready, failed, promise }
-        function ensureFont(file) {
-            if (fontState[file]) return fontState[file].promise;
-            const st = fontState[file] = { ready: false };
-            const glyph = new Promise(function (resolve) { FontCore.loadFont(file, resolve); });
-            const css = new FontFace('G9F' + FONT_OPTIONS.findIndex(function (f) { return f.file === file; }),
-                'url(' + FONTS_BASE + encodeURI(file) + ')').load().then(function (face) { document.fonts.add(face); });
+        const fontState = {}; // 키 → { ready, failed, promise }
+        function ensureFont(key) {
+            if (fontState[key]) return fontState[key].promise;
+            const st = fontState[key] = { ready: false };
+            const entry = fontRegistry.get(key);
+            if (!entry) { st.failed = true; st.promise = Promise.resolve(); return st.promise; }
+            let glyph, cssSource;
+            if (entry.file) {
+                glyph = new Promise(function (resolve, reject) {
+                    FontCore.loadFontFromFile(entry.file, function () { resolve(); }, function (err) { reject(err || new Error('parse')); });
+                });
+                cssSource = entry.file.arrayBuffer();
+            } else {
+                glyph = new Promise(function (resolve) { FontCore.loadFont(key, resolve); });
+                cssSource = Promise.resolve('url(' + entry.url + ')');
+            }
+            const css = cssSource.then(function (src) { return new FontFace('G9F' + entry.id, src).load(); })
+                .then(function (face) { document.fonts.add(face); });
             st.promise = Promise.all([glyph, css]).then(function () { st.ready = true; })
                 // 실패하면 그 글씨체는 준비되지 않은 채로 둔다(다시 불러오기를 되풀이하지 않게)
-                .catch(function (err) { console.error('글씨체 로딩 실패:', file, err); st.failed = true; });
+                .catch(function (err) { console.error('글씨체 로딩 실패:', entry.label, err); st.failed = true; });
             return st.promise;
         }
-        function isFontReady(file) { return !!(fontState[file] && fontState[file].ready); }
+        function isFontReady(key) { return !!(fontState[key] && fontState[key].ready); }
         new FontFace('G9Emoji', 'url(' + FONTS_BASE + encodeURI(EMOJI_FONT_FILE) + ')').load()
             .then(function (face) { document.fonts.add(face); emojiCssReady = true; scheduleUpdate(); })
             .catch(function (err) { console.error('이모지 CSS 글꼴 로딩 실패:', err); });
 
-        // 입체에 쓰이는 글씨체 파일들(기본 글씨체 + 조각마다 고른 글씨체)
+        // 입체에 쓰이는 글씨체(기본 글씨체 + 조각마다 고른 글씨체)
         function neededFonts(p) {
             const files = new Set([p.fontFile]);
             p.lines.forEach(function (l) { l.runs.forEach(function (r) { if (r.font) files.add(r.font); }); });
             return Array.from(files);
         }
 
-        function onFontChange() {
-            currentFontFile = FONT_OPTIONS[document.getElementById('fontSelect').value].file;
-            textBox.style.fontFamily = cssFamily(currentFontFile);
-            updateModel();
+        // ---------- 글씨체 고르는 칸 두 개('기본 글씨체', 도구 막대 '고른 글자') ----------
+        // 목록: 사이트 글씨체 → 📁 내 폰트 파일 업로드… → 🗂 내 폴더 가져오기…(→ 지난번 폴더 다시 열기)
+        //       → 가져온 글씨체(묶음마다 optgroup)
+        const fontSelectEl = document.getElementById('fontSelect');
+        const fontUploadInput = document.getElementById('fontUpload');
+        const folderInput = document.getElementById('folderUpload');
+        const userFontGroups = []; // [{ id, title, keys }] — '내 폰트 파일', 가져온 폴더마다
+        let pendingFontTarget = 'base'; // 파일·폴더 창을 연 칸('base' | 'block')
+        function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+        function fontOptionsHtml(withBaseChoice) {
+            let h = '';
+            if (withBaseChoice) h += '<option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>';
+            h += FONT_OPTIONS.map(function (f) { return '<option value="' + escHtml(f.file) + '">' + escHtml(f.label) + '</option>'; }).join('');
+            h += '<option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>';
+            h += '<option value="__folder__" data-i18n-en="🗂 Load my font folder...">🗂 내 폴더 가져오기...</option>';
+            if (savedDirHandle && !savedDirLoaded) {
+                h += '<option value="__reopen__">🗂 ' + escHtml(LangCore.pick('지난번 폴더 다시 열기', 'Reopen last folder')) + ' (' + escHtml(savedDirHandle.name) + ')...</option>';
+            }
+            userFontGroups.forEach(function (g) {
+                h += '<optgroup label="' + escHtml(g.title) + '">' + g.keys.map(function (k) {
+                    return '<option value="' + escHtml(k) + '">' + escHtml(fontRegistry.get(k).label) + '</option>';
+                }).join('') + '</optgroup>';
+            });
+            return h;
+        }
+        function refreshFontSelects() {
+            fontSelectEl.innerHTML = fontOptionsHtml(false);
+            blockFont.innerHTML = fontOptionsHtml(true);
+            if (window.LangCore) { LangCore.applyTranslations(fontSelectEl); LangCore.applyTranslations(blockFont); }
+            fontSelectEl.value = currentFontFile;
+            updateFmtRow();
+        }
+        function setFontNote(msg, target) {
+            ['Base', 'Block'].forEach(function (k) {
+                const el = document.getElementById('fontNote' + k);
+                const show = msg && (target || pendingFontTarget) === k.toLowerCase();
+                el.hidden = !show;
+                el.textContent = show ? msg : '';
+            });
+        }
+        function revertFontSelect(target) {
+            if (target === 'base') fontSelectEl.value = currentFontFile;
+            else updateFmtRow();
+        }
+        // 글씨체를 고르면 그 파일을 먼저 읽어 보고(못 읽으면 알리고 되돌림) 적용한다.
+        function pickFont(key, target) {
+            if (fontRegistry.get(key).file) setFontNote(LangCore.pick('글씨체를 읽는 중…', 'Loading font…'), target);
+            ensureFont(key).then(function () {
+                if (!isFontReady(key)) {
+                    revertFontSelect(target);
+                    setFontNote(LangCore.pick('「' + fontRegistry.get(key).label + '」 글씨체 파일을 읽을 수 없습니다.', 'Could not read this font file.'), target);
+                    return;
+                }
+                setFontNote('', target);
+                if (target === 'base') {
+                    currentFontFile = key;
+                    fontSelectEl.value = key;
+                    textBox.style.fontFamily = cssFamily(key);
+                    updateModel();
+                } else {
+                    applyToSelection(function (t) { t.forEach(function (c) { c.font = key; }); });
+                }
+            });
+        }
+        function onFontSelectChange(target) {
+            const sel = target === 'base' ? fontSelectEl : blockFont;
+            const v = sel.value;
+            if (v === '__upload__' || v === '__folder__' || v === '__reopen__') {
+                revertFontSelect(target);
+                pendingFontTarget = target;
+                if (v === '__upload__') { fontUploadInput.value = ''; fontUploadInput.click(); }
+                else if (v === '__folder__') importFolder();
+                else reopenFolder();
+                return;
+            }
+            // '(기본 글씨체)'(빈 값)를 고르면 아래 '기본 글씨체'를 따르게 되돌린다.
+            if (target === 'block' && !v) { applyToSelection(function (t) { t.forEach(function (c) { c.font = null; }); }); return; }
+            pickFont(v, target);
+        }
+        fontSelectEl.addEventListener('change', function () { onFontSelectChange('base'); });
+        blockFont.addEventListener('change', function () { onFontSelectChange('block'); });
+        function onFontChange() { onFontSelectChange('base'); }
+
+        function fontLabelOf(file) { return file.name.replace(/\.(ttf|otf)$/i, ''); }
+        function upsertFontGroup(id, title, keys) {
+            const old = userFontGroups.find(function (g) { return g.id === id; });
+            if (old) { old.title = title; old.keys = keys; }
+            else if (id === 'files') userFontGroups.unshift({ id: id, title: title, keys: keys }); // 업로드한 파일 묶음은 폴더들보다 위에
+            else userFontGroups.push({ id: id, title: title, keys: keys });
+        }
+
+        // 📁 내 폰트 파일 업로드: 파일 하나를 목록 '내 폰트 파일' 묶음에 더하고 바로 적용한다.
+        fontUploadInput.addEventListener('change', function () {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            const key = userFontKey(file);
+            registerFont(key, { label: fontLabelOf(file), file: file });
+            const g = userFontGroups.find(function (x) { return x.id === 'files'; });
+            upsertFontGroup('files', LangCore.pick('📁 내 폰트 파일', '📁 My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
+            refreshFontSelects();
+            pickFont(key, pendingFontTarget);
+        });
+
+        // 🗂 내 폴더 가져오기: 폴더(하위 폴더 포함) 안의 .ttf·.otf를 모두 목록에 올린다(이름만, 읽기는 고를 때).
+        // 크롬·엣지는 폴더 고르기 창(showDirectoryPicker)을 쓰고 그 폴더를 기억해 둔다(IndexedDB) → 다음 방문 때
+        // '지난번 폴더 다시 열기' 한 번(허락 창). 다른 브라우저는 <input webkitdirectory>로 고르고, 새로고침하면 다시 고른다.
+        const FONT_EXT = /\.(ttf|otf)$/i;
+        const MAX_FOLDER_FONTS = 3000;
+        const canPickDir = typeof window.showDirectoryPicker === 'function';
+        let savedDirHandle = null;
+        let savedDirLoaded = false;
+        function setFolderFonts(folderName, items) {
+            const fonts = items.filter(function (it) { return FONT_EXT.test(it.file.name); }).slice(0, MAX_FOLDER_FONTS);
+            const count = {};
+            fonts.forEach(function (it) { const l = fontLabelOf(it.file); count[l] = (count[l] || 0) + 1; });
+            const keys = fonts.map(function (it) {
+                let label = fontLabelOf(it.file);
+                if (count[label] > 1) label += ' (' + it.path.split('/').slice(0, -1).join('/') + ')'; // 이름이 같으면 폴더도 적는다
+                const key = userFontKey(it.file);
+                registerFont(key, { label: label, file: it.file });
+                return key;
+            });
+            const uniq = Array.from(new Set(keys)).sort(function (a, b) { return fontRegistry.get(a).label.localeCompare(fontRegistry.get(b).label, 'ko'); });
+            upsertFontGroup('folder:' + folderName, '🗂 ' + folderName, uniq);
+            refreshFontSelects();
+            setFontNote(uniq.length
+                ? LangCore.pick('폴더 「' + folderName + '」에서 글씨체 ' + uniq.length + '개를 가져왔습니다. 글씨체 목록 아래쪽에 있습니다.', 'Loaded ' + uniq.length + ' fonts from "' + folderName + '" (bottom of the font list).')
+                : LangCore.pick('폴더 「' + folderName + '」에 글씨체 파일(.ttf·.otf)이 없습니다.', 'No .ttf/.otf files in "' + folderName + '".'));
+        }
+        async function collectFromHandle(dir, prefix, out) {
+            for await (const entry of dir.values()) {
+                if (out.length >= MAX_FOLDER_FONTS) return;
+                if (entry.kind === 'file') {
+                    if (FONT_EXT.test(entry.name)) out.push({ file: await entry.getFile(), path: prefix + entry.name });
+                } else if (entry.kind === 'directory') {
+                    await collectFromHandle(entry, prefix + entry.name + '/', out);
+                }
+            }
+        }
+        async function loadFromHandle(dir) {
+            setFontNote(LangCore.pick('폴더를 읽는 중…', 'Reading folder…'));
+            const out = [];
+            try {
+                await collectFromHandle(dir, dir.name + '/', out);
+            } catch (err) {
+                console.error('폴더 읽기 실패:', err);
+                setFontNote(LangCore.pick('폴더를 읽지 못했습니다.', 'Could not read the folder.'));
+                return;
+            }
+            savedDirLoaded = true;
+            setFolderFonts(dir.name, out);
+        }
+        // 폴더 기억(크롬·엣지): IndexedDB에 폴더 손잡이(handle)만 둔다. 글씨체 파일 내용은 저장하지 않는다.
+        function idbFontDir(mode, value) {
+            return new Promise(function (resolve, reject) {
+                const req = indexedDB.open('easy3d-gallery9', 1);
+                req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+                req.onerror = function () { reject(req.error); };
+                req.onsuccess = function () {
+                    const db = req.result;
+                    const tx = db.transaction('kv', mode);
+                    const r = mode === 'readwrite' ? tx.objectStore('kv').put(value, 'fontDir') : tx.objectStore('kv').get('fontDir');
+                    tx.oncomplete = function () { db.close(); resolve(r.result); };
+                    tx.onerror = function () { db.close(); reject(tx.error); };
+                };
+            });
+        }
+        async function importFolder() {
+            if (!canPickDir) { folderInput.value = ''; folderInput.click(); return; }
+            let dir;
+            try {
+                dir = await window.showDirectoryPicker({ id: 'g9-fonts', mode: 'read' });
+            } catch (err) {
+                if (err && err.name !== 'AbortError') setFontNote(LangCore.pick('폴더를 열 수 없습니다.', 'Could not open the folder.'));
+                return;
+            }
+            savedDirHandle = dir;
+            idbFontDir('readwrite', dir).catch(function (err) { console.warn('폴더 기억 실패:', err); });
+            await loadFromHandle(dir);
+        }
+        async function reopenFolder() {
+            if (!savedDirHandle) return;
+            try {
+                let perm = await savedDirHandle.queryPermission({ mode: 'read' });
+                if (perm !== 'granted') perm = await savedDirHandle.requestPermission({ mode: 'read' });
+                if (perm === 'granted') await loadFromHandle(savedDirHandle);
+                else setFontNote(LangCore.pick('폴더를 열도록 허락하지 않았습니다.', 'Permission was not given.'));
+            } catch (err) {
+                console.error('지난번 폴더 열기 실패:', err);
+                setFontNote(LangCore.pick('지난번 폴더를 열 수 없습니다(옮겼거나 지웠을 수 있음). 「내 폴더 가져오기」로 다시 고르세요.', 'Could not reopen the last folder.'));
+            }
+        }
+        folderInput.addEventListener('change', function () {
+            const files = Array.prototype.slice.call(this.files || []);
+            if (!files.length) return;
+            const folderName = (files[0].webkitRelativePath || '').split('/')[0] || LangCore.pick('내 폴더', 'My folder');
+            setFolderFonts(folderName, files.map(function (f) { return { file: f, path: f.webkitRelativePath || f.name }; }));
+        });
+        // 시작할 때: 기억해 둔 폴더가 있으면 '다시 열기'를 목록에 넣고, 이미 허락된 상태면 바로 읽는다.
+        async function restoreSavedFolder() {
+            if (!canPickDir || !window.indexedDB) return;
+            try {
+                savedDirHandle = await idbFontDir('readonly');
+            } catch (err) { return; }
+            if (!savedDirHandle) return;
+            refreshFontSelects();
+            try {
+                if (await savedDirHandle.queryPermission({ mode: 'read' }) === 'granted') await loadFromHandle(savedDirHandle);
+            } catch (err) { /* 다시 열기 단추로 */ }
         }
 
         function resetToDefaults() {
             currentAlign = DEFAULTS.align;
-            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
+            document.getElementById('fontSelect').value = DEFAULTS.fontKey;
             ['outlineW', 'borderW', 'innerMargin', 'outerMargin',
              'keyringX', 'keyringY', 'keyringHoleSize', 'keyringRim', 'baseThick', 'outlineThick', 'borderThick', 'textThick',
              'colBase', 'colOutline', 'colBorder', 'colText'].forEach(function (id) {
@@ -1270,6 +1498,8 @@
             textBox.style.fontFamily = cssFamily(currentFontFile);
             renderModel(cloneModel(DEFAULTS.model));
             resetHistory();
+            refreshFontSelects();
+            restoreSavedFolder();
             updateFmtRow();
             applyBoxStyle();
             await ManifoldCore.ready;

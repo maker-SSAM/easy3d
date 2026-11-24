@@ -533,6 +533,7 @@
             return sdf;
         }
 
+        let msStats = null; // 마지막 윤곽선 뽑기의 점검 값(시험용 __info에 보임)
         // 마칭 스퀘어: 값 f > 0인 곳의 경계를 닫힌 윤곽선들로. 픽셀 중심이 정수 좌표.
         // 칸 밖은 −1로 본다(모든 윤곽선이 닫힘). 선분 방향은 '안쪽이 왼쪽'으로 통일해 이어 붙인다.
         function marchingSquares(f, W, H) {
@@ -553,11 +554,16 @@
                 return k;
             }
             const next = new Map();
-            function addSeg(ka, kb, cx, cy, inside) {
-                // 기준 모서리(cx,cy)가 안쪽(inside)이면 왼쪽에, 바깥이면 오른쪽에 오도록 방향을 정한다
-                const P = pts.get(ka), Q = pts.get(kb);
-                const cross = (Q[0] - P[0]) * (cy - P[1]) - (Q[1] - P[1]) * (cx - P[0]);
-                if ((cross > 0) === inside) next.set(ka, kb); else next.set(kb, ka);
+            // 선분 방향은 좌표 계산이 아니라 '안/밖'만으로 정한다: 칸 둘레를 c0→c1→c2→c3로 돌 때
+            // 안→밖으로 바뀌는 변(나가는 변)에서 끝나고, 밖→안으로 바뀌는 변(들어오는 변)에서 시작한다.
+            // 이웃 칸은 같은 변을 반대로 돌므로 한쪽의 '나가는 변'은 다른 쪽의 '들어오는 변' → 늘 이어진다.
+            // (2026-11-24 고침: 처음엔 기준 모서리와의 외적으로 방향을 정했는데, 값이 경계에 걸린 칸에서 방향이
+            //  어긋나 윤곽선이 중간에 끊기고 직선으로 닫혀 큰 삼각형·반쯤 칠한 눈이 생겼다 — 선 두께 1.9mm 보고)
+            let conflicts = 0;
+            function addSeg(eFrom, eTo, keyOf) {
+                const ka = keyOf[eFrom](), kb = keyOf[eTo]();
+                if (next.has(ka)) conflicts++;
+                next.set(ka, kb);
             }
             for (let y = -1; y < H; y++) {
                 for (let x = -1; x < W; x++) {
@@ -566,8 +572,8 @@
                     const code = (i0 ? 1 : 0) | (i1 ? 2 : 0) | (i2 ? 4 : 0) | (i3 ? 8 : 0);
                     if (code === 0 || code === 15) continue;
                     // 모서리 c0(x,y) c1(x+1,y) c2(x+1,y+1) c3(x,y+1), 변 e0=c0c1 e1=c1c2 e2=c2c3 e3=c3c0
-                    const cs = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
                     const ins = [i0, i1, i2, i3];
+                    const isExit = function (e) { return ins[e] && !ins[(e + 1) % 4]; };
                     const edgeKey = [
                         function () { return pointH(x, y); },
                         function () { return pointV(x + 1, y); },
@@ -577,20 +583,22 @@
                     const crossed = [];
                     for (let e = 0; e < 4; e++) if (ins[e] !== ins[(e + 1) % 4]) crossed.push(e);
                     if (crossed.length === 2) {
-                        const k = ins.indexOf(true);
-                        addSeg(edgeKey[crossed[0]](), edgeKey[crossed[1]](), cs[k][0], cs[k][1], true);
+                        const a = crossed[0], b = crossed[1];
+                        if (isExit(a)) addSeg(b, a, edgeKey); else addSeg(a, b, edgeKey);
                     } else {
                         // 안장점: 가운데 값으로 어느 쪽을 이을지 정한다. 잘려 나가는 모서리 k는 변 (k-1, k) 사이.
                         const centerIn = (v0 + v1 + v2 + v3) / 4 > 0;
                         for (let k = 0; k < 4; k++) {
                             if (ins[k] === centerIn) continue; // 가운데와 같은 편 모서리는 잘리지 않음
-                            addSeg(edgeKey[(k + 3) % 4](), edgeKey[k](), cs[k][0], cs[k][1], ins[k]);
+                            const a = (k + 3) % 4, b = k;
+                            if (isExit(a)) addSeg(b, a, edgeKey); else addSeg(a, b, edgeKey);
                         }
                     }
                 }
             }
             const loops = [];
             const used = new Set();
+            let open = 0;
             next.forEach(function (_, start) {
                 if (used.has(start)) return;
                 const loop = [];
@@ -600,8 +608,10 @@
                     loop.push(pts.get(k));
                     k = next.get(k);
                 }
+                if (k !== start) open++; // 제자리로 돌아오지 않은 윤곽선(있으면 안 됨 — 시험에서 0인지 본다)
                 if (loop.length >= 3) loops.push(loop);
             });
+            msStats = { conflicts: conflicts, open: open, loops: loops.length };
             return loops;
         }
 
@@ -637,6 +647,7 @@
         const TIDY_EPS = 0.0001; // mm — 완성된 층의 아주 짧은 변 없애기(갤러리9와 같은 이유: float32에서 점이 합쳐지지 않게)
         const SIMPLIFY_EPS = 0.02; // mm — 윤곽선 점 줄이기(모양 변화 0.02mm 이하)
         const KISS_JOIN_MM = 0.001; // mm — 꼭짓점 하나로만 맞닿은 곳 잇기
+        const ISO_NUDGE = 0.000731; // 픽셀 — 거리 값이 정확히 0인 픽셀을 피하려고 높이선을 옮기는 양(모양 변화 0.0001mm 수준)
 
         // 선 층·바닥판의 2D 단면(CrossSection)을 만든다. track()에 넣은 것은 호출부가 지운다.
         function buildShapes(p, b, track) {
@@ -667,6 +678,9 @@
                 const sdf = ensureSdf(b);
                 for (let i = 0; i < f.length; i++) f[i] = Math.max(rpx - b.dSkel[i], sdf[i]);
             }
+            // 높이선을 0에서 아주 조금(ISO_NUDGE 픽셀) 옮긴다. 선 반두께가 픽셀 수로 딱 떨어지면(예: 그림 114mm·선 1.9mm →
+            // 6픽셀) 거리 값이 정확히 0인 픽셀이 수백 개 생겨, 윤곽선이 픽셀 모서리에서 서로 맞닿는다(2026-11-24 보고된 경우).
+            for (let i = 0; i < f.length; i++) f[i] -= ISO_NUDGE;
             const loops = marchingSquares(f, GW, GH);
             const cx = (GW - 1) / 2, cy = (GH - 1) / 2;
             const contours = loops.map(function (loop) {
@@ -950,7 +964,7 @@
             scratch.forEach(function (m) { m.delete(); });
             return mesh;
         };
-        window.__info = function () { return lastInfo && { ms: lastInfo.ms, pieces: stageB && stageB.pieces, empty: lastInfo.empty, tooSmall: lastInfo.tooSmall }; };
+        window.__info = function () { return lastInfo && { ms: lastInfo.ms, ms2: msStats, pieces: stageB && stageB.pieces, empty: lastInfo.empty, tooSmall: lastInfo.tooSmall }; };
 
         async function main() {
             syncLineMode();

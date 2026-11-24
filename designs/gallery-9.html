@@ -175,7 +175,13 @@
             fontKeyById.push(key);
             return entry;
         }
-        FONT_OPTIONS.forEach(function (f) { registerFont(f.file, { label: f.label, url: FONTS_BASE + encodeURI(f.file) }); });
+        FONT_OPTIONS.forEach(function (f) { registerFont(f.file, { label: f.label, koLabel: f.koLabel, url: FONTS_BASE + encodeURI(f.file) }); });
+        // 화면에 보일 글씨체 이름: 사이트 글씨체는 한국어 화면이면 한글 이름(koLabel), 영어 화면이면 영어 이름
+        function fontLabel(key) {
+            const entry = fontRegistry.get(key);
+            if (!entry) return key;
+            return entry.koLabel && window.LangCore ? LangCore.pick(entry.koLabel, entry.label) : entry.label;
+        }
         function userFontKey(file) { return 'upload:' + file.name + ':' + file.size + ':' + file.lastModified; }
 
         const BOX_PX_PER_MM = 3;    // 글상자 화면 배율(24px = 8mm)
@@ -855,15 +861,16 @@
         function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         function fontOptionsHtml(withBaseChoice) {
             let h = '';
-            if (withBaseChoice) h += '<option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>';
-            h += FONT_OPTIONS.map(function (f) { return '<option value="' + escHtml(f.file) + '">' + escHtml(f.label) + '</option>'; }).join('');
+            if (withBaseChoice) h += '<option value="">' + escHtml(LangCore.pick('(기본 글씨체)', '(Base font)')) + '</option>';
+            h += FONT_OPTIONS.map(function (f) { return '<option value="' + escHtml(f.file) + '">' + escHtml(fontLabel(f.file)) + '</option>'; }).join('');
             h += '<option value="__upload__">' + escHtml(LangCore.pick('내 폰트 파일 업로드...', 'Upload my font file...')) + '</option>';
             h += '<option value="__folder__">' + escHtml(LangCore.pick('내 폴더 가져오기...', 'Load my font folder...')) + '</option>';
             if (savedDirHandle && !savedDirLoaded) {
                 h += '<option value="__reopen__">' + escHtml(LangCore.pick('지난번 폴더 다시 열기', 'Reopen last folder')) + ' (' + escHtml(savedDirHandle.name) + ')...</option>';
             }
             userFontGroups.forEach(function (g) {
-                h += '<optgroup data-kind="' + (g.id === 'files' ? 'files' : 'folder') + '" label="' + escHtml(g.title) + '">' + g.keys.map(function (k) {
+                const title = g.id === 'files' ? LangCore.pick('내 폰트 파일', 'My font files') : g.title;
+                h += '<optgroup data-kind="' + (g.id === 'files' ? 'files' : 'folder') + '" label="' + escHtml(title) + '">' + g.keys.map(function (k) {
                     return '<option value="' + escHtml(k) + '">' + escHtml(fontRegistry.get(k).label) + '</option>';
                 }).join('') + '</optgroup>';
             });
@@ -947,7 +954,8 @@
             return '<svg class="fp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d="' + ICON_PATHS[name] + '"/></svg>';
         }
         function fontNameHtml(key, label) {
-            const pv = window.FontNamePreviews && window.FontNamePreviews[key];
+            const pvs = window.FontNamePreviews && window.FontNamePreviews[key];
+            const pv = pvs && (LangCore.pick(pvs.ko, pvs.en) || pvs.en); // 화면 언어에 맞는 이름 그림
             if (pv) {
                 return '<svg class="fp-name" viewBox="' + pv.vb + '" preserveAspectRatio="xMinYMid meet" role="img" aria-label="' + escHtml(label) + '">'
                     + '<title>' + escHtml(label) + '</title><path d="' + pv.d + '"/></svg>';
@@ -1177,6 +1185,8 @@
             if (openFP && !openFP.pop.contains(e.target)) closeFontPicker();
         }, true);
         window.addEventListener('resize', closeFontPicker);
+        // 한국어↔영어를 바꾸면 글씨체 이름(한글/영어)과 항목 글을 다시 그린다
+        window.addEventListener('langchange', function () { refreshFontSelects(); });
         makeFontPicker(blockFont, document.getElementById('blockFontPicker'));
         makeFontPicker(fontSelectEl, document.getElementById('fontPicker'));
 

@@ -22,8 +22,12 @@ OUT = ROOT / "assets" / "js" / "font-name-previews.js"
 
 
 def read_font_list():
+    """[(label, koLabel 또는 '', file)]"""
     text = FONT_LIST.read_text(encoding="utf-8")
-    return re.findall(r"\{\s*label:\s*'([^']+)',\s*file:\s*'([^']+)'\s*\}", text)
+    found = re.findall(r"\{\s*label:\s*'([^']+)',\s*(?:koLabel:\s*'([^']+)',\s*)?file:\s*'([^']+)'\s*\}", text)
+    if not found:
+        raise SystemExit("font-list.js에서 글씨체를 하나도 찾지 못했습니다(형식이 바뀌었는지 확인).")
+    return found
 
 
 def name_path(font_path, label):
@@ -51,15 +55,18 @@ def name_path(font_path, label):
 
 def main():
     out = {}
-    for label, file in read_font_list():
-        entry, missing = name_path(FONTS_DIR / file, label)
-        out[file] = entry
-        note = f"  (없는 글자: {''.join(missing)})" if missing else ""
-        print(f"{file}: {len(entry['d']):,}자{note}")
+    for label, ko_label, file in read_font_list():
+        out[file] = {}
+        # en = 영어 화면(label), ko = 한국어 화면(koLabel, 없으면 label)
+        for lang, text in (("en", label), ("ko", ko_label or label)):
+            entry, missing = name_path(FONTS_DIR / file, text)
+            out[file][lang] = entry
+            note = f"  (없는 글자: {''.join(missing)})" if missing else ""
+            print(f"{file} [{lang}] {text}: {len(entry['d']):,}자{note}")
     body = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
     OUT.write_text(
         "// 자동 생성 파일 — 손으로 고치지 말 것. tools/make-font-name-previews.py로 다시 만든다.\n"
-        "// 사이트 글씨체 이름을 그 글씨체 모양으로 그린 SVG 경로(갤러리9 글씨체 목록용).\n"
+        "// 사이트 글씨체 이름(en = 영어 이름, ko = 한글 이름)을 그 글씨체 모양으로 그린 SVG 경로(갤러리9 글씨체 목록용).\n"
         "// 글자 모양은 각 글씨체의 것이며 글씨체 라이선스(OFL 등)를 따른다.\n"
         f"window.FontNamePreviews = {body};\n",
         encoding="utf-8",

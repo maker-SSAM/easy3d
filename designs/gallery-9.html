@@ -811,7 +811,7 @@
         }
 
         // ---------- 글씨체 고르는 칸 두 개('기본 글씨체', 도구 막대 '고른 글자') ----------
-        // 목록: 사이트 글씨체 → 🔤 내 폰트 파일 업로드… → 📁 내 폴더 가져오기…(→ 지난번 폴더 다시 열기)
+        // 목록: 사이트 글씨체 → [Aa] 내 폰트 파일 업로드… → 📁 내 폴더 가져오기…(→ 지난번 폴더 다시 열기)
         //       → 가져온 글씨체(묶음마다 optgroup)
         const fontSelectEl = document.getElementById('fontSelect');
         const fontUploadInput = document.getElementById('fontUpload');
@@ -823,7 +823,7 @@
             let h = '';
             if (withBaseChoice) h += '<option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>';
             h += FONT_OPTIONS.map(function (f) { return '<option value="' + escHtml(f.file) + '">' + escHtml(f.label) + '</option>'; }).join('');
-            h += '<option value="__upload__" data-i18n-en="🔤 Upload my font file...">🔤 내 폰트 파일 업로드...</option>';
+            h += '<option value="__upload__" data-i18n-en="[Aa] Upload my font file...">[Aa] 내 폰트 파일 업로드...</option>';
             h += '<option value="__folder__" data-i18n-en="📁 Load my font folder...">📁 내 폴더 가져오기...</option>';
             if (savedDirHandle && !savedDirLoaded) {
                 h += '<option value="__reopen__">📂 ' + escHtml(LangCore.pick('지난번 폴더 다시 열기', 'Reopen last folder')) + ' (' + escHtml(savedDirHandle.name) + ')...</option>';
@@ -901,14 +901,14 @@
             else userFontGroups.push({ id: id, title: title, keys: keys });
         }
 
-        // 🔤 내 폰트 파일 업로드: 파일 하나를 목록 '내 폰트 파일' 묶음에 더하고 바로 적용한다.
+        // [Aa] 내 폰트 파일 업로드: 파일 하나를 목록 '내 폰트 파일' 묶음에 더하고 바로 적용한다.
         fontUploadInput.addEventListener('change', function () {
             const file = this.files && this.files[0];
             if (!file) return;
             const key = userFontKey(file);
             registerFont(key, { label: fontLabelOf(file), file: file });
             const g = userFontGroups.find(function (x) { return x.id === 'files'; });
-            upsertFontGroup('files', LangCore.pick('🔤 내 폰트 파일', '🔤 My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
+            upsertFontGroup('files', LangCore.pick('[Aa] 내 폰트 파일', '[Aa] My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
             refreshFontSelects();
             pickFont(key, pendingFontTarget);
         });

@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
-    <title data-i18n-en="Gallery 9 - Text Box Name Tag (test) - Parametric Design Studio for Beginners">갤러리9 - 글상자 이름표 (시험판) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <title data-i18n-en="Gallery 9 - Sign Plate (test) - Parametric Design Studio for Beginners">갤러리9 - 표지판 (시험판) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -185,7 +185,7 @@
         });
 
         const FONT_OPTIONS = FontList.OPTIONS;
-        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'Cafe24PROUP.ttf');
+        const DEFAULT_FONT_INDEX = FONT_OPTIONS.findIndex(f => f.file === 'NotoSerifKR-Black.ttf');
         const EMOJI_FONT_FILE = FontList.EMOJI_FILE;
         const FONTS_BASE = '../assets/fonts/';
         const PROBE_PX_PER_MM = 10; // 측정용 상자 배율 — 크게 그려서 반올림 오차를 줄인다
@@ -234,22 +234,24 @@
 
         const DEFAULTS = {
             // 글상자 내용 = 줄 배열 [{ lh, runs: [서식 조각…] }]. 처음에는 서식 없음(2026-11-24 선생님).
+            // 기본 예시(2026-11-24 선생님): 표지판 — 노토 세리프 KR 20mm, 줄 간격 1, 검정, 사각형 테두리(둥글기 3·간격 5)
             model: [
-                { lh: LH_DEFAULT, runs: [plainRun('이름표')] },
-                { lh: LH_DEFAULT, runs: [plainRun('두 줄도 돼요 🙂')] }
+                { lh: 1, runs: [Object.assign(plainRun('표지판 만들기'), { size: 20 })] },
+                { lh: 1, runs: [Object.assign(plainRun('여러줄 가능'), { size: 20 })] },
+                { lh: 1, runs: [Object.assign(plainRun('글씨별 세팅🙂'), { size: 20 })] }
             ],
             fontKey: FONT_OPTIONS[DEFAULT_FONT_INDEX].file, align: 'center',
             // 갤러리9에는 글자 외곽선이 없다(2026-11-24 선생님: 깔끔한 이름표). 글자 높이는 글상자 도구 막대(글씨별).
             // 테두리·바닥판 모양: 'outline'(글자 따라) | 'rect'(글자 전체를 감싸는 사각형, 모서리 둥글기 cornerR mm)
-            frameShape: 'outline', cornerR: 3,
-            borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
+            frameShape: 'rect', cornerR: 3,
+            borderW: 1.0, innerMargin: 5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
             baseThick: 3.0, borderThick: 0.6,
-            colBase: '#ffffff', colBorder: '#000000', colText: '#ff5703'
+            colBase: '#ffffff', colBorder: '#000000', colText: '#000000'
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3 data-i18n-en="Text Box Name Tag (test)">글상자 이름표 (시험판)</h3>
+            <h3 data-i18n-en="Sign Plate (test)">표지판 (시험판)</h3>
             <p class="test-note" data-i18n-en="Test version: type several lines in the box (Enter for a new line). Select some letters to change their font, size, spacing, weight or color.">시험판입니다. 글상자에 여러 줄을 입력하고(줄은 Enter), 글자를 드래그로 골라 글씨체·크기·간격·굵기·색을 바꿔 보세요.</p>
 
             <!-- 왼쪽 옵션은 이름표의 부품별로 묶는다(2026-11-24 선생님): 1 글자 · 2 테두리 · 3 바닥판 · 4 키링 구멍 -->
@@ -262,7 +264,7 @@
             </div>
             <!-- 값은 숨긴 칸에 둔다: 처음 글씨체(fontSelect)·처음 글자 색(colText) -->
             <select id="fontSelect" hidden></select>
-            <input type="color" id="colText" value="#ff5703" hidden>
+            <input type="color" id="colText" value="#000000" hidden>
             <!-- 내 PC의 글씨체: 파일 하나(업로드), 폴더 통째(폴더 가져오기). 서버로 보내지 않고 브라우저 안에서만 읽는다. -->
             <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
             <input type="file" id="folderUpload" webkitdirectory multiple style="display:none">
@@ -305,7 +307,7 @@
                 <div class="control-group"><label><span data-i18n-en="Corner radius">모서리 둥글기</span>: <span id="valCornerR">3</span>mm</label><input type="range" id="cornerR" min="0" max="20" step="0.5" value="3" oninput="scheduleUpdate()"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Thickness">두께</span>: <span id="valBorderW">1.0</span>mm</label><input type="range" id="borderW" min="0" max="5" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Gap from text">글자와의 간격</span>: <span id="valInnerMargin">1.5</span>mm</label><input type="range" id="innerMargin" min="0" max="5" step="0.1" value="1.5" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Gap from text">글자와의 간격</span>: <span id="valInnerMargin">5</span>mm</label><input type="range" id="innerMargin" min="0" max="5" step="0.1" value="5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valBorderThick">0.6</span>mm</label><input type="range" id="borderThick" min="0.1" max="2" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span data-i18n-en="Color">색</span><input type="color" id="colBorder" value="#000000" oninput="scheduleUpdate()"></div>
 
@@ -1966,7 +1968,7 @@
 
         function fileBaseName(params) {
             const first = (modelText(params.lines).split('\n').find(function (l) { return l.trim(); }) || '').trim();
-            return (first || LangCore.pick('글상자', 'textbox')).replace(/[\\/:*?"<>|]/g, '').slice(0, 20);
+            return (first || LangCore.pick('표지판', 'signplate')).replace(/[\\/:*?"<>|]/g, '').slice(0, 20);
         }
 
         function exportWith(kind) {
@@ -1989,8 +1991,8 @@
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
             const name = fileBaseName(params);
-            if (kind === 'STL') ParametricCore.exportSTL(exportGroup, LangCore.pick(`${name}_이름표.stl`, `${name}_nametag.stl`));
-            else ThreeMFCore.export3MF(exportGroup, LangCore.pick(`${name}_이름표.3mf`, `${name}_nametag.3mf`));
+            if (kind === 'STL') ParametricCore.exportSTL(exportGroup, LangCore.pick(`${name}_표지판.stl`, `${name}_signplate.stl`));
+            else ThreeMFCore.export3MF(exportGroup, LangCore.pick(`${name}_표지판.3mf`, `${name}_signplate.3mf`));
             mesh.geometry.dispose();
             (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
         }

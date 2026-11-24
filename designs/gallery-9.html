@@ -78,7 +78,9 @@
         .fp-button:focus-visible, .fp-button.open { border-color: #1e88e5; outline: none; }
         .fp-cur { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
         .fp-arrow { flex: none; font-size: 0.65em; color: var(--text-muted); }
-        .fp-name { display: block; height: 20px; width: auto; max-width: 100%; fill: currentColor; overflow: visible; }
+        /* 이름 그림의 세로 = 1.15em(tools/make-font-name-previews.py). em을 보통 글자(.fp-plain)와 같은 15px로 맞춘다 —
+           글씨체마다 원래 크게·작게 디자인된 차이는 그대로 남는다(2026-11-24 선생님: '(기본 글씨체)' 크기 기준). */
+        .fp-name { display: block; height: calc(15px * 1.15); width: auto; max-width: 100%; fill: currentColor; overflow: visible; }
         .fp-plain { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; line-height: 20px; }
         .fp-plain.fp-bad { color: var(--text-muted); font-style: italic; }
         .fp-pop {

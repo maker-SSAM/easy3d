@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
     <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
-    <title data-i18n-en="Gallery 9 - Sign Plate (test) - Parametric Design Studio for Beginners">갤러리9 - 표지판 (시험판) - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <title data-i18n-en="Gallery 9 - Sign Plate - Parametric Design Studio for Beginners">갤러리9 - 표지판 - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
     <link rel="stylesheet" href="../assets/css/core.css">
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -162,7 +162,7 @@
 <body>
 
     <script type="module">
-        // 갤러리9(시험판, 2026-11-23): "글상자" 이름표. 갤러리5는 한 줄 입력이지만, 여기서는
+        // 갤러리9 표지판(2026-11-23 시험판으로 시작, 11-24 첫 화면에 넣고 시험판 표시를 뗌): "글상자" 이름표. 갤러리5는 한 줄 입력이지만, 여기서는
         // 여러 줄을 입력하고 정렬(왼쪽·가운데·오른쪽)·줄 간격·자간을 정할 수 있게 한다.
         //
         // 핵심 방법 — 배치는 브라우저에게 맡긴다:
@@ -251,8 +251,7 @@
         };
 
         shell.controlsBodyEl.innerHTML = `
-            <h3 data-i18n-en="Sign Plate (test)">표지판 (시험판)</h3>
-            <p class="test-note" data-i18n-en="Test version: type several lines in the box (Enter for a new line). Select some letters to change their font, size, spacing, weight or color.">시험판입니다. 글상자에 여러 줄을 입력하고(줄은 Enter), 글자를 드래그로 골라 글씨체·크기·간격·굵기·색을 바꿔 보세요.</p>
+            <h3 data-i18n-en="Sign Plate">표지판</h3>
 
             <!-- 왼쪽 옵션은 이름표의 부품별로 묶는다(2026-11-24 선생님): 1 글자 · 2 테두리 · 3 바닥판 · 4 키링 구멍 -->
             <div class="section-label" data-i18n-en="1. Text">1. 글자</div>

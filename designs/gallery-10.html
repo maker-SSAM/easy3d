@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- 예전 GitHub Pages 주소로 들어온 방문자를 easy3d.web.app으로 넘긴다(다른 갤러리와 같음). -->
+    <script>(function(){if(location.hostname==='maker-ssam.github.io'){location.replace('https://easy3d.web.app'+location.pathname.replace(/^\/easy3d/,'')+location.search+location.hash);}})();</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>(function(){var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+    <script>(function(){var l=localStorage.getItem('lang')||'ko';document.documentElement.setAttribute('data-lang',l);})();</script>
+    <title data-i18n-en="Gallery 10 - Coloring Plate - Parametric Design Studio for Beginners">갤러리10 - 색칠공부판 - 초보자를 위한 파라메트릭 디자인 스튜디오</title>
+    <link rel="stylesheet" href="../assets/css/core.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+    <script src="../assets/js/theme-core.js"></script>
+    <script src="../assets/js/lang-core.js"></script>
+    <script src="../assets/js/core.js"></script>
+    <script src="../assets/js/threemf-core.js"></script>
+    <script type="module" src="../assets/js/manifold-core.js"></script>
+    <style>
+        .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .color-row span { font-size: 0.9em; color: var(--text-color); }
+        .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
+        .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+        .check-row label { font-size: 0.95em; }
+        .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
+        .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
+        .align-label { display: block; font-size: 0.9em; color: var(--text-color); margin-bottom: 6px; }
+        .align-row { display: flex; gap: 6px; margin-bottom: 14px; }
+        .align-row button {
+            flex: 1; padding: 6px 0; border: 1px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); color: var(--text-color); cursor: pointer; font-size: 0.9em;
+        }
+        .align-row button.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+        .fmt-hint { font-size: 0.78em; color: var(--text-muted); margin: 0 0 10px; line-height: 1.5; }
+        .fmt-hint.warn { color: #e65100; }
+        /* 그림 넣기: 원본 | 선화 두 칸. 칸 위에 그림 파일을 끌어다 놓아도 된다. */
+        .drop-zone {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            border: 2px dashed var(--input-border); border-radius: 8px; padding: 6px; margin-bottom: 8px;
+            background: var(--input-bg);
+        }
+        .drop-zone.over { border-color: #1e88e5; background: rgba(30,136,229,0.08); }
+        .pv-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+        .pv-cell span { font-size: 0.75em; color: var(--text-muted); }
+        .pv-cell canvas { width: 100%; height: auto; max-height: 180px; object-fit: contain; background: #fff; border-radius: 4px; border: 1px solid var(--panel-border); }
+        .pick-row { display: flex; gap: 6px; margin-bottom: 6px; }
+        .pick-row button, .pick-row select {
+            flex: 1; padding: 7px 4px; border: 1px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); color: var(--text-color); cursor: pointer; font-size: 0.88em; min-width: 0;
+        }
+        .pick-row button.primary { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+    </style>
+    <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+
+    <script type="module">
+        // 갤러리10: 색칠공부판 — 그림 파일 → 색칠공부 선화 → 선에 두께를 주어 돌출 → 흰 바닥판 위 검은 선 판.
+        // 모두 브라우저 안에서 한다(그림은 어디로도 보내지 않음).
+        //
+        // 앞부분(그림 → 선)은 순수 JS:
+        //   1) 그림을 흰 바탕에 그려 '어두운 정도' 값(V = max(R,G,B))을 읽는다. 밝기(휘도) 대신 V를 쓰는 건
+        //      색칠된 면(빨강·노랑·살색)은 V가 높아서 선으로 잡히지 않고, 검은·진한 선만 잡히게 하려고.
+        //   2) 선 찾기 = 아주 어두운 곳(V < 기준) + 주변보다 뚜렷이 어두운 곳(적응형 이진화, 연필 선·흐린 스캔용).
+        //   3) 작은 점 지우기·작은 구멍 메우기(연결 요소 넓이) → 선이 있는 곳만 잘라서 다시 크게 읽기.
+        //   4) '고른 두께': 선을 뼈대(1픽셀, Zhang-Suen 세선화)로 줄인 뒤, 뼈대에서의 거리(EDT)가 반지름 이하인 곳 =
+        //      모든 선이 같은 두께. '원래 굵기': 원래 선 모양 ∪ (뼈대 + 가장 얇은 선 두께) → 얇은 곳만 굵어진다.
+        //      둘 다 거리 '값'의 0 높이선(마칭 스퀘어, 선형 보간)으로 윤곽선을 뽑아 픽셀 계단 없이 매끈하다.
+        // 뒷부분은 갤러리9와 같은 방식: manifold-3d CrossSection → 압출 → 바닥판·테두리와 합치기, 3MF는 색 나누기.
+        //
+        // 쓰지 않은 것(일부러): Potrace·autotrace(GPL-2.0 — 공개 저장소에 넣을 수 없음),
+        // Three.js pointsToStroke(선이 교차하는 곳에서 면이 겹쳐 STL 결함).
+        const shell = ParametricCore.mountEditorShell(document.body, null, {});
+
+        // ---------- 예시 그림(이 페이지에서 직접 그린 것) ----------
+        const SAMPLES = [
+            {
+                id: 'cat', ko: '고양이', en: 'Cat',
+                svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/>
+<g fill="none" stroke="#151515" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+<path d="M112 128 L122 52 L168 98 Q200 88 232 98 L278 52 L288 128 Q296 214 200 236 Q104 214 112 128 Z"/>
+<path d="M136 86 L130 64 M264 86 L270 64"/>
+<ellipse cx="165" cy="148" rx="15" ry="19"/><ellipse cx="235" cy="148" rx="15" ry="19"/>
+<path d="M189 176 L211 176 L200 189 Z"/>
+<path d="M200 189 Q200 203 184 205 M200 189 Q200 203 216 205"/>
+<path d="M150 182 L92 172 M150 194 L94 202 M250 182 L308 172 M250 194 L306 202"/>
+<path d="M60 286 Q200 250 340 286"/>
+<circle cx="352" cy="52" r="22"/><path d="M352 14 L352 22 M352 82 L352 90 M314 52 L322 52 M382 52 L390 52 M325 25 L331 31 M373 73 L379 79 M379 25 L373 31 M331 73 L325 79"/>
+</g>
+<circle cx="167" cy="152" r="6" fill="#151515"/><circle cx="237" cy="152" r="6" fill="#151515"/>
+</svg>`
+            },
+            {
+                id: 'house', ko: '집과 꽃', en: 'House & flower',
+                svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/>
+<g fill="none" stroke="#151515" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+<path d="M40 150 L140 70 L240 150"/><rect x="62" y="140" width="156" height="120"/>
+<rect x="88" y="168" width="44" height="40"/><path d="M110 168 L110 208 M88 188 L132 188"/>
+<path d="M160 260 L160 196 Q180 180 200 196 L200 260"/>
+<path d="M200 96 L200 70 L224 70 L224 116"/>
+<path d="M10 262 L390 262"/>
+<path d="M318 262 L318 168 M318 220 Q290 208 280 186 Q306 186 318 208"/>
+<circle cx="318" cy="140" r="16"/>
+<circle cx="318" cy="100" r="22"/><circle cx="358" cy="140" r="22"/><circle cx="318" cy="180" r="22"/><circle cx="278" cy="140" r="22"/>
+<path d="M30 40 Q50 20 70 40 Q90 20 110 40"/>
+</g></svg>`
+            }
+        ];
+
+        const DEFAULTS = {
+            sample: 'cat',
+            sens: 5, speck: 2,
+            lineMode: 'even', keepFill: true, lineW: 1.2, lineH: 1.2,
+            plateSize: 120, gap: 3, frameOn: true, frameW: 2, cornerR: 4,
+            baseThick: 2.0,
+            colBase: '#ffffff', colLine: '#000000'
+        };
+        const MIN_LINE_W = 0.8; // mm — 노즐 0.4mm 기준 두 줄. 이보다 얇은 선은 출력이 잘 안 된다.
+        const FILL_HALF_MM = 1.5; // mm — 두께가 이것의 두 배(3mm)를 넘는 검은 곳은 '칠한 면'으로 본다(고른 두께 + 칠한 곳 그대로)
+
+        shell.controlsBodyEl.innerHTML = `
+            <h3 data-i18n-en="Coloring Plate">색칠공부판</h3>
+            <p class="fmt-hint" data-i18n-en="Turn a drawing with clear dark lines into a plate: black raised lines on a white base, ready to color in.">선이 뚜렷한 그림을 넣으면, 흰 바닥판 위에 검은 선이 솟은 색칠공부판을 만들어요.</p>
+
+            <div class="section-label" data-i18n-en="1. Picture">1. 그림</div>
+            <div class="pick-row">
+                <button type="button" class="primary" id="pickBtn" data-i18n-en="Choose a picture...">그림 고르기...</button>
+                <select id="sampleSelect">
+                    ${SAMPLES.map(s => `<option value="${s.id}" data-i18n-en="Example: ${s.en}">예시: ${s.ko}</option>`).join('')}
+                </select>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" style="display:none">
+            <div class="drop-zone" id="dropZone">
+                <div class="pv-cell"><canvas id="srcCanvas" width="240" height="180"></canvas><span data-i18n-en="Original">원본</span></div>
+                <div class="pv-cell"><canvas id="lineCanvas" width="240" height="180"></canvas><span data-i18n-en="Line art (what gets printed)">선화(출력되는 모양)</span></div>
+            </div>
+            <p class="fmt-hint" data-i18n-en="You can also drag a picture here or paste it (Ctrl+V). The picture stays in your browser.">그림을 여기로 끌어다 놓거나 붙여넣기(Ctrl+V)해도 돼요. 그림은 내 브라우저 밖으로 나가지 않아요.</p>
+            <p class="fmt-hint" id="lineNote"></p>
+
+            <div class="section-label" data-i18n-en="2. Finding lines">2. 선 찾기</div>
+            <div class="control-group"><label><span data-i18n-en="Line sensitivity">선 감도</span>: <span id="valSens">5</span></label><input type="range" id="sens" min="1" max="10" step="1" value="5" oninput="scheduleUpdate('mask')"></div>
+            <div class="control-group"><label><span data-i18n-en="Remove small dots">작은 점 지우기</span>: <span id="valSpeck">2</span></label><input type="range" id="speck" min="0" max="5" step="1" value="2" oninput="scheduleUpdate('mask')"></div>
+
+            <div class="section-label" data-i18n-en="3. Lines">3. 선</div>
+            <div class="align-row" id="lineModeRow">
+                <button type="button" data-mode="even" data-i18n-en="Even width">고른 두께</button>
+                <button type="button" data-mode="keep" data-i18n-en="Keep original">원래 굵기</button>
+            </div>
+            <!-- 고른 두께일 때만: 눈동자처럼 칠한 곳(두께 3mm 넘는 곳)은 선으로 줄이지 않고 면으로 둔다 -->
+            <div class="check-row" id="keepFillRow"><input type="checkbox" id="keepFill" checked onchange="scheduleUpdate('field')"><label for="keepFill" data-i18n-en="Keep filled black areas (e.g. pupils)">검게 칠한 곳은 그대로(눈동자 등)</label></div>
+            <div class="control-group"><label><span id="lineWLabel">선 두께</span>: <span id="valLineW">1.2</span>mm</label><input type="range" id="lineW" min="${MIN_LINE_W}" max="3" step="0.1" value="1.2" oninput="scheduleUpdate('field')"></div>
+            <div class="control-group"><label><span data-i18n-en="Line height">선 높이</span>: <span id="valLineH">1.2</span>mm</label><input type="range" id="lineH" min="0.4" max="4" step="0.2" value="1.2" oninput="scheduleUpdate('mesh')"></div>
+            <div class="color-row"><span data-i18n-en="Line color">선 색</span><input type="color" id="colLine" value="#000000" oninput="scheduleUpdate('color')"></div>
+
+            <div class="section-label" data-i18n-en="4. Plate">4. 판</div>
+            <div class="control-group"><label><span data-i18n-en="Plate size (long side)">판 크기(긴 쪽)</span>: <span id="valPlateSize">120</span>mm</label><input type="range" id="plateSize" min="50" max="200" step="5" value="120" oninput="scheduleUpdate('field')"></div>
+            <div class="control-group"><label><span data-i18n-en="Margin around the picture">그림 둘레 여백</span>: <span id="valGap">3</span>mm</label><input type="range" id="gap" min="0" max="15" step="0.5" value="3" oninput="scheduleUpdate('field')"></div>
+            <div class="check-row"><input type="checkbox" id="frameOn" checked onchange="scheduleUpdate('field')"><label for="frameOn" data-i18n-en="Frame (closes cells at the edge)">테두리(가장자리 칸을 닫아 줘요)</label></div>
+            <div class="control-group"><label><span data-i18n-en="Frame width">테두리 두께</span>: <span id="valFrameW">2</span>mm</label><input type="range" id="frameW" min="${MIN_LINE_W}" max="6" step="0.1" value="2" oninput="scheduleUpdate('field')"></div>
+            <div class="control-group"><label><span data-i18n-en="Corner radius">모서리 둥글기</span>: <span id="valCornerR">4</span>mm</label><input type="range" id="cornerR" min="0" max="20" step="0.5" value="4" oninput="scheduleUpdate('field')"></div>
+            <div class="control-group"><label><span data-i18n-en="Base thickness">바닥판 두께</span>: <span id="valBaseThick">2.0</span>mm</label><input type="range" id="baseThick" min="1" max="5" step="0.2" value="2.0" oninput="scheduleUpdate('mesh')"></div>
+            <div class="color-row"><span data-i18n-en="Base color">바닥판 색</span><input type="color" id="colBase" value="#ffffff" oninput="scheduleUpdate('color')"></div>
+            <p class="fmt-hint" id="plateNote"></p>
+        `;
+
+        ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
+        ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
+        if (window.LangCore) window.LangCore.applyTranslations(document);
+
+        const viewer = ParametricCore.initViewer(shell.viewerEl, {
+            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.TOP
+        });
+        const scene = viewer.scene;
+        const camera = viewer.camera;
+        const controls = viewer.controls;
+        ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
+        ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
+
+        // ================= 그림 받기 =================
+        let srcImage = null;     // HTMLImageElement (원본)
+        let srcName = '';        // 받은 파일 이름(받는 파일 이름에 씀)
+        let currentLineMode = DEFAULTS.lineMode;
+
+        function loadImageFromURL(url, name) {
+            return new Promise(function (resolve, reject) {
+                const img = new Image();
+                img.onload = function () { resolve(img); };
+                img.onerror = reject;
+                img.src = url;
+            }).then(function (img) {
+                srcImage = img;
+                srcName = name || '';
+                drawSourcePreview();
+                scheduleUpdate('image', 0);
+            });
+        }
+        function loadSample(id) {
+            const s = SAMPLES.find(function (x) { return x.id === id; }) || SAMPLES[0];
+            const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg);
+            return loadImageFromURL(url, '');
+        }
+        function loadImageFile(file) {
+            if (!file || !/^image\//.test(file.type)) {
+                alert(LangCore.pick('그림 파일(PNG·JPG 등)을 넣어 주세요.', 'Please choose a picture file (PNG, JPG, ...).'));
+                return;
+            }
+            const url = URL.createObjectURL(file);
+            loadImageFromURL(url, file.name.replace(/\.[^.]+$/, '')).catch(function () {
+                alert(LangCore.pick('그림을 열 수 없어요. 다른 파일로 해 보세요.', 'Could not open the picture. Please try another file.'));
+            }).finally(function () { setTimeout(function () { URL.revokeObjectURL(url); }, 1000); });
+        }
+
+        const fileInput = document.getElementById('fileInput');
+        document.getElementById('pickBtn').addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            const f = fileInput.files[0];
+            fileInput.value = '';
+            if (f) loadImageFile(f);
+        });
+        document.getElementById('sampleSelect').addEventListener('change', function (e) { loadSample(e.target.value); });
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover'].forEach(function (t) {
+            dropZone.addEventListener(t, function (e) { e.preventDefault(); dropZone.classList.add('over'); });
+        });
+        ['dragleave', 'drop'].forEach(function (t) {
+            dropZone.addEventListener(t, function (e) { e.preventDefault(); dropZone.classList.remove('over'); });
+        });
+        dropZone.addEventListener('drop', function (e) {
+            const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (f) loadImageFile(f);
+        });
+        document.addEventListener('paste', function (e) {
+            const items = (e.clipboardData && e.clipboardData.items) || [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+                    e.preventDefault();
+                    loadImageFile(items[i].getAsFile());
+                    return;
+                }
+            }
+        });
+
+        document.querySelectorAll('#lineModeRow button').forEach(function (b) {
+            b.addEventListener('click', function () { currentLineMode = b.dataset.mode; syncLineMode(); scheduleUpdate('field'); });
+        });
+        function syncLineMode() {
+            document.querySelectorAll('#lineModeRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === currentLineMode); });
+            // 고른 두께 = 모든 선의 두께, 원래 굵기 = 이보다 얇은 곳만 이만큼 굵게
+            const lab = document.getElementById('lineWLabel');
+            lab.textContent = currentLineMode === 'even' ? LangCore.pick('선 두께', 'Line width') : LangCore.pick('가장 얇은 선', 'Thinnest line');
+            document.getElementById('keepFillRow').style.display = currentLineMode === 'even' ? '' : 'none';
+        }
+        window.addEventListener('langchange', function () { syncLineMode(); updateNotes(); });
+
+        function fitCanvas(canvas, w, h) {
+            // 칸(240×180 비율 안)에 맞게 캔버스 크기를 그림 비율로 정한다
+            const k = Math.min(480 / w, 360 / h);
+            canvas.width = Math.max(1, Math.round(w * k));
+            canvas.height = Math.max(1, Math.round(h * k));
+            return k;
+        }
+        function drawSourcePreview() {
+            const c = document.getElementById('srcCanvas');
+            const w = srcImage.naturalWidth || 400, h = srcImage.naturalHeight || 300;
+            fitCanvas(c, w, h);
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(srcImage, 0, 0, c.width, c.height);
+        }
+
+        // ================= 그림 → 선 (순수 JS) =================
+        const WORK_LONG = 720; // 선 찾기를 할 때 그림의 긴 쪽 픽셀 수(잘라 낸 뒤 다시 이 크기로 읽음)
+        const PAD = 40;        // 둘레 빈칸(픽셀) — 선을 부풀려도 칸 밖으로 안 나가게(반지름 최대 약 30px)
+
+        // 그림의 (sx,sy,sw,sh) 부분을 긴 쪽 long 픽셀로 흰 바탕에 그려 V = max(R,G,B)를 읽는다.
+        function rasterize(img, sx, sy, sw, sh, long) {
+            const k = long / Math.max(sw, sh);
+            const W = Math.max(8, Math.round(sw * k)), H = Math.max(8, Math.round(sh * k));
+            const c = document.createElement('canvas');
+            c.width = W; c.height = H;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, W, H);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+            const d = ctx.getImageData(0, 0, W, H).data;
+            const V = new Uint8Array(W * H);
+            for (let i = 0, j = 0; i < V.length; i++, j += 4) V[i] = Math.max(d[j], d[j + 1], d[j + 2]);
+            return { W: W, H: H, V: V };
+        }
+
+        // 선 찾기: 아주 어두운 곳 + 주변(창 반지름 R)보다 C 이상 어두운 곳. sens 1~10(클수록 많이 잡음).
+        function lineMask(r, sens) {
+            const W = r.W, H = r.H, V = r.V;
+            const darkT = 30 + 15 * sens;     // 5 → 105
+            const C = 40 - 3 * sens;          // 5 → 25
+            const R = Math.max(4, Math.round(Math.max(W, H) / 50));
+            const W1 = W + 1;
+            const S = new Float64Array(W1 * (H + 1));
+            for (let y = 0; y < H; y++) {
+                let row = 0;
+                for (let x = 0; x < W; x++) {
+                    row += V[y * W + x];
+                    S[(y + 1) * W1 + x + 1] = S[y * W1 + x + 1] + row;
+                }
+            }
+            const mask = new Uint8Array(W * H);
+            for (let y = 0; y < H; y++) {
+                const y0 = Math.max(0, y - R), y1 = Math.min(H, y + R + 1);
+                for (let x = 0; x < W; x++) {
+                    const v = V[y * W + x];
+                    if (v < darkT) { mask[y * W + x] = 1; continue; }
+                    if (v >= 200) continue;
+                    const x0 = Math.max(0, x - R), x1 = Math.min(W, x + R + 1);
+                    const sum = S[y1 * W1 + x1] - S[y0 * W1 + x1] - S[y1 * W1 + x0] + S[y0 * W1 + x0];
+                    const mean = sum / ((x1 - x0) * (y1 - y0));
+                    if (v < mean - C) mask[y * W + x] = 1;
+                }
+            }
+            return mask;
+        }
+
+        // 연결 요소 이름 붙이기. conn8이면 8방향, 아니면 4방향. value(0/1)인 픽셀만.
+        // 돌려주는 값: { label: Int32Array(-1 = 해당 없음), sizes: [], touches: [] (가장자리에 닿는지) }
+        function labelComponents(mask, W, H, value, conn8) {
+            const label = new Int32Array(W * H).fill(-1);
+            const sizes = [], touches = [];
+            const stack = new Int32Array(W * H);
+            for (let s = 0; s < W * H; s++) {
+                if (mask[s] !== value || label[s] !== -1) continue;
+                const id = sizes.length;
+                let sp = 0, size = 0, touch = false;
+                stack[sp++] = s; label[s] = id;
+                while (sp) {
+                    const i = stack[--sp];
+                    size++;
+                    const x = i % W, y = (i - x) / W;
+                    if (x === 0 || y === 0 || x === W - 1 || y === H - 1) touch = true;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        const ny = y + dy;
+                        if (ny < 0 || ny >= H) continue;
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (!dx && !dy) continue;
+                            if (!conn8 && dx && dy) continue;
+                            const nx = x + dx;
+                            if (nx < 0 || nx >= W) continue;
+                            const j = ny * W + nx;
+                            if (mask[j] === value && label[j] === -1) { label[j] = id; stack[sp++] = j; }
+                        }
+                    }
+                }
+                sizes.push(size); touches.push(touch);
+            }
+            return { label: label, sizes: sizes, touches: touches };
+        }
+
+        // 작은 점 지우기(검은 조각 넓이 < minArea) + 작은 구멍 메우기(가장자리에 안 닿는 흰 조각 넓이 < minArea).
+        function cleanMask(mask, W, H, minArea) {
+            if (minArea <= 0) return mask;
+            const blk = labelComponents(mask, W, H, 1, true);
+            for (let i = 0; i < mask.length; i++) if (mask[i] && blk.sizes[blk.label[i]] < minArea) mask[i] = 0;
+            const wht = labelComponents(mask, W, H, 0, false);
+            for (let i = 0; i < mask.length; i++) {
+                if (!mask[i]) {
+                    const id = wht.label[i];
+                    if (!wht.touches[id] && wht.sizes[id] < minArea) mask[i] = 1;
+                }
+            }
+            return mask;
+        }
+        function speckArea(speck, W, H) {
+            const side = speck * Math.max(W, H) / 250;
+            return side * side;
+        }
+        function maskBBox(mask, W, H) {
+            let x0 = W, y0 = H, x1 = -1, y1 = -1;
+            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+                if (!mask[y * W + x]) continue;
+                if (x < x0) x0 = x; if (x > x1) x1 = x;
+                if (y < y0) y0 = y; if (y > y1) y1 = y;
+            }
+            return x1 < 0 ? null : { x0: x0, y0: y0, x1: x1, y1: y1 };
+        }
+
+        // Zhang-Suen 세선화(1픽셀 뼈대). 둘레 1픽셀은 0이어야 한다(PAD로 보장).
+        function thin(mask, W, H) {
+            const img = mask.slice();
+            let fg = [];
+            for (let i = 0; i < img.length; i++) if (img[i]) fg.push(i);
+            const del = [];
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (let step = 0; step < 2; step++) {
+                    del.length = 0;
+                    for (let k = 0; k < fg.length; k++) {
+                        const i = fg[k];
+                        const p2 = img[i - W], p3 = img[i - W + 1], p4 = img[i + 1], p5 = img[i + W + 1];
+                        const p6 = img[i + W], p7 = img[i + W - 1], p8 = img[i - 1], p9 = img[i - W - 1];
+                        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+                        if (B < 2 || B > 6) continue;
+                        const A = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+                        if (A !== 1) continue;
+                        if (step === 0) { if (p2 * p4 * p6 || p4 * p6 * p8) continue; }
+                        else { if (p2 * p4 * p8 || p2 * p6 * p8) continue; }
+                        del.push(i);
+                    }
+                    if (del.length) {
+                        changed = true;
+                        for (let k = 0; k < del.length; k++) img[del[k]] = 0;
+                        fg = fg.filter(function (i) { return img[i]; });
+                    }
+                }
+            }
+            return img;
+        }
+
+        // 거리 변환(Felzenszwalb): feature(1)인 픽셀까지의 거리 제곱.
+        function edt(feature, W, H) {
+            const INF = 1e20;
+            const n = Math.max(W, H);
+            const f = new Float64Array(n), d = new Float64Array(n), z = new Float64Array(n + 1);
+            const v = new Int32Array(n);
+            const out = new Float64Array(W * H);
+            function pass(len) {
+                let k = 0;
+                v[0] = 0; z[0] = -INF; z[1] = INF;
+                for (let q = 1; q < len; q++) {
+                    let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+                    while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+                    k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+                }
+                k = 0;
+                for (let q = 0; q < len; q++) {
+                    while (z[k + 1] < q) k++;
+                    const dq = q - v[k];
+                    d[q] = dq * dq + f[v[k]];
+                }
+            }
+            for (let x = 0; x < W; x++) {
+                for (let y = 0; y < H; y++) f[y] = feature[y * W + x] ? 0 : INF;
+                pass(H);
+                for (let y = 0; y < H; y++) out[y * W + x] = d[y];
+            }
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) f[x] = out[y * W + x];
+                pass(W);
+                for (let x = 0; x < W; x++) out[y * W + x] = d[x];
+            }
+            return out;
+        }
+
+        // 선 찾기 결과(픽셀 단위). 그림·감도·작은 점 값이 같으면 다시 계산하지 않는다.
+        let stageB = null;
+        function computeStageB(sens, speck) {
+            const img = srcImage;
+            const iw = img.naturalWidth || 400, ih = img.naturalHeight || 300;
+            // 1차: 그림 전체를 읽어 선이 있는 곳(테두리 상자)을 찾는다
+            const r1 = rasterize(img, 0, 0, iw, ih, WORK_LONG);
+            const m1 = cleanMask(lineMask(r1, sens), r1.W, r1.H, speckArea(speck, r1.W, r1.H));
+            const bb = maskBBox(m1, r1.W, r1.H);
+            if (!bb) return { empty: true };
+            // 2차: 그 부분만(둘레 조금 더) 잘라서 다시 크게 읽는다 → 작은 그림도 픽셀이 넉넉하다
+            const k1 = iw / r1.W;
+            const marg = 0.02 * Math.max(bb.x1 - bb.x0 + 1, bb.y1 - bb.y0 + 1) + 2;
+            const sx = Math.max(0, (bb.x0 - marg) * k1), sy = Math.max(0, (bb.y0 - marg) * k1);
+            const ex = Math.min(iw, (bb.x1 + 1 + marg) * k1), ey = Math.min(ih, (bb.y1 + 1 + marg) * k1);
+            const r2 = rasterize(img, sx, sy, ex - sx, ey - sy, WORK_LONG);
+            const m2 = cleanMask(lineMask(r2, sens), r2.W, r2.H, speckArea(speck, r2.W, r2.H));
+            // 둘레 PAD만큼 빈칸을 두른 칸으로 옮긴다
+            const GW = r2.W + 2 * PAD, GH = r2.H + 2 * PAD;
+            const mask = new Uint8Array(GW * GH);
+            let count = 0;
+            for (let y = 0; y < r2.H; y++) for (let x = 0; x < r2.W; x++) {
+                if (m2[y * r2.W + x]) { mask[(y + PAD) * GW + x + PAD] = 1; count++; }
+            }
+            if (!count) return { empty: true };
+            const skel = thin(mask, GW, GH);
+            // 세선화가 작은 점(2×2 등)을 통째로 지우는 일이 있어, 뼈대가 하나도 안 남은 조각은 가장 안쪽 한 점을 남긴다
+            const inv = new Uint8Array(GW * GH);
+            for (let i = 0; i < inv.length; i++) inv[i] = mask[i] ? 0 : 1;
+            const dIn2 = edt(inv, GW, GH); // 선 안쪽 픽셀 → 가장 가까운 바깥까지 거리²
+            const comps = labelComponents(mask, GW, GH, 1, true);
+            const hasSkel = new Uint8Array(comps.sizes.length);
+            const best = new Int32Array(comps.sizes.length).fill(-1);
+            for (let i = 0; i < mask.length; i++) {
+                const id = comps.label[i];
+                if (id < 0) continue;
+                if (skel[i]) hasSkel[id] = 1;
+                if (best[id] < 0 || dIn2[i] > dIn2[best[id]]) best[id] = i;
+            }
+            for (let id = 0; id < hasSkel.length; id++) if (!hasSkel[id] && best[id] >= 0) skel[best[id]] = 1;
+            // 이 그림의 보통 선 반두께(뼈대 위 '선 안쪽 깊이'의 가운데값) — 칠한 면과 선이 만나는 곳을 가르는 기준
+            const depths = [];
+            for (let i = 0; i < skel.length; i++) if (skel[i]) depths.push(dIn2[i]);
+            depths.sort(function (a, b) { return a - b; });
+            const halfMed = depths.length ? Math.sqrt(depths[depths.length >> 1]) : 1;
+            const dSkel2 = edt(skel, GW, GH);
+            const dSkel = new Float32Array(GW * GH);
+            for (let i = 0; i < dSkel.length; i++) dSkel[i] = Math.sqrt(dSkel2[i]);
+            return {
+                empty: false, GW: GW, GH: GH, W: r2.W, H: r2.H,
+                mask: mask, skel: skel, dSkel: dSkel, dIn2: dIn2, sdf: null,
+                pieces: comps.sizes.length, halfMed: halfMed
+            };
+        }
+
+        // 원래 굵기용: 선 경계까지의 부호 있는 거리(안 +, 밖 −)를 3×3으로 한 번 다듬은 것.
+        function ensureSdf(b) {
+            if (b.sdf) return b.sdf;
+            const GW = b.GW, GH = b.GH;
+            const dOut2 = edt(b.mask, GW, GH);
+            const raw = new Float32Array(GW * GH);
+            for (let i = 0; i < raw.length; i++) raw[i] = b.mask[i] ? Math.sqrt(b.dIn2[i]) - 0.5 : -(Math.sqrt(dOut2[i]) - 0.5);
+            const sdf = new Float32Array(GW * GH);
+            for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+                let s = 0, n = 0;
+                for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                    const xx = x + dx, yy = y + dy;
+                    if (xx < 0 || yy < 0 || xx >= GW || yy >= GH) continue;
+                    s += raw[yy * GW + xx]; n++;
+                }
+                sdf[y * GW + x] = s / n;
+            }
+            b.sdf = sdf;
+            return sdf;
+        }
+
+        // 마칭 스퀘어: 값 f > 0인 곳의 경계를 닫힌 윤곽선들로. 픽셀 중심이 정수 좌표.
+        // 칸 밖은 −1로 본다(모든 윤곽선이 닫힘). 선분 방향은 '안쪽이 왼쪽'으로 통일해 이어 붙인다.
+        function marchingSquares(f, W, H) {
+            const OUT = -1;
+            const val = function (x, y) { return (x < 0 || y < 0 || x >= W || y >= H) ? OUT : f[y * W + x]; };
+            const W2 = W + 2;
+            const keyH = function (x, y) { return ((y + 1) * W2 + (x + 1)) * 2; };      // (x,y)-(x+1,y)
+            const keyV = function (x, y) { return ((y + 1) * W2 + (x + 1)) * 2 + 1; };  // (x,y)-(x,y+1)
+            const pts = new Map();
+            function pointH(x, y) {
+                const k = keyH(x, y);
+                if (!pts.has(k)) { const a = val(x, y), b = val(x + 1, y); pts.set(k, [x + a / (a - b), y]); }
+                return k;
+            }
+            function pointV(x, y) {
+                const k = keyV(x, y);
+                if (!pts.has(k)) { const a = val(x, y), b = val(x, y + 1); pts.set(k, [x, y + a / (a - b)]); }
+                return k;
+            }
+            const next = new Map();
+            function addSeg(ka, kb, cx, cy, inside) {
+                // 기준 모서리(cx,cy)가 안쪽(inside)이면 왼쪽에, 바깥이면 오른쪽에 오도록 방향을 정한다
+                const P = pts.get(ka), Q = pts.get(kb);
+                const cross = (Q[0] - P[0]) * (cy - P[1]) - (Q[1] - P[1]) * (cx - P[0]);
+                if ((cross > 0) === inside) next.set(ka, kb); else next.set(kb, ka);
+            }
+            for (let y = -1; y < H; y++) {
+                for (let x = -1; x < W; x++) {
+                    const v0 = val(x, y), v1 = val(x + 1, y), v2 = val(x + 1, y + 1), v3 = val(x, y + 1);
+                    const i0 = v0 > 0, i1 = v1 > 0, i2 = v2 > 0, i3 = v3 > 0;
+                    const code = (i0 ? 1 : 0) | (i1 ? 2 : 0) | (i2 ? 4 : 0) | (i3 ? 8 : 0);
+                    if (code === 0 || code === 15) continue;
+                    // 모서리 c0(x,y) c1(x+1,y) c2(x+1,y+1) c3(x,y+1), 변 e0=c0c1 e1=c1c2 e2=c2c3 e3=c3c0
+                    const cs = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
+                    const ins = [i0, i1, i2, i3];
+                    const edgeKey = [
+                        function () { return pointH(x, y); },
+                        function () { return pointV(x + 1, y); },
+                        function () { return pointH(x, y + 1); },
+                        function () { return pointV(x, y); }
+                    ];
+                    const crossed = [];
+                    for (let e = 0; e < 4; e++) if (ins[e] !== ins[(e + 1) % 4]) crossed.push(e);
+                    if (crossed.length === 2) {
+                        const k = ins.indexOf(true);
+                        addSeg(edgeKey[crossed[0]](), edgeKey[crossed[1]](), cs[k][0], cs[k][1], true);
+                    } else {
+                        // 안장점: 가운데 값으로 어느 쪽을 이을지 정한다. 잘려 나가는 모서리 k는 변 (k-1, k) 사이.
+                        const centerIn = (v0 + v1 + v2 + v3) / 4 > 0;
+                        for (let k = 0; k < 4; k++) {
+                            if (ins[k] === centerIn) continue; // 가운데와 같은 편 모서리는 잘리지 않음
+                            addSeg(edgeKey[(k + 3) % 4](), edgeKey[k](), cs[k][0], cs[k][1], ins[k]);
+                        }
+                    }
+                }
+            }
+            const loops = [];
+            const used = new Set();
+            next.forEach(function (_, start) {
+                if (used.has(start)) return;
+                const loop = [];
+                let k = start;
+                while (k !== undefined && !used.has(k)) {
+                    used.add(k);
+                    loop.push(pts.get(k));
+                    k = next.get(k);
+                }
+                if (loop.length >= 3) loops.push(loop);
+            });
+            return loops;
+        }
+
+        // ================= 판 모양(mm) =================
+        function readParams() {
+            const num = function (id) { return parseFloat(document.getElementById(id).value); };
+            return {
+                sens: num('sens'), speck: num('speck'),
+                lineMode: currentLineMode, keepFill: document.getElementById('keepFill').checked, lineW: Math.max(MIN_LINE_W, num('lineW')), lineH: num('lineH'),
+                plateSize: num('plateSize'), gap: num('gap'), frameOn: document.getElementById('frameOn').checked,
+                frameW: Math.max(MIN_LINE_W, num('frameW')), cornerR: num('cornerR'),
+                baseThick: num('baseThick'),
+                colBase: document.getElementById('colBase').value, colLine: document.getElementById('colLine').value
+            };
+        }
+
+        // 가운데가 원점인 둥근 사각형 윤곽선(반시계).
+        function roundRect(w, h, r) {
+            r = Math.max(0, Math.min(r, w / 2 - 0.01, h / 2 - 0.01));
+            const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+            if (r < 0.01) return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+            const pts = [];
+            const N = 16;
+            [[x1 - r, y0 + r, -Math.PI / 2], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, Math.PI / 2], [x0 + r, y0 + r, Math.PI]].forEach(function (c) {
+                for (let i = 0; i <= N; i++) {
+                    const a = c[2] + (Math.PI / 2) * (i / N);
+                    pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+                }
+            });
+            return pts;
+        }
+
+        const TIDY_EPS = 0.0001; // mm — 완성된 층의 아주 짧은 변 없애기(갤러리9와 같은 이유: float32에서 점이 합쳐지지 않게)
+        const SIMPLIFY_EPS = 0.02; // mm — 윤곽선 점 줄이기(모양 변화 0.02mm 이하)
+        const KISS_JOIN_MM = 0.001; // mm — 꼭짓점 하나로만 맞닿은 곳 잇기
+
+        // 선 층·바닥판의 2D 단면(CrossSection)을 만든다. track()에 넣은 것은 호출부가 지운다.
+        function buildShapes(p, b, track) {
+            const inset = p.gap + (p.frameOn ? p.frameW : 0);
+            const drawLong = p.plateSize - 2 * inset;
+            if (drawLong < 10) return { tooSmall: true };
+            const s = drawLong / Math.max(b.W, b.H); // mm / 픽셀
+            const rpx = (p.lineW / 2) / s;
+            const GW = b.GW, GH = b.GH;
+            const f = new Float32Array(GW * GH);
+            if (p.lineMode === 'even') {
+                for (let i = 0; i < f.length; i++) f[i] = rpx - b.dSkel[i];
+                if (p.keepFill) {
+                    // 칠한 곳 = 선 안쪽 깊이가 기준 T 이상인 곳의 '열기'(그 속 점들에서 같은 거리만큼 다시 부풀림)
+                    // → 눈동자 같은 면은 원래 모양(모서리만 둥글게)으로 남는다. T는 FILL_HALF_MM, 고른 선 반두께의 1.5배,
+                    // 이 그림의 보통 선 반두께의 2.2배 중 큰 값(선끼리 만나는 곳·꺾인 곳은 보통 선의 1.4배쯤이라 면으로 안 잡힘).
+                    const T = Math.max(1.5 * rpx, FILL_HALF_MM / s, 2.2 * b.halfMed);
+                    const T2 = T * T;
+                    const core = new Uint8Array(GW * GH);
+                    let any = false;
+                    for (let i = 0; i < core.length; i++) if (b.dIn2[i] >= T2) { core[i] = 1; any = true; }
+                    if (any) {
+                        const dCore2 = edt(core, GW, GH);
+                        for (let i = 0; i < f.length; i++) f[i] = Math.max(f[i], T - Math.sqrt(dCore2[i]));
+                    }
+                }
+            } else {
+                const sdf = ensureSdf(b);
+                for (let i = 0; i < f.length; i++) f[i] = Math.max(rpx - b.dSkel[i], sdf[i]);
+            }
+            const loops = marchingSquares(f, GW, GH);
+            const cx = (GW - 1) / 2, cy = (GH - 1) / 2;
+            const contours = loops.map(function (loop) {
+                return loop.map(function (q) { return [(q[0] - cx) * s, (cy - q[1]) * s]; });
+            });
+            const drawW = b.W * s, drawH = b.H * s;
+            const innerW = drawW + 2 * p.gap, innerH = drawH + 2 * p.gap;
+            const outerW = innerW + (p.frameOn ? 2 * p.frameW : 0), outerH = innerH + (p.frameOn ? 2 * p.frameW : 0);
+            const baseXS = track(ManifoldCore.contoursToXS([roundRect(outerW, outerH, p.cornerR)]));
+            let blackXS = null;
+            if (contours.length) {
+                const raw = track(ManifoldCore.contoursToXS(contours));
+                blackXS = track(raw.simplify(SIMPLIFY_EPS));
+            }
+            // 선은 테두리 안쪽(테두리가 없으면 바닥판 가장자리에서 0.5mm 안쪽)까지만
+            const clipXS = p.frameOn
+                ? track(ManifoldCore.contoursToXS([roundRect(innerW, innerH, Math.max(0, p.cornerR - p.frameW))]))
+                : track(baseXS.offset(-0.5, 'Round', 2, 32));
+            if (blackXS) blackXS = track(blackXS.intersect(clipXS));
+            if (p.frameOn) {
+                const ring = track(baseXS.subtract(clipXS));
+                blackXS = blackXS ? track(blackXS.add(ring)) : ring;
+            }
+            // 꼭짓점 하나로만 맞닿은 곳(점 줄이기·잘라 내기에서 생김 → 모서리 하나를 면 4개가 씀)을 아주 조금 부풀려 잇는다
+            // (갤러리9의 KISS_JOIN_MM과 같은 처방).
+            if (blackXS && !blackXS.isEmpty()) blackXS = track(blackXS.offset(KISS_JOIN_MM, 'Miter', 2));
+            const tidy = function (xs) { return xs && !xs.isEmpty() ? track(xs.simplify(TIDY_EPS)) : null; };
+            return {
+                baseXS: tidy(baseXS), blackXS: tidy(blackXS),
+                outerW: outerW, outerH: outerH, mmPerPx: s
+            };
+        }
+
+        // ================= 화면 =================
+        let manifoldReady = false;
+        let currentGroup = null;
+        let currentMeshes = {};
+        let shapeCache = null;   // { key, shapes, scratch }
+        let lastInfo = null;
+        let updateTimer = null;
+        let pendingLevel = 0;
+        const LEVELS = { color: 1, mesh: 2, field: 3, mask: 4, image: 5 };
+
+        function scheduleUpdate(level, delay) {
+            pendingLevel = Math.max(pendingLevel, LEVELS[level] || 3);
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(runUpdate, delay === undefined ? 120 : delay);
+        }
+
+        function showValues(p) {
+            [['valSens', p.sens], ['valSpeck', p.speck], ['valLineW', p.lineW.toFixed(1)], ['valLineH', p.lineH.toFixed(1)],
+             ['valPlateSize', p.plateSize], ['valGap', p.gap], ['valFrameW', p.frameW.toFixed(1)], ['valCornerR', p.cornerR],
+             ['valBaseThick', p.baseThick.toFixed(1)]
+            ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
+            document.getElementById('frameW').closest('.control-group').style.display = p.frameOn ? '' : 'none';
+        }
+
+        function dropShapeCache() {
+            if (!shapeCache) return;
+            shapeCache.scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
+            shapeCache = null;
+        }
+
+        function runUpdate() {
+            updateTimer = null;
+            const level = pendingLevel;
+            pendingLevel = 0;
+            if (!manifoldReady || !srcImage) return;
+            const p = readParams();
+            showValues(p);
+            const t0 = performance.now();
+            if (level >= LEVELS.mask || !stageB) {
+                stageB = computeStageB(p.sens, p.speck);
+                dropShapeCache();
+            }
+            const tB = performance.now();
+            if (stageB.empty) {
+                dropShapeCache();
+                disposeCurrent();
+                drawLinePreview(null, p);
+                lastInfo = { empty: true };
+                updateNotes();
+                return;
+            }
+            const key = [p.lineMode, p.keepFill, p.lineW, p.plateSize, p.gap, p.frameOn, p.frameW, p.cornerR].join('|');
+            if (!shapeCache || shapeCache.key !== key) {
+                dropShapeCache();
+                const scratch = [];
+                const track = function (m) { scratch.push(m); return m; };
+                let shapes;
+                try { shapes = buildShapes(p, stageB, track); }
+                catch (err) { console.error('선 모양 만들기 실패:', err); scratch.forEach(function (m) { m && m.delete && m.delete(); }); return; }
+                shapeCache = { key: key, shapes: shapes, scratch: scratch };
+                drawLinePreview(shapes, p);
+            }
+            const tC = performance.now();
+            if (shapeCache.shapes.tooSmall) {
+                disposeCurrent();
+                lastInfo = { tooSmall: true };
+                updateNotes();
+                return;
+            }
+            if (level >= LEVELS.mesh || !currentGroup) buildPreview(p, shapeCache.shapes);
+            else applyColors(p);
+            lastInfo = { shapes: shapeCache.shapes, p: p, ms: { lines: Math.round(tB - t0), shape: Math.round(tC - tB), total: Math.round(performance.now() - t0) } };
+            updateNotes();
+        }
+
+        function disposeCurrent() {
+            ParametricCore.updateDimensionOverlay(scene, null);
+            if (!currentGroup) return;
+            scene.remove(currentGroup);
+            currentGroup.traverse(function (obj) {
+                if (obj.geometry) obj.geometry.dispose();
+                if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+                else if (obj.material) obj.material.dispose();
+            });
+            currentGroup = null;
+            currentMeshes = {};
+        }
+
+        // 미리보기: 바닥판과 선 층을 따로 그린다(빠름). 받기는 하나로 합친다(buildFused).
+        function buildPreview(p, shapes) {
+            disposeCurrent();
+            currentGroup = new THREE.Group();
+            const owned = [];
+            const own = function (m) { owned.push(m); return m; };
+            [
+                { name: 'base', xs: shapes.baseXS, h: p.baseThick, y: 0, color: p.colBase },
+                { name: 'line', xs: shapes.blackXS, h: p.lineH, y: p.baseThick, color: p.colLine }
+            ].forEach(function (def) {
+                if (!def.xs) return;
+                let solid = own(ManifoldCore.extrudeXS(def.xs, def.h));
+                const id = solid.originalID();
+                if (def.y) solid = own(ManifoldCore.translateY(solid, def.y));
+                const mesh = ManifoldCore.toThreeMesh(solid, new Map([[id, def.color]]), def.color, { roughness: 0.5, metalness: 0.05 });
+                mesh.userData.layerName = def.name;
+                currentMeshes[def.name] = mesh;
+                currentGroup.add(mesh);
+            });
+            owned.forEach(function (m) { m.delete(); });
+            scene.add(currentGroup);
+            ParametricCore.updateDimensionOverlay(scene, currentGroup);
+        }
+        function applyColors(p) {
+            const set = function (name, color) {
+                const mesh = currentMeshes[name];
+                if (!mesh) return;
+                (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.color.set(color); });
+            };
+            set('base', p.colBase);
+            set('line', p.colLine);
+        }
+
+        // 선화 미리보기: 실제로 출력될 선 층(테두리 포함)을 흰 판 위에 그린다.
+        function drawLinePreview(shapes, p) {
+            const c = document.getElementById('lineCanvas');
+            const ctx = c.getContext('2d');
+            if (!shapes || shapes.tooSmall || !shapes.baseXS) {
+                fitCanvas(c, 4, 3);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, c.width, c.height);
+                return;
+            }
+            const k = fitCanvas(c, shapes.outerW, shapes.outerH);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            const tx = function (q) { return [(q[0] + shapes.outerW / 2) * k, (shapes.outerH / 2 - q[1]) * k]; };
+            const fillXS = function (xs, color) {
+                if (!xs) return;
+                ctx.beginPath();
+                xs.toPolygons().forEach(function (poly) {
+                    poly.forEach(function (q, i) { const t = tx(q); if (i) ctx.lineTo(t[0], t[1]); else ctx.moveTo(t[0], t[1]); });
+                    ctx.closePath();
+                });
+                ctx.fillStyle = color;
+                ctx.fill('evenodd');
+            };
+            fillXS(shapes.baseXS, '#f4f4f4');
+            fillXS(shapes.blackXS, '#111');
+        }
+
+        function updateNotes() {
+            const lineNote = document.getElementById('lineNote');
+            const plateNote = document.getElementById('plateNote');
+            lineNote.classList.remove('warn');
+            if (!lastInfo) { lineNote.textContent = ''; plateNote.textContent = ''; return; }
+            if (lastInfo.empty) {
+                lineNote.classList.add('warn');
+                lineNote.textContent = LangCore.pick('선을 찾지 못했어요. 선 감도를 올리거나, 검은 선이 뚜렷한 그림을 넣어 보세요.',
+                    'No lines found. Raise the line sensitivity, or use a picture with clear dark lines.');
+                plateNote.textContent = '';
+                return;
+            }
+            if (lastInfo.tooSmall) {
+                lineNote.classList.add('warn');
+                lineNote.textContent = LangCore.pick('판이 너무 작아요. 판 크기를 키우거나 여백·테두리를 줄여 주세요.', 'The plate is too small. Make it bigger or reduce the margin/frame.');
+                plateNote.textContent = '';
+                return;
+            }
+            const p = lastInfo.p, sh = lastInfo.shapes;
+            lineNote.textContent = stageB.pieces > 400
+                ? LangCore.pick('선 조각이 아주 많아요(' + stageB.pieces + '개). 사진이나 무늬가 많은 그림이면 선이 지저분할 수 있어요 — 작은 점 지우기를 올려 보세요.',
+                    'There are very many line pieces (' + stageB.pieces + '). Photos or busy textures can come out messy — try raising "Remove small dots".')
+                : '';
+            if (stageB.pieces > 400) lineNote.classList.add('warn');
+            plateNote.textContent = LangCore.pick(
+                '판 크기 ' + sh.outerW.toFixed(1) + ' × ' + sh.outerH.toFixed(1) + 'mm. 색을 바꿔 가며 출력하려면: 슬라이서에서 ' + p.baseThick.toFixed(1) +
+                'mm 높이 층(선이 시작되는 곳)을 인쇄하기 전에 일시정지를 넣고, 멈추면 선 색 필라멘트로 바꾸세요(층 높이 0.2mm 기준). 여러 색 프린터는 3MF로 받으면 색이 나뉘어 있어요.',
+                'Plate ' + sh.outerW.toFixed(1) + ' × ' + sh.outerH.toFixed(1) + ' mm. For a single-color printer: in the slicer, add a pause before the layer at ' +
+                p.baseThick.toFixed(1) + ' mm (where the lines start) and swap to the line color when it stops (0.2 mm layers). Multi-color printers: the 3MF keeps the two colors apart.');
+        }
+
+        // ================= 받기 =================
+        function buildFused(p, track) {
+            const shapes = shapeCache && !shapeCache.shapes.tooSmall ? shapeCache.shapes : null;
+            if (!shapes || !shapes.baseXS) return null;
+            const idToColor = new Map();
+            const base = track(ManifoldCore.extrudeXS(shapes.baseXS, p.baseThick));
+            idToColor.set(base.originalID(), p.colBase);
+            let fused = base;
+            if (shapes.blackXS) {
+                const raw = track(ManifoldCore.extrudeXS(shapes.blackXS, p.lineH));
+                idToColor.set(raw.originalID(), p.colLine);
+                const lines = track(ManifoldCore.translateY(raw, p.baseThick));
+                fused = track(ManifoldCore.union(base, lines));
+            }
+            return { fused: fused, idToColor: idToColor };
+        }
+        function exportWith(kind) {
+            if (!manifoldReady || updateTimer) { if (updateTimer) { clearTimeout(updateTimer); runUpdate(); } }
+            const p = readParams();
+            const scratch = [];
+            const track = function (m) { scratch.push(m); return m; };
+            const cleanup = function () { scratch.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); }); };
+            let result;
+            try { result = buildFused(p, track); }
+            catch (err) { console.error(kind + ' 생성 실패:', err); cleanup(); return; }
+            if (!result) { cleanup(); return; }
+            const mesh = ManifoldCore.toThreeMesh(result.fused, result.idToColor);
+            cleanup();
+            const group = new THREE.Group();
+            group.add(mesh);
+            const base = (srcName || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 20);
+            const name = LangCore.pick((base ? base + '_' : '') + '색칠공부판', (base ? base + '_' : '') + 'coloring_plate');
+            if (kind === 'STL') ParametricCore.exportSTL(group, name + '.stl');
+            else ThreeMFCore.export3MF(group, name + '.3mf');
+            mesh.geometry.dispose();
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(function (m) { m.dispose(); });
+        }
+        function downloadSTL() { exportWith('STL'); }
+        function download3MF() { exportWith('3MF'); }
+
+        // ================= 초기화 =================
+        shell.resetBtn.onclick = function () {
+            ['sens', 'speck', 'lineW', 'lineH', 'plateSize', 'gap', 'frameW', 'cornerR', 'baseThick', 'colBase', 'colLine'].forEach(function (id) {
+                document.getElementById(id).value = DEFAULTS[id];
+                document.getElementById(id).dispatchEvent(new Event('input')); // 슬라이더 숫자 칸(enhanceRangeInputs)도 맞춤
+            });
+            document.getElementById('frameOn').checked = DEFAULTS.frameOn;
+            document.getElementById('keepFill').checked = DEFAULTS.keepFill;
+            currentLineMode = DEFAULTS.lineMode;
+            syncLineMode();
+            document.getElementById('sampleSelect').value = DEFAULTS.sample;
+            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.TOP);
+            loadSample(DEFAULTS.sample);
+        };
+
+        window.scheduleUpdate = scheduleUpdate;
+        window.downloadSTL = downloadSTL;
+        window.download3MF = download3MF;
+        window.__getPreviewGroup = function () { return currentGroup; };
+        // 시험용: 바깥에서 그림을 넣고(데이터 주소), 받을 입체를 꺼내 검사할 때만 쓴다.
+        window.__loadImageURL = function (url, name) { return loadImageFromURL(url, name); };
+        window.__buildExportMesh = function () {
+            if (updateTimer) { clearTimeout(updateTimer); runUpdate(); }
+            const scratch = [];
+            const r = buildFused(readParams(), function (m) { scratch.push(m); return m; });
+            if (!r) return null;
+            const mesh = ManifoldCore.toThreeMesh(r.fused, r.idToColor);
+            scratch.forEach(function (m) { m.delete(); });
+            return mesh;
+        };
+        window.__info = function () { return lastInfo && { ms: lastInfo.ms, pieces: stageB && stageB.pieces, empty: lastInfo.empty, tooSmall: lastInfo.tooSmall }; };
+
+        async function main() {
+            syncLineMode();
+            await ManifoldCore.ready;
+            manifoldReady = true;
+            loadSample(DEFAULTS.sample);
+        }
+        main();
+    </script>
+<!-- 방문 집계(Cloudflare Web Analytics, 쿠키·개인 추적 없음) — 실제 사이트(easy3d.web.app)에서만 -->
+<script>if(location.hostname==='easy3d.web.app'){var s=document.createElement('script');s.defer=true;s.src='https://static.cloudflareinsights.com/beacon.min.js';s.setAttribute('data-cf-beacon','{"token": "f1763eddb5244b76a2859b8f83f56b5c"}');document.body.appendChild(s);}</script>
+</body>
+</html>

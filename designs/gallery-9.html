@@ -66,6 +66,7 @@
         .stepper input[type="number"] { flex: 1; min-width: 0; width: auto !important; -moz-appearance: textfield; }
         .stepper input[type="number"]::-webkit-inner-spin-button, .stepper input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .fmt-row input[type="color"] { width: 36px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
+        .fmt-cell .cell-color { display: block; width: 100%; height: 30px; padding: 0; box-sizing: border-box; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; background: var(--input-bg); }
         /* 도구 막대의 칸을 누르면 글상자 선택 표시가 사라지므로, 고른 글자를 따로 칠해 보여 준다(CSS Highlight). */
         ::highlight(g9sel) { background-color: rgba(30, 136, 229, 0.35); }
         /* 글씨체 목록(직접 만든 펼침 목록): 단추 + 펼침(.fp-pop, body에 붙여 화면 위에 띄움). 업로드·폴더는 맨 아래 고정(.fp-foot). */
@@ -234,27 +235,17 @@
 
             <!-- 왼쪽 옵션은 이름표의 부품별로 묶는다(2026-11-24 선생님): 1 글자 · 2 테두리 · 3 바닥판 · 4 키링 구멍 -->
             <div class="section-label" data-i18n-en="1. Text">1. 글자</div>
-            <!-- 글상자 전체에 쓰는 것: 기본 글씨체 · 기본 색 · 정렬 -->
-            <div class="control-group" style="margin-bottom:8px">
-                <label data-i18n-en="Base font">기본 글씨체</label>
-                <select id="fontSelect" hidden></select>
-                <div class="font-picker" id="fontPicker"></div>
-                <p class="fmt-hint" id="fontNoteBase" hidden></p>
-                <!-- 내 PC의 글씨체: 파일 하나(업로드), 폴더 통째(폴더 가져오기). 서버로 보내지 않고 브라우저 안에서만 읽는다. -->
-                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
-                <input type="file" id="folderUpload" webkitdirectory multiple style="display:none">
+            <!-- 글상자가 맨 위, 그 아래 고른 글자의 서식(2026-11-24 선생님). 기본 글씨체·기본 색 칸은 없고,
+                 글자를 고르지 않고 바꾸면 글상자 전체가 바뀐다(처음 값: 카페24 프로업·주황). -->
+            <div class="control-group">
+                <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="true" spellcheck="false"></div></div>
             </div>
-            <div class="base-row">
-                <span class="fmt-label" data-i18n-en="Base color">기본 색</span>
-                <input type="color" id="colText" value="#ff5703" oninput="onTextColorChange()" title="색을 따로 고르지 않은 글자의 색">
-                <div class="align-row" id="alignRow">
-                    <button type="button" data-align="left" data-i18n-en="Left">왼쪽</button>
-                    <button type="button" data-align="center" data-i18n-en="Center">가운데</button>
-                    <button type="button" data-align="right" data-i18n-en="Right">오른쪽</button>
-                </div>
-            </div>
-            <!-- 고른 글자(블록)마다: 글씨체 · 크기 · 높이 · 줄 간격 · 자간 · 굵기 · 굵게 · 색 -->
-            <div class="sub-head" data-i18n-en="Selected letters">고른 글자</div>
+            <!-- 값은 숨긴 칸에 둔다: 처음 글씨체(fontSelect)·처음 글자 색(colText) -->
+            <select id="fontSelect" hidden></select>
+            <input type="color" id="colText" value="#ff5703" hidden>
+            <!-- 내 PC의 글씨체: 파일 하나(업로드), 폴더 통째(폴더 가져오기). 서버로 보내지 않고 브라우저 안에서만 읽는다. -->
+            <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+            <input type="file" id="folderUpload" webkitdirectory multiple style="display:none">
             <div class="fmt-row">
                 <select id="blockFont" hidden></select>
                 <div class="font-picker" id="blockFontPicker" title="고른 글자의 글씨체"></div>
@@ -270,17 +261,17 @@
                         <button type="button" data-step="${k}" data-dir="1" title="늘리기">+</button>
                     </div>
                 </div>`).join('')}
+                <div class="fmt-cell">
+                    <span class="fmt-label" data-i18n-en="Color">색</span>
+                    <input type="color" id="blockColor" class="cell-color" title="고른 글자의 색">
+                </div>
             </div>
-            <div class="fmt-row" id="fmtRow">
-                <button type="button" data-act="bold" id="boldBtn" title="굵게" data-i18n-en-title="Bold"><b>B</b></button>
-                <span class="fmt-label" style="margin-left:6px" data-i18n-en="Color">색</span>
-                <input type="color" id="blockColor" title="고른 글자의 색">
-                <button type="button" data-act="clear" title="서식 지우기" data-i18n-en="Clear" style="margin-left:auto">지우기</button>
+            <div class="align-row" id="alignRow">
+                <button type="button" data-align="left" data-i18n-en="Left">왼쪽</button>
+                <button type="button" data-align="center" data-i18n-en="Center">가운데</button>
+                <button type="button" data-align="right" data-i18n-en="Right">오른쪽</button>
             </div>
             <p class="fmt-hint" data-i18n-en="If nothing is selected, the whole box changes. Line spacing applies to whole lines. Height and weight show only in the 3D view.">글자를 고르지 않고 바꾸면 글상자 전체가 바뀝니다. 줄 간격은 그 줄 전체에, 높이·굵기는 3D 화면에만 보입니다.</p>
-            <div class="control-group">
-                <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="true" spellcheck="false"></div></div>
-            </div>
 
             <div class="section-label" data-i18n-en="2. Border">2. 테두리</div>
             <div class="control-group"><label><span data-i18n-en="Thickness">두께</span>: <span id="valBorderW">1.0</span>mm</label><input type="range" id="borderW" min="0" max="5" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
@@ -377,6 +368,8 @@
         // Enter와 같게 한다 — 한 div 안에 줄이 둘이면 줄 간격을 줄마다 따로 줄 수 없어서.
         textBox.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && e.shiftKey && !e.isComposing) { e.preventDefault(); document.execCommand('insertParagraph'); }
+            // Ctrl+B/I/U(브라우저의 굵게·기울임·밑줄)는 막는다 — 굵게 단추를 뺐고(2026-11-24), 기울임·밑줄은 입체에 없어서
+            if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[biu]$/i.test(e.key)) e.preventDefault();
         });
         // 붙여넣기는 글자만(다른 곳의 색·글꼴·링크 서식은 버린다). 여러 줄이면 줄 구조를 다시 그린다.
         textBox.addEventListener('paste', function (e) {
@@ -747,7 +740,7 @@
         document.addEventListener('keydown', function (e) {
             if (!(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
             const inBox = textBox.contains(document.activeElement) || document.activeElement === textBox;
-            const onToolbar = document.activeElement && document.activeElement.closest && document.activeElement.closest('#fmtGrid, #fmtRow')
+            const onToolbar = document.activeElement && document.activeElement.closest && document.activeElement.closest('#fmtGrid')
                 && document.activeElement.tagName !== 'INPUT';
             if (!inBox && !onToolbar) return;
             const key = e.key.toLowerCase();
@@ -773,7 +766,6 @@
         }
 
         const fmtGrid = document.getElementById('fmtGrid');
-        const fmtRow = document.getElementById('fmtRow');
         const blockFont = document.getElementById('blockFont');
         const blockColor = document.getElementById('blockColor');
         function updateFmtRow() {
@@ -789,14 +781,11 @@
             // 고른 글자의 서식이 섞여 있으면 첫 글자 것을 보여 준다
             blockFont.value = first.font || '';
             blockColor.value = first.color || document.getElementById('colText').value;
-            document.getElementById('boldBtn').classList.toggle('active', t.targets.length > 0 && t.targets.every(function (c) { return c.bold; }));
             syncFontPickers();
         }
 
         // 단추를 눌러도 글상자의 선택이 풀리지 않게
-        [fmtGrid, fmtRow].forEach(function (el) {
-            el.querySelectorAll('button').forEach(function (b) { b.addEventListener('mousedown', function (e) { e.preventDefault(); }); });
-        });
+        fmtGrid.querySelectorAll('button').forEach(function (b) { b.addEventListener('mousedown', function (e) { e.preventDefault(); }); });
         fmtGrid.addEventListener('click', function (e) {
             const btn = e.target.closest('button[data-step]');
             if (!btn) return;
@@ -809,21 +798,6 @@
                 if (!isFinite(v)) { updateFmtRow(); return; }
                 changeNum(inp.dataset.num, function () { return v; });
             });
-        });
-        fmtRow.addEventListener('click', function (e) {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            if (btn.dataset.act === 'bold') {
-                applyToSelection(function (t) {
-                    const allBold = t.every(function (c) { return c.bold; });
-                    t.forEach(function (c) { c.bold = !allBold; });
-                });
-            } else if (btn.dataset.act === 'clear') {
-                applyToSelection(function (t, lineLh, lines) {
-                    t.forEach(function (c) { RUN_KEYS.forEach(function (k) { c[k] = RUN_DEFAULT[k]; }); });
-                    lines.forEach(function (i) { lineLh[i] = LH_DEFAULT; });
-                });
-            }
         });
         // 고른 글자의 색(3MF에서 색이 나뉨). 고르는 동안 바로 바뀐다.
         blockColor.addEventListener('input', function () {
@@ -881,7 +855,7 @@
         const fontUploadInput = document.getElementById('fontUpload');
         const folderInput = document.getElementById('folderUpload');
         const userFontGroups = []; // [{ id, title, keys }] — '내 폰트 파일', 가져온 폴더마다
-        let pendingFontTarget = 'base'; // 파일·폴더 창을 연 칸('base' | 'block')
+        let pendingFontTarget = 'block'; // 파일·폴더 창을 연 칸(화면에는 '고른 글자' 칸만 있음)
         function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
         function fontOptionsHtml(withBaseChoice) {
             let h = '';
@@ -915,13 +889,10 @@
             closeFontPicker(); // 펼친 목록이 있으면 옛 내용이므로 닫는다
             updateFmtRow();
         }
-        function setFontNote(msg, target) {
-            ['Base', 'Block'].forEach(function (k) {
-                const el = document.getElementById('fontNote' + k);
-                const show = msg && (target || pendingFontTarget) === k.toLowerCase();
-                el.hidden = !show;
-                el.textContent = show ? msg : '';
-            });
+        function setFontNote(msg) {
+            const el = document.getElementById('fontNoteBlock');
+            el.hidden = !msg;
+            el.textContent = msg || '';
         }
         function revertFontSelect(target) {
             if (target === 'base') { fontSelectEl.value = currentFontFile; syncFontPickers(); }
@@ -1226,7 +1197,6 @@
         // 한국어↔영어를 바꾸면 글씨체 이름(한글/영어)과 항목 글을 다시 그린다
         window.addEventListener('langchange', function () { refreshFontSelects(); });
         makeFontPicker(blockFont, document.getElementById('blockFontPicker'));
-        makeFontPicker(fontSelectEl, document.getElementById('fontPicker'));
 
         function fontLabelOf(file) { return file.name.replace(/\.(ttf|otf)$/i, ''); }
 

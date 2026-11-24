@@ -61,8 +61,13 @@
         .fmt-row select { flex: 1; min-width: 0; height: 30px; }
         .fmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px 8px; margin-bottom: 6px; }
         .fmt-cell .fmt-label { display: block; margin-bottom: 2px; font-size: 0.82em; color: var(--text-muted); }
-        .stepper { display: flex; gap: 2px; }
-        .stepper button { min-width: 26px !important; padding: 0 !important; }
+        .stepper { display: flex; align-items: center; gap: 4px; }
+        /* −/+ 단추는 원형 — 네모난 숫자 칸과 구별되게(2026-11-24 선생님) */
+        .stepper button {
+            flex: none; width: 26px !important; min-width: 26px !important; height: 26px !important; padding: 0 !important;
+            border-radius: 50% !important; line-height: 1; display: flex; align-items: center; justify-content: center;
+        }
+        .align-label { display: block; margin-bottom: 2px; font-size: 0.82em; color: var(--text-muted); }
         .stepper input[type="number"] { flex: 1; min-width: 0; width: auto !important; -moz-appearance: textfield; }
         .stepper input[type="number"]::-webkit-inner-spin-button, .stepper input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .fmt-row input[type="color"] { width: 36px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
@@ -266,6 +271,7 @@
                     <input type="color" id="blockColor" class="cell-color" title="고른 글자의 색">
                 </div>
             </div>
+            <span class="align-label" data-i18n-en="Alignment">정렬</span>
             <div class="align-row" id="alignRow">
                 <button type="button" data-align="left" data-i18n-en="Left">왼쪽</button>
                 <button type="button" data-align="center" data-i18n-en="Center">가운데</button>

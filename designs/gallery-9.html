@@ -240,6 +240,8 @@
             ],
             fontKey: FONT_OPTIONS[DEFAULT_FONT_INDEX].file, align: 'center',
             // 갤러리9에는 글자 외곽선이 없다(2026-11-24 선생님: 깔끔한 이름표). 글자 높이는 글상자 도구 막대(글씨별).
+            // 테두리·바닥판 모양: 'outline'(글자 따라) | 'rect'(글자 전체를 감싸는 사각형, 모서리 둥글기 cornerR mm)
+            frameShape: 'outline', cornerR: 3,
             borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
             baseThick: 3.0, borderThick: 0.6,
@@ -293,6 +295,15 @@
             </div>
 
             <div class="section-label" data-i18n-en="2. Border">2. 테두리</div>
+            <!-- 모양은 테두리와 바닥판에 함께 쓴다 -->
+            <span class="align-label" data-i18n-en="Shape (border and base plate)">모양(테두리·바닥판)</span>
+            <div class="align-row" id="frameShapeRow">
+                <button type="button" data-shape="outline" data-i18n-en="Follow text">글자 따라</button>
+                <button type="button" data-shape="rect" data-i18n-en="Rectangle">사각형</button>
+            </div>
+            <div id="cornerRow" hidden>
+                <div class="control-group"><label><span data-i18n-en="Corner radius">모서리 둥글기</span>: <span id="valCornerR">3</span>mm</label><input type="range" id="cornerR" min="0" max="20" step="0.5" value="3" oninput="scheduleUpdate()"></div>
+            </div>
             <div class="control-group"><label><span data-i18n-en="Thickness">두께</span>: <span id="valBorderW">1.0</span>mm</label><input type="range" id="borderW" min="0" max="5" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Gap from text">글자와의 간격</span>: <span id="valInnerMargin">1.5</span>mm</label><input type="range" id="innerMargin" min="0" max="5" step="0.1" value="1.5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valBorderThick">0.6</span>mm</label><input type="range" id="borderThick" min="0.1" max="2" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
@@ -365,6 +376,16 @@
         // 키링 구멍: '사용'을 켤 때만 위치·지름·테두리 칸을 보인다
         function syncKeyringDetails() { document.getElementById('keyringDetails').hidden = !document.getElementById('keyringOn').checked; }
         function onKeyringToggle() { syncKeyringDetails(); scheduleUpdate(); }
+        // 테두리·바닥판 모양(글자 따라 / 사각형). 사각형일 때만 '모서리 둥글기'를 보인다.
+        let currentFrameShape = DEFAULTS.frameShape;
+        function syncFrameShape() {
+            document.querySelectorAll('#frameShapeRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.shape === currentFrameShape); });
+            document.getElementById('cornerRow').hidden = currentFrameShape !== 'rect';
+        }
+        document.querySelectorAll('#frameShapeRow button').forEach(function (b) {
+            b.addEventListener('click', function () { currentFrameShape = b.dataset.shape; syncFrameShape(); scheduleUpdate(); });
+        });
+        syncFrameShape();
 
         document.querySelectorAll('#alignRow button').forEach(function (b) {
             b.addEventListener('click', function () { currentAlign = b.dataset.align; onLayoutStyleChange(); });
@@ -1482,6 +1503,9 @@
             });
             document.getElementById('keyringOn').checked = DEFAULTS.keyringOn;
             syncKeyringDetails();
+            currentFrameShape = DEFAULTS.frameShape;
+            document.getElementById('cornerR').value = DEFAULTS.cornerR;
+            syncFrameShape();
             renderModel(cloneModel(DEFAULTS.model));
             lastSel = null;
             recordChange('block'); // 초기화도 되돌릴 수 있게(글상자 내용만)
@@ -1652,8 +1676,9 @@
             const textPieces = colorParts;
 
             let masterWithRing = masterXS;
+            let ringXS = null;
             if (p.keyringOn) {
-                let ringXS = track(ManifoldCore.circleXS(p.keyringHoleSize / 2 + p.keyringRim, 48));
+                ringXS = track(ManifoldCore.circleXS(p.keyringHoleSize / 2 + p.keyringRim, 48));
                 ringXS = track(ringXS.translate([p.keyringX, p.keyringY]));
                 masterWithRing = masterXS ? track(masterXS.add(ringXS)) : ringXS;
             }
@@ -1685,10 +1710,44 @@
 
             // 테두리 = 글자에서 (외곽선+간격+테두리)만큼 부풀려 메운 것 − (외곽선+간격)만큼 부풀려 메운 것
             // (갤러리5와 같은 B 방식, 이유와 알려진 성질은 갤러리5 주석 참고). 바닥판도 글자에서 한 번에.
-            const borderOuterXS = fillHoles(grow(masterWithRing, p.innerMargin + p.borderW));
-            const borderInnerXS = p.borderW > 0 ? fillHoles(grow(masterWithRing, p.innerMargin)) : borderOuterXS;
+            let borderOuterXS, borderInnerXS, baseXS;
+            if (p.frameShape === 'rect' && masterXS) {
+                // 사각형(2026-11-24 선생님): 글자 전체를 감싸는 네모에서 (간격 → 두께 → 바깥 여백)만큼 넓힌 둥근 사각형.
+                // 모서리 둥글기 R = 테두리 바깥 모서리의 반지름. 테두리 안쪽은 R − 두께(0 아래면 뾰족),
+                // 바닥판은 R + 바깥 여백이라 테두리와 나란히 둥글다. 키링 고리는 글자 따라일 때처럼 붙인다.
+                const bb = masterXS.bounds();
+                const m = p.innerMargin, b = p.borderW, o = p.outerMargin, R = Math.max(0, p.cornerR);
+                const roundedRect = function (pad, radius) {
+                    const x0 = bb.min[0] - pad, y0 = bb.min[1] - pad, x1 = bb.max[0] + pad, y1 = bb.max[1] + pad;
+                    const r = Math.max(0, Math.min(radius, (x1 - x0) / 2 - 0.001, (y1 - y0) / 2 - 0.001));
+                    if (r < 0.001) return track(ManifoldCore.contoursToXS([[[x0, y0], [x1, y0], [x1, y1], [x0, y1]]]));
+                    const segs = Math.max(2, Math.ceil((Math.PI / 2) * r / arcEdgeMm));
+                    const pts = [];
+                    [[x1 - r, y0 + r, -Math.PI / 2], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, Math.PI / 2], [x0 + r, y0 + r, Math.PI]].forEach(function (c) {
+                        for (let i = 0; i <= segs; i++) {
+                            const a = c[2] + (Math.PI / 2) * i / segs;
+                            pts.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]);
+                        }
+                    });
+                    return track(ManifoldCore.contoursToXS([pts]));
+                };
+                borderOuterXS = roundedRect(m + b, R);
+                // 간격 0이면 테두리 안쪽 선이 글자 끝점에 딱 맞닿아 STL에 짝 안 맞는 모서리가 생겼다(글씨체 12종 모두) →
+                // 그때만 0.02mm 겹쳐서 글자와 한 덩어리로 붙게 한다.
+                const innerPad = m > 0 ? m : -0.02;
+                borderInnerXS = b > 0 ? roundedRect(innerPad, Math.max(0, R - b)) : borderOuterXS;
+                baseXS = roundedRect(m + b + o, R + o);
+                if (ringXS) {
+                    borderOuterXS = track(borderOuterXS.add(grow(ringXS, m + b)));
+                    borderInnerXS = b > 0 ? track(borderInnerXS.add(grow(ringXS, innerPad))) : borderOuterXS;
+                    baseXS = track(baseXS.add(grow(ringXS, m + b + o)));
+                }
+            } else {
+                borderOuterXS = fillHoles(grow(masterWithRing, p.innerMargin + p.borderW));
+                borderInnerXS = p.borderW > 0 ? fillHoles(grow(masterWithRing, p.innerMargin)) : borderOuterXS;
+                baseXS = fillHoles(grow(masterWithRing, p.innerMargin + p.borderW + p.outerMargin));
+            }
             const borderRingXS = track(borderOuterXS.subtract(borderInnerXS));
-            const baseXS = fillHoles(grow(masterWithRing, p.innerMargin + p.borderW + p.outerMargin));
 
             let holeXS = null;
             if (p.keyringOn) {
@@ -1826,6 +1885,7 @@
         function readParams() {
             return {
                 lines: readModel(), align: currentAlign, fontFile: currentFontFile,
+                frameShape: currentFrameShape, cornerR: num('cornerR'),
                 borderW: num('borderW'), innerMargin: num('innerMargin'), outerMargin: num('outerMargin'),
                 keyringOn: document.getElementById('keyringOn').checked,
                 keyringX: num('keyringX'), keyringY: num('keyringY'), keyringHoleSize: num('keyringHoleSize'), keyringRim: num('keyringRim'),
@@ -1841,6 +1901,7 @@
         function shapeFingerprint(p) {
             return JSON.stringify({
                 lines: p.lines, align: p.align, fontFile: p.fontFile,
+                frameShape: p.frameShape, cornerR: p.cornerR,
                 borderW: p.borderW, innerMargin: p.innerMargin, outerMargin: p.outerMargin,
                 keyringOn: p.keyringOn, keyringX: p.keyringX, keyringY: p.keyringY, keyringHoleSize: p.keyringHoleSize, keyringRim: p.keyringRim
             });
@@ -1877,7 +1938,7 @@
             const params = readParams();
             if (!isReady(params)) return;
             [
-                ['valBorderW', params.borderW],
+                ['valBorderW', params.borderW], ['valCornerR', params.cornerR],
                 ['valInnerMargin', params.innerMargin], ['valOuterMargin', params.outerMargin],
                 ['valKeyringX', params.keyringX], ['valKeyringY', params.keyringY],
                 ['valKeyringHoleSize', params.keyringHoleSize], ['valKeyringRim', params.keyringRim],

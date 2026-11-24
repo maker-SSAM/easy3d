@@ -214,7 +214,8 @@
                 { lh: LH_DEFAULT, runs: [plainRun('두 줄도 돼요 🙂')] }
             ],
             fontKey: FONT_OPTIONS[DEFAULT_FONT_INDEX].file, align: 'center',
-            outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
+            // 글자 외곽선은 기본으로 없음(0) — 깔끔한 이름표가 기본(2026-11-24 선생님). 슬라이더로 켤 수 있다.
+            outlineW: 0, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
             baseThick: 3.0, outlineThick: 0.4, borderThick: 0.6, textThick: 0.8,
             colBase: '#ffffff', colOutline: '#ff9a5b', colBorder: '#000000', colText: '#ff5703'
@@ -268,7 +269,7 @@
             </div>
 
             <div class="section-label" data-i18n-en="2. Design details">2. 디자인 디테일</div>
-            <div class="control-group"><label><span data-i18n-en="Text outline thickness">글자 외곽선 두께</span>: <span id="valOutlineW">0.3</span>mm</label><input type="range" id="outlineW" min="0" max="2" step="0.05" value="0.3" oninput="scheduleUpdate()"></div>
+            <div class="control-group"><label><span data-i18n-en="Text outline thickness">글자 외곽선 두께</span>: <span id="valOutlineW">0</span>mm</label><input type="range" id="outlineW" min="0" max="2" step="0.05" value="0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Border thickness">테두리 두께</span>: <span id="valBorderW">1.0</span>mm</label><input type="range" id="borderW" min="0" max="5" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text-to-border gap">글자-테두리 간격</span>: <span id="valInnerMargin">1.5</span>mm</label><input type="range" id="innerMargin" min="0" max="5" step="0.1" value="1.5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Outer margin">바깥 여백</span>: <span id="valOuterMargin">1.0</span>mm</label><input type="range" id="outerMargin" min="0" max="5" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
@@ -1602,7 +1603,9 @@
                 return track(xs.offset(delta, 'Round', 2, segs));
             }
 
-            const outlineXS = masterXS ? grow(masterXS, p.outlineW) : null;
+            // 외곽선 두께 0이면 외곽선 층을 만들지 않는다 — 글자와 같은 모양의 층이 글자 아래쪽에 겹치면
+            // 글자 옆면 아래 0.4mm(외곽선 층 높이)가 외곽선 색으로 나올 수 있어서.
+            const outlineXS = masterXS && p.outlineW > 0 ? grow(masterXS, p.outlineW) : null;
 
             // 바닥판·테두리는 바깥 실루엣 한 바퀴만 따라간다(갤러리5 2026-11-23 고침과 같음):
             // 안쪽 구멍 윤곽선(넓이 −)은 버려 메운다.

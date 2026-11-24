@@ -90,7 +90,11 @@
         }
         .fp-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
         .fp-foot { flex: none; border-top: 1px solid var(--input-border); padding: 4px 0; background: var(--panel-accent-bg); }
-        .fp-head { display: flex; align-items: center; gap: 6px; padding: 8px 12px 3px; font-size: 0.78em; font-weight: bold; color: var(--text-muted); }
+        /* 묶음 제목(사이트 글씨체·내 폰트 파일·폴더): 가운데 정렬, 양쪽에 구분선 */
+        .fp-head { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 12px 4px; font-size: 0.78em; font-weight: bold; color: var(--text-muted); }
+        .fp-head::before, .fp-head::after { content: ''; flex: 1; border-top: 1px solid var(--input-border); }
+        .fp-head::before { margin-right: 4px; }
+        .fp-head::after { margin-left: 4px; }
         .fp-head .fp-icon { width: 16px; height: 16px; }
         .fp-row { display: flex; align-items: center; padding: 6px 12px; min-height: 34px; box-sizing: border-box; cursor: pointer; }
         .fp-row.active { background: rgba(30, 136, 229, 0.15); }
@@ -1032,11 +1036,17 @@
             return picker;
         }
         // 단추에 지금 고른 글씨체를 보여 준다(값이 바뀐 때만 다시 그림)
+        // 보여 줄 글씨체: '고른 글자' 칸에서 글씨체를 따로 고르지 않은 글자(값 '')는 기본 글씨체를 따르므로 그 이름을 보여 준다.
+        // 목록에는 '(기본 글씨체)' 줄을 두지 않는다(2026-11-24 선생님) — 따로 고른 글씨체를 되돌릴 때는 '지우기'.
+        function shownFontValue(pk) {
+            return pk.select.value || (pk.select === blockFont ? currentFontFile : '');
+        }
         function syncFontPickers() {
             fontPickers.forEach(function (pk) {
-                const opt = pk.select.selectedOptions[0];
+                const shown = shownFontValue(pk);
+                const opt = Array.prototype.find.call(pk.select.options, function (o) { return o.value === shown; });
                 // 고른 글씨체를 다 불러오면(입체용 G9F) 미리보기 글꼴 대신 그것으로 다시 그린다(미리보기는 오래되면 지워짐)
-                const sig = pk.select.value + '|' + (opt ? opt.textContent : '') + '|' + isFontReady(pk.select.value);
+                const sig = shown + '|' + (opt ? opt.textContent : '') + '|' + isFontReady(shown);
                 if (pk.shown === sig) return;
                 pk.shown = sig;
                 const cur = pk.btn.querySelector('.fp-cur');
@@ -1058,6 +1068,7 @@
             const foot = document.createElement('div');
             foot.className = 'fp-foot';
             const listRows = [], footRows = [];
+            const shown = shownFontValue(picker);
             function addHead(icon, text) {
                 const head = document.createElement('div');
                 head.className = 'fp-head';
@@ -1066,7 +1077,7 @@
             }
             function addRow(opt, toFoot) {
                 const row = document.createElement('div');
-                row.className = 'fp-row' + (opt.value === sel.value && !ACTION_ICONS[opt.value] ? ' selected' : '');
+                row.className = 'fp-row' + (opt.value === shown && !ACTION_ICONS[opt.value] ? ' selected' : '');
                 row.setAttribute('role', 'option');
                 row.dataset.value = opt.value;
                 row.innerHTML = '<span class="fp-cell">' + optionInnerHtml(opt) + '</span>';
@@ -1080,8 +1091,8 @@
                     Array.prototype.forEach.call(child.children, function (o) { addRow(o, false); });
                 } else if (ACTION_ICONS[child.value]) {
                     addRow(child, true);
-                } else {
-                    if (child.value && !siteHead) { siteHead = true; addHead(null, LangCore.pick('사이트 글씨체', 'Site fonts')); }
+                } else if (child.value) { // '(기본 글씨체)'(값 '')는 목록에 두지 않는다
+                    if (!siteHead) { siteHead = true; addHead(null, LangCore.pick('사이트 글씨체', 'Site fonts')); }
                     addRow(child, false);
                 }
             });

@@ -811,7 +811,7 @@
         }
 
         // ---------- 글씨체 고르는 칸 두 개('기본 글씨체', 도구 막대 '고른 글자') ----------
-        // 목록: 사이트 글씨체 → 📁 내 폰트 파일 업로드… → 🗂 내 폴더 가져오기…(→ 지난번 폴더 다시 열기)
+        // 목록: 사이트 글씨체 → 🔤 내 폰트 파일 업로드… → 📁 내 폴더 가져오기…(→ 지난번 폴더 다시 열기)
         //       → 가져온 글씨체(묶음마다 optgroup)
         const fontSelectEl = document.getElementById('fontSelect');
         const fontUploadInput = document.getElementById('fontUpload');
@@ -823,10 +823,10 @@
             let h = '';
             if (withBaseChoice) h += '<option value="" data-i18n-en="(Base font)">(기본 글씨체)</option>';
             h += FONT_OPTIONS.map(function (f) { return '<option value="' + escHtml(f.file) + '">' + escHtml(f.label) + '</option>'; }).join('');
-            h += '<option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>';
-            h += '<option value="__folder__" data-i18n-en="🗂 Load my font folder...">🗂 내 폴더 가져오기...</option>';
+            h += '<option value="__upload__" data-i18n-en="🔤 Upload my font file...">🔤 내 폰트 파일 업로드...</option>';
+            h += '<option value="__folder__" data-i18n-en="📁 Load my font folder...">📁 내 폴더 가져오기...</option>';
             if (savedDirHandle && !savedDirLoaded) {
-                h += '<option value="__reopen__">🗂 ' + escHtml(LangCore.pick('지난번 폴더 다시 열기', 'Reopen last folder')) + ' (' + escHtml(savedDirHandle.name) + ')...</option>';
+                h += '<option value="__reopen__">📂 ' + escHtml(LangCore.pick('지난번 폴더 다시 열기', 'Reopen last folder')) + ' (' + escHtml(savedDirHandle.name) + ')...</option>';
             }
             userFontGroups.forEach(function (g) {
                 h += '<optgroup label="' + escHtml(g.title) + '">' + g.keys.map(function (k) {
@@ -901,19 +901,19 @@
             else userFontGroups.push({ id: id, title: title, keys: keys });
         }
 
-        // 📁 내 폰트 파일 업로드: 파일 하나를 목록 '내 폰트 파일' 묶음에 더하고 바로 적용한다.
+        // 🔤 내 폰트 파일 업로드: 파일 하나를 목록 '내 폰트 파일' 묶음에 더하고 바로 적용한다.
         fontUploadInput.addEventListener('change', function () {
             const file = this.files && this.files[0];
             if (!file) return;
             const key = userFontKey(file);
             registerFont(key, { label: fontLabelOf(file), file: file });
             const g = userFontGroups.find(function (x) { return x.id === 'files'; });
-            upsertFontGroup('files', LangCore.pick('📁 내 폰트 파일', '📁 My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
+            upsertFontGroup('files', LangCore.pick('🔤 내 폰트 파일', '🔤 My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
             refreshFontSelects();
             pickFont(key, pendingFontTarget);
         });
 
-        // 🗂 내 폴더 가져오기: 폴더(하위 폴더 포함) 안의 .ttf·.otf를 모두 목록에 올린다(이름만, 읽기는 고를 때).
+        // 📁 내 폴더 가져오기: 폴더(하위 폴더 포함) 안의 .ttf·.otf를 모두 목록에 올린다(이름만, 읽기는 고를 때).
         // 크롬·엣지는 폴더 고르기 창(showDirectoryPicker)을 쓰고 그 폴더를 기억해 둔다(IndexedDB) → 다음 방문 때
         // '지난번 폴더 다시 열기' 한 번(허락 창). 다른 브라우저는 <input webkitdirectory>로 고르고, 새로고침하면 다시 고른다.
         const FONT_EXT = /\.(ttf|otf)$/i;
@@ -933,7 +933,7 @@
                 return key;
             });
             const uniq = Array.from(new Set(keys)).sort(function (a, b) { return fontRegistry.get(a).label.localeCompare(fontRegistry.get(b).label, 'ko'); });
-            upsertFontGroup('folder:' + folderName, '🗂 ' + folderName, uniq);
+            upsertFontGroup('folder:' + folderName, '📁 ' + folderName, uniq);
             refreshFontSelects();
             setFontNote(uniq.length
                 ? LangCore.pick('폴더 「' + folderName + '」에서 글씨체 ' + uniq.length + '개를 가져왔습니다. 글씨체 목록 아래쪽에 있습니다.', 'Loaded ' + uniq.length + ' fonts from "' + folderName + '" (bottom of the font list).')

@@ -114,7 +114,7 @@
             sample: 'cat',
             sens: 5, speck: 2,
             lineMode: 'even', keepFill: true, lineW: 1.2, lineH: 1.2,
-            plateSize: 120, gap: 3, frameOn: true, frameW: 2, cornerR: 4,
+            plateShape: 'rect', plateSize: 120, gap: 3, frameOn: true, frameW: 2, cornerR: 4,
             baseThick: 2.0,
             colBase: '#ffffff', colLine: '#000000'
         };
@@ -156,11 +156,16 @@
             <div class="color-row"><span data-i18n-en="Line color">선 색</span><input type="color" id="colLine" value="#000000" oninput="scheduleUpdate('color')"></div>
 
             <div class="section-label" data-i18n-en="4. Plate">4. 판</div>
+            <span class="align-label" data-i18n-en="Plate shape">판 모양</span>
+            <div class="align-row" id="plateShapeRow">
+                <button type="button" data-shape="rect" data-i18n-en="Rectangle">사각형</button>
+                <button type="button" data-shape="outline" data-i18n-en="Follow picture">그림 따라</button>
+            </div>
             <div class="control-group"><label><span data-i18n-en="Plate size (long side)">판 크기(긴 쪽)</span>: <span id="valPlateSize">120</span>mm</label><input type="range" id="plateSize" min="50" max="200" step="5" value="120" oninput="scheduleUpdate('field')"></div>
             <div class="control-group"><label><span data-i18n-en="Margin around the picture">그림 둘레 여백</span>: <span id="valGap">3</span>mm</label><input type="range" id="gap" min="0" max="15" step="0.5" value="3" oninput="scheduleUpdate('field')"></div>
             <div class="check-row"><input type="checkbox" id="frameOn" checked onchange="scheduleUpdate('field')"><label for="frameOn" data-i18n-en="Frame (closes cells at the edge)">테두리(가장자리 칸을 닫아 줘요)</label></div>
             <div class="control-group"><label><span data-i18n-en="Frame width">테두리 두께</span>: <span id="valFrameW">2</span>mm</label><input type="range" id="frameW" min="${MIN_LINE_W}" max="6" step="0.1" value="2" oninput="scheduleUpdate('field')"></div>
-            <div class="control-group"><label><span data-i18n-en="Corner radius">모서리 둥글기</span>: <span id="valCornerR">4</span>mm</label><input type="range" id="cornerR" min="0" max="20" step="0.5" value="4" oninput="scheduleUpdate('field')"></div>
+            <div class="control-group" id="cornerRow"><label><span data-i18n-en="Corner radius">모서리 둥글기</span>: <span id="valCornerR">4</span>mm</label><input type="range" id="cornerR" min="0" max="20" step="0.5" value="4" oninput="scheduleUpdate('field')"></div>
             <div class="control-group"><label><span data-i18n-en="Base thickness">바닥판 두께</span>: <span id="valBaseThick">2.0</span>mm</label><input type="range" id="baseThick" min="1" max="5" step="0.2" value="2.0" oninput="scheduleUpdate('mesh')"></div>
             <div class="color-row"><span data-i18n-en="Base color">바닥판 색</span><input type="color" id="colBase" value="#ffffff" oninput="scheduleUpdate('color')"></div>
             <p class="fmt-hint" id="plateNote"></p>
@@ -185,6 +190,7 @@
         let srcImage = null;     // HTMLImageElement (원본)
         let srcName = '';        // 받은 파일 이름(받는 파일 이름에 씀)
         let currentLineMode = DEFAULTS.lineMode;
+        let currentPlateShape = DEFAULTS.plateShape;
 
         function loadImageFromURL(url, name) {
             return new Promise(function (resolve, reject) {
@@ -248,6 +254,14 @@
         document.querySelectorAll('#lineModeRow button').forEach(function (b) {
             b.addEventListener('click', function () { currentLineMode = b.dataset.mode; syncLineMode(); scheduleUpdate('field'); });
         });
+        document.querySelectorAll('#plateShapeRow button').forEach(function (b) {
+            b.addEventListener('click', function () { currentPlateShape = b.dataset.shape; syncPlateShape(); scheduleUpdate('field'); });
+        });
+        function syncPlateShape() {
+            document.querySelectorAll('#plateShapeRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.shape === currentPlateShape); });
+            // 모서리 둥글기는 사각형일 때만(그림 따라는 부풀릴 때 저절로 둥글다)
+            document.getElementById('cornerRow').style.display = currentPlateShape === 'rect' ? '' : 'none';
+        }
         function syncLineMode() {
             document.querySelectorAll('#lineModeRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === currentLineMode); });
             // 고른 두께 = 모든 선의 두께, 원래 굵기 = 이보다 얇은 곳만 이만큼 굵게
@@ -482,6 +496,8 @@
                 if (m2[y * r2.W + x]) { mask[(y + PAD) * GW + x + PAD] = 1; count++; }
             }
             if (!count) return { empty: true };
+            // 선이 실제로 있는 범위(판 크기·여백을 이 범위에 맞춘다 — 자를 때 둔 2% 둘레는 빼고)
+            const tb = maskBBox(mask, GW, GH);
             const skel = thin(mask, GW, GH);
             // 세선화가 작은 점(2×2 등)을 통째로 지우는 일이 있어, 뼈대가 하나도 안 남은 조각은 가장 안쪽 한 점을 남긴다
             const inv = new Uint8Array(GW * GH);
@@ -508,7 +524,8 @@
             return {
                 empty: false, GW: GW, GH: GH, W: r2.W, H: r2.H,
                 mask: mask, skel: skel, dSkel: dSkel, dIn2: dIn2, sdf: null,
-                pieces: comps.sizes.length, halfMed: halfMed
+                pieces: comps.sizes.length, halfMed: halfMed,
+                bx0: tb.x0, by0: tb.y0, bx1: tb.x1, by1: tb.y1
             };
         }
 
@@ -621,7 +638,7 @@
             return {
                 sens: num('sens'), speck: num('speck'),
                 lineMode: currentLineMode, keepFill: document.getElementById('keepFill').checked, lineW: Math.max(MIN_LINE_W, num('lineW')), lineH: num('lineH'),
-                plateSize: num('plateSize'), gap: num('gap'), frameOn: document.getElementById('frameOn').checked,
+                plateShape: currentPlateShape, plateSize: num('plateSize'), gap: num('gap'), frameOn: document.getElementById('frameOn').checked,
                 frameW: Math.max(MIN_LINE_W, num('frameW')), cornerR: num('cornerR'),
                 baseThick: num('baseThick'),
                 colBase: document.getElementById('colBase').value, colLine: document.getElementById('colLine').value
@@ -654,7 +671,8 @@
             const inset = p.gap + (p.frameOn ? p.frameW : 0);
             const drawLong = p.plateSize - 2 * inset;
             if (drawLong < 10) return { tooSmall: true };
-            const s = drawLong / Math.max(b.W, b.H); // mm / 픽셀
+            const bW = b.bx1 - b.bx0 + 1, bH = b.by1 - b.by0 + 1; // 선이 있는 범위(픽셀)
+            const s = drawLong / Math.max(bW, bH); // mm / 픽셀
             const rpx = (p.lineW / 2) / s;
             const GW = b.GW, GH = b.GH;
             const f = new Float32Array(GW * GH);
@@ -682,24 +700,33 @@
             // 6픽셀) 거리 값이 정확히 0인 픽셀이 수백 개 생겨, 윤곽선이 픽셀 모서리에서 서로 맞닿는다(2026-11-24 보고된 경우).
             for (let i = 0; i < f.length; i++) f[i] -= ISO_NUDGE;
             const loops = marchingSquares(f, GW, GH);
-            const cx = (GW - 1) / 2, cy = (GH - 1) / 2;
+            const cx = (b.bx0 + b.bx1) / 2, cy = (b.by0 + b.by1) / 2; // 선 범위의 가운데가 원점
             const contours = loops.map(function (loop) {
                 return loop.map(function (q) { return [(q[0] - cx) * s, (cy - q[1]) * s]; });
             });
-            const drawW = b.W * s, drawH = b.H * s;
+            const drawW = bW * s, drawH = bH * s;
             const innerW = drawW + 2 * p.gap, innerH = drawH + 2 * p.gap;
             const outerW = innerW + (p.frameOn ? 2 * p.frameW : 0), outerH = innerH + (p.frameOn ? 2 * p.frameW : 0);
-            const baseXS = track(ManifoldCore.contoursToXS([roundRect(outerW, outerH, p.cornerR)]));
-            let blackXS = null;
+            let linesXS = null;
             if (contours.length) {
                 const raw = track(ManifoldCore.contoursToXS(contours));
-                blackXS = track(raw.simplify(SIMPLIFY_EPS));
+                linesXS = track(raw.simplify(SIMPLIFY_EPS));
+                if (linesXS.isEmpty()) linesXS = null;
             }
-            // 선은 테두리 안쪽(테두리가 없으면 바닥판 가장자리에서 0.5mm 안쪽)까지만
-            const clipXS = p.frameOn
-                ? track(ManifoldCore.contoursToXS([roundRect(innerW, innerH, Math.max(0, p.cornerR - p.frameW))]))
-                : track(baseXS.offset(-0.5, 'Round', 2, 32));
-            if (blackXS) blackXS = track(blackXS.intersect(clipXS));
+            let baseXS = null, clipXS = null;
+            if (p.plateShape === 'outline' && linesXS) {
+                // 그림 따라: 선 모양을 (여백 + 테두리)만큼 부풀리고 속을 메운 것이 바닥판.
+                baseXS = outlinePlate(linesXS, p.gap + (p.frameOn ? p.frameW : 0), track);
+                // 선이 놓일 수 있는 곳 = 바닥판에서 테두리 두께만큼 안쪽(테두리가 없으면 바닥판 전체 — 선은 늘 여백만큼 안쪽에 있다)
+                clipXS = p.frameOn ? track(baseXS.offset(-p.frameW, 'Round', 2, roundSegs(p.frameW))) : baseXS;
+            } else {
+                baseXS = track(ManifoldCore.contoursToXS([roundRect(outerW, outerH, p.cornerR)]));
+                // 선은 테두리 안쪽(테두리가 없으면 바닥판 가장자리에서 0.5mm 안쪽)까지만
+                clipXS = p.frameOn
+                    ? track(ManifoldCore.contoursToXS([roundRect(innerW, innerH, Math.max(0, p.cornerR - p.frameW))]))
+                    : track(baseXS.offset(-0.5, 'Round', 2, 32));
+            }
+            let blackXS = linesXS ? track(linesXS.intersect(clipXS)) : null;
             if (p.frameOn) {
                 const ring = track(baseXS.subtract(clipXS));
                 blackXS = blackXS ? track(blackXS.add(ring)) : ring;
@@ -708,10 +735,40 @@
             // (갤러리9의 KISS_JOIN_MM과 같은 처방).
             if (blackXS && !blackXS.isEmpty()) blackXS = track(blackXS.offset(KISS_JOIN_MM, 'Miter', 2));
             const tidy = function (xs) { return xs && !xs.isEmpty() ? track(xs.simplify(TIDY_EPS)) : null; };
-            return {
-                baseXS: tidy(baseXS), blackXS: tidy(blackXS),
-                outerW: outerW, outerH: outerH, mmPerPx: s
-            };
+            const out = { baseXS: tidy(baseXS), blackXS: tidy(blackXS), mmPerPx: s };
+            // 판의 실제 크기(그림 따라 모양은 가운데가 원점이 아닐 수 있어 bounds로 잰다)
+            const bb = out.baseXS ? out.baseXS.bounds() : { min: [-outerW / 2, -outerH / 2], max: [outerW / 2, outerH / 2] };
+            out.minX = bb.min[0]; out.minY = bb.min[1]; out.maxX = bb.max[0]; out.maxY = bb.max[1];
+            out.outerW = out.maxX - out.minX; out.outerH = out.maxY - out.minY;
+            return out;
+        }
+
+        // 둥근 부풀리기의 원 조각 수: 조각 길이 약 0.3mm(갤러리9와 같은 생각 — 크게 부풀릴 때만 조각이 많아진다)
+        function roundSegs(r) { return Math.max(16, Math.min(256, Math.ceil(2 * Math.PI * Math.abs(r) / 0.3))); }
+        function signedArea(poly) {
+            let a = 0;
+            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) a += (poly[j][0] - poly[i][0]) * (poly[j][1] + poly[i][1]);
+            return a / 2;
+        }
+        // 속 메우기: 바깥 윤곽선(넓이 +)만 남긴다. 몇 덩어리인지도 돌려준다.
+        function fillHoles(xs, track) {
+            const outers = xs.toPolygons().filter(function (poly) { return signedArea(poly) > 0; });
+            return { xs: outers.length ? track(ManifoldCore.contoursToXS(outers)) : xs, pieces: outers.length };
+        }
+        // 그림 따라 바닥판: 선을 pad만큼 부풀려 속을 메운다. 해·땅 선처럼 떨어진 조각이 있어 판이 여러 덩어리가 되면,
+        // C만큼 더 부풀렸다가 C만큼 줄여(닫기) 틈을 메우고, C를 키워 가며 한 덩어리가 될 때까지 한다.
+        // 그래도 떨어져 있으면(그림 조각이 아주 멀리 있을 때) 전체를 감싸는 볼록 껍질로 한다.
+        const OUTLINE_CLOSE_STEPS = [0, 3, 6, 12, 24];
+        function outlinePlate(linesXS, pad, track) {
+            let res = null;
+            for (let i = 0; i < OUTLINE_CLOSE_STEPS.length; i++) {
+                const C = OUTLINE_CLOSE_STEPS[i];
+                let g = fillHoles(track(linesXS.offset(pad + C, 'Round', 2, roundSegs(pad + C))), track);
+                if (C > 0) g = fillHoles(track(g.xs.offset(-C, 'Round', 2, roundSegs(C))), track);
+                res = g;
+                if (g.pieces <= 1) return g.xs;
+            }
+            return track(res.xs.hull());
         }
 
         // ================= 화면 =================
@@ -765,7 +822,7 @@
                 updateNotes();
                 return;
             }
-            const key = [p.lineMode, p.keepFill, p.lineW, p.plateSize, p.gap, p.frameOn, p.frameW, p.cornerR].join('|');
+            const key = [p.lineMode, p.keepFill, p.lineW, p.plateSize, p.gap, p.frameOn, p.frameW, p.cornerR, p.plateShape].join('|');
             if (!shapeCache || shapeCache.key !== key) {
                 dropShapeCache();
                 const scratch = [];
@@ -848,7 +905,7 @@
             const k = fitCanvas(c, shapes.outerW, shapes.outerH);
             ctx.fillStyle = '#fff';
             ctx.fillRect(0, 0, c.width, c.height);
-            const tx = function (q) { return [(q[0] + shapes.outerW / 2) * k, (shapes.outerH / 2 - q[1]) * k]; };
+            const tx = function (q) { return [(q[0] - shapes.minX) * k, (shapes.maxY - q[1]) * k]; };
             const fillXS = function (xs, color) {
                 if (!xs) return;
                 ctx.beginPath();
@@ -944,6 +1001,8 @@
             document.getElementById('keepFill').checked = DEFAULTS.keepFill;
             currentLineMode = DEFAULTS.lineMode;
             syncLineMode();
+            currentPlateShape = DEFAULTS.plateShape;
+            syncPlateShape();
             document.getElementById('sampleSelect').value = DEFAULTS.sample;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.TOP);
             loadSample(DEFAULTS.sample);
@@ -968,6 +1027,7 @@
 
         async function main() {
             syncLineMode();
+            syncPlateShape();
             await ManifoldCore.ready;
             manifoldReady = true;
             loadSample(DEFAULTS.sample);

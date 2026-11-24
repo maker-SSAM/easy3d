@@ -1,6 +1,6 @@
 // 자석 홈 — 이름표·표지판 바닥판에 원형 자석을 넣을 홈을 만든다(갤러리5·9가 같이 쓴다, 2026-11-24).
 //   열린 홈(open): 바닥판 뒷면에서 판 홈. 출력 뒤 자석을 끼우거나 붙인다.
-//   숨긴 홈(hidden): 바닥판 속에 갇힌 홈. 출력 중 '일시정지'를 걸고 자석을 넣은 뒤 이어서 출력한다.
+//   숨긴 홈(hidden): 바닥판 속에 갇힌 홈(아래 0.2mm 한 층, 위 0.6mm). 출력 중 '일시정지'를 걸고 자석을 넣은 뒤 이어서 출력한다.
 // 위치는 바닥판 안쪽(가장자리·키링 구멍에서 벽 두께만큼 떨어진 곳)에 자동으로 고르게 놓고, 개수만 고른다.
 // 자석 크기는 지금 6 × 2mm 하나(선생님). 크기를 늘리려면 SIZES에 더하고 페이지에 고르는 칸을 둔다.
 // 이 파일은 font-core.js(FontCore.isPointInPolygon)와 manifold-core.js(ManifoldCore) 다음에 쓰인다.
@@ -8,7 +8,8 @@ window.MagnetCore = (function () {
     const SIZES = [{ d: 6, t: 2 }];       // 자석 지름·두께(mm)
     const CLEARANCE = 0.2;                // 홈 지름 여유(자석이 잘 들어가게)
     const DEPTH_CLEARANCE = 0.2;          // 홈 깊이 여유
-    const SKIN = 0.6;                     // 홈 위·아래로 남길 최소 두께(층 3개, 0.2mm 층 기준) — 앞면이 뚫리지 않게
+    const SKIN = 0.6;                     // 홈 위(앞면 쪽)로 남길 최소 두께(층 3개, 0.2mm 층 기준) — 앞면이 뚫리지 않게
+    const SKIN_BOTTOM = 0.2;              // 숨긴 홈 아래(뒷면 쪽)는 한 층만 — 자석이 벽(철판)에 가까울수록 잘 붙는다(2026-11-24 선생님)
     const WALL = 1.0;                     // 홈과 바닥판 가장자리·키링 구멍·다른 홈 사이 최소 벽
     const LAYER = 0.2;                    // 일시정지 높이를 층 높이에 맞추는 기준(0.2mm 층)
 
@@ -22,8 +23,8 @@ window.MagnetCore = (function () {
         const r = (s.d + CLEARANCE) / 2;
         const depth = round2(ceilTo(s.t + DEPTH_CLEARANCE, LAYER));
         if (mode === 'hidden') {
-            const z0 = SKIN;
-            const needBase = round2(SKIN + depth + SKIN);
+            const z0 = SKIN_BOTTOM;
+            const needBase = round2(SKIN_BOTTOM + depth + SKIN);
             return { r: r, depth: depth, z0: z0, needBase: needBase, ok: baseThick >= needBase - 1e-6, pauseZ: round2(z0 + depth), size: s };
         }
         const needBase = round2(depth + SKIN);

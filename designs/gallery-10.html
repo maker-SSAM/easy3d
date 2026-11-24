@@ -146,7 +146,10 @@
             <div class="align-row" id="imgKindRow">
                 <button type="button" data-kind="line" data-i18n-en="Has outlines">선 있는 그림</button>
                 <button type="button" data-kind="color" data-i18n-en="No outlines (color edges)">선 없는 그림</button>
+                <button type="button" data-kind="ai" data-i18n-en="AI line art">AI 선화</button>
             </div>
+            <p class="fmt-hint" id="aiInfo" data-i18n-en="For 3D game captures and photos. The first time you choose it, the AI model (about 30 MB) is downloaded once. The picture is processed only inside your browser.">3D 게임 캡쳐·사진에 좋아요. 처음 고를 때 AI 모델(약 30MB)을 한 번 내려받아요. 그림은 내 브라우저 안에서만 처리돼요.</p>
+            <p class="fmt-hint" id="aiNote"></p>
             <div id="colorKRow" class="control-group"><label><span data-i18n-en="Number of colors (detail)">색 개수(자세함)</span>: <span id="valColorK">8</span></label><input type="range" id="colorK" min="2" max="16" step="1" value="8" oninput="scheduleUpdate('mask')"></div>
             <div id="bgEdgeRow" class="check-row"><input type="checkbox" id="bgEdge" checked onchange="scheduleUpdate('mask')"><label for="bgEdge" data-i18n-en="Colors touching the picture edge are background">그림 가장자리에 닿은 색은 배경으로</label></div>
             <div id="sensRow" class="control-group"><label><span data-i18n-en="Line sensitivity">선 감도</span>: <span id="valSens">5</span></label><input type="range" id="sens" min="1" max="10" step="1" value="5" oninput="scheduleUpdate('mask')"></div>
@@ -272,6 +275,9 @@
         function syncImgKind() {
             document.querySelectorAll('#imgKindRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.kind === currentImgKind); });
             const color = currentImgKind === 'color';
+            const ai = currentImgKind === 'ai';
+            document.getElementById('aiInfo').style.display = ai ? '' : 'none';
+            document.getElementById('aiNote').style.display = ai ? '' : 'none';
             document.getElementById('sensRow').style.display = color ? 'none' : '';
             document.getElementById('colorKRow').style.display = color ? '' : 'none';
             document.getElementById('bgEdgeRow').style.display = color ? '' : 'none';
@@ -676,13 +682,118 @@
             return mask;
         }
 
+        // ---------- AI 선화 ----------
+        // 모델: informative-drawings(Caroline Chan, Phillip Isola, Fredo Durand, CVPR 2022 「Learning to generate line drawings
+        // that convey geometry and semantics」, 코드 MIT — github.com/carolineec/informative-drawings)의 선화(anime_style) 모델을
+        // ONNX로 바꾼 것(huggingface.co/rocca/informative-drawings-line-art-onnx, 17.2MB). 실행기는 onnxruntime-web(MIT).
+        // 주의(2026-11-25 조사): 학습된 가중치의 라이선스는 원 저장소 README에 적혀 있지 않다 → 그래서 파일을 이 사이트에 올리지 않고
+        // 'AI 선화'를 고를 때만 위 주소에서 불러온다(공개 배포 전에 원작자 확인을 받을 것, HANDOFF 참고).
+        // 입력: [1,3,H,W] RGB 0~1, 출력: [1,1,H,W] 회색 0~1(흰 바탕에 어두운 선). H·W는 8의 배수로 맞춘다.
+        const AI_ORT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
+        const AI_MODEL_URL = 'https://huggingface.co/rocca/informative-drawings-line-art-onnx/resolve/main/model.onnx';
+        const AI_LONG = 512; // AI에 넣는 그림의 긴 쪽(이 맥에서 한 장 약 2.5초, 768이면 약 5.7초)
+        let aiSessionPromise = null;
+        let aiResult = null;  // { img: 원본 그림, canvas: AI가 그린 회색 선 그림, ms }
+        let aiBusy = null;    // 지금 AI가 그리고 있는 원본 그림
+        function setAiNote(msg, warn) {
+            const el = document.getElementById('aiNote');
+            el.textContent = msg || '';
+            el.classList.toggle('warn', !!warn);
+        }
+        function loadScript(src) {
+            return new Promise(function (resolve, reject) {
+                const sc = document.createElement('script');
+                sc.src = src; sc.onload = resolve; sc.onerror = function () { reject(new Error('script ' + src)); };
+                document.head.appendChild(sc);
+            });
+        }
+        function getAiSession() {
+            if (!aiSessionPromise) {
+                aiSessionPromise = (window.ort ? Promise.resolve() : loadScript(AI_ORT_URL)).then(function () {
+                    // 여러 줄 실행은 교차 출처 격리(COOP/COEP)가 있을 때만 된다 — 이 사이트엔 없어 보통 한 줄
+                    ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+                    return ort.InferenceSession.create(AI_MODEL_URL, { executionProviders: ['wasm'] });
+                });
+                aiSessionPromise.catch(function () { aiSessionPromise = null; }); // 실패하면 다음에 다시 시도
+            }
+            return aiSessionPromise;
+        }
+        async function runAiOn(session, img) {
+            const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+            const k = AI_LONG / Math.max(iw, ih);
+            const W = Math.max(8, Math.round(iw * k / 8) * 8), H = Math.max(8, Math.round(ih * k / 8) * 8);
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, W, H);
+            const d = ctx.getImageData(0, 0, W, H).data;
+            const n = W * H, arr = new Float32Array(3 * n);
+            for (let i = 0; i < n; i++) { arr[i] = d[i * 4] / 255; arr[n + i] = d[i * 4 + 1] / 255; arr[2 * n + i] = d[i * 4 + 2] / 255; }
+            const res = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', arr, [1, 3, H, W]) });
+            const o = res[session.outputNames[0]];
+            const oW = o.dims[3], oH = o.dims[2];
+            const out = document.createElement('canvas'); out.width = oW; out.height = oH;
+            const octx = out.getContext('2d');
+            const id = octx.createImageData(oW, oH);
+            for (let i = 0; i < oW * oH; i++) {
+                const v = Math.round(Math.max(0, Math.min(1, o.data[i])) * 255);
+                id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255;
+            }
+            octx.putImageData(id, 0, 0);
+            return out;
+        }
+        // AI 결과가 지금 그림 것이면 true. 아니면 (아직 안 돌고 있으면) 돌리기 시작하고 false — 끝나면 다시 그린다.
+        function ensureAi() {
+            if (aiResult && aiResult.img === srcImage) return true;
+            if (aiBusy === srcImage) return false;
+            const img = srcImage;
+            aiBusy = img;
+            setAiNote(aiSessionPromise ? LangCore.pick('AI가 선을 그리는 중이에요(몇 초 걸려요)…', 'The AI is drawing lines (a few seconds)…')
+                : LangCore.pick('AI 모델을 내려받는 중이에요(처음 한 번, 약 30MB)…', 'Downloading the AI model (first time only, about 30 MB)…'));
+            (async function () {
+                try {
+                    const session = await getAiSession();
+                    setAiNote(LangCore.pick('AI가 선을 그리는 중이에요(몇 초 걸려요)…', 'The AI is drawing lines (a few seconds)…'));
+                    await new Promise(function (r) { setTimeout(r, 30); }); // 안내 글이 먼저 화면에 보이게
+                    const t0 = performance.now();
+                    const canvas = await runAiOn(session, img);
+                    const ms = performance.now() - t0;
+                    if (srcImage === img) {
+                        aiResult = { img: img, canvas: canvas, ms: ms };
+                        setAiNote(LangCore.pick('AI 선화 완료(' + (ms / 1000).toFixed(1) + '초). 선이 끊기면 선 감도를 올려 보세요.',
+                            'AI line art done (' + (ms / 1000).toFixed(1) + ' s). If lines break up, raise the line sensitivity.'));
+                        scheduleUpdate('mask', 0);
+                    }
+                } catch (err) {
+                    console.error('AI 선화 실패:', err);
+                    setAiNote(LangCore.pick('AI 모델을 불러오지 못했어요. 인터넷 연결을 확인하거나 다른 방식을 골라 주세요.',
+                        'Could not load the AI model. Check the internet connection or choose another method.'), true);
+                } finally {
+                    if (aiBusy === img) aiBusy = null;
+                    if (srcImage !== img && currentImgKind === 'ai') scheduleUpdate('mask', 0); // 도는 동안 그림이 바뀌었으면 새 그림으로
+                }
+            })();
+            return false;
+        }
+        // AI가 그린 회색 그림에서 선 = 기준보다 어두운 곳. 선 감도 1~10 → 기준 0.64~0.97(기본 5 → 0.8)
+        function aiLineMask(r, sens) {
+            const thr = Math.min(0.97, 0.6 + 0.04 * sens) * 255;
+            const mask = new Uint8Array(r.W * r.H);
+            for (let i = 0; i < mask.length; i++) mask[i] = r.V[i] < thr ? 1 : 0;
+            return mask;
+        }
+
         function findMask(r, p) {
-            return p.imgKind === 'color' ? colorEdgeMask(r, p.colorK, p.bgEdge, speckArea(Math.max(1, p.speck), r.W, r.H)) : lineMask(r, p.sens);
+            if (p.imgKind === 'color') return colorEdgeMask(r, p.colorK, p.bgEdge, speckArea(Math.max(1, p.speck), r.W, r.H));
+            if (p.imgKind === 'ai') return aiLineMask(r, p.sens);
+            return lineMask(r, p.sens);
         }
         function computeStageB(p) {
             const speck = p.speck;
-            const img = srcImage;
-            const iw = img.naturalWidth || 400, ih = img.naturalHeight || 300;
+            // AI 선화는 AI가 그린 회색 선 그림(캔버스)을 원본 대신 읽는다
+            const img = p.imgKind === 'ai' ? aiResult.canvas : srcImage;
+            const iw = img.naturalWidth || img.width || 400, ih = img.naturalHeight || img.height || 300;
             // 1차: 그림 전체를 읽어 선이 있는 곳(테두리 상자)을 찾는다
             const r1 = rasterize(img, 0, 0, iw, ih, WORK_LONG);
             const m1 = cleanMask(findMask(r1, p), r1.W, r1.H, speckArea(speck, r1.W, r1.H));
@@ -1016,6 +1127,8 @@
             if (!manifoldReady || !srcImage) return;
             const p = readParams();
             showValues(p);
+            // AI 선화: 결과가 아직 없으면 AI를 돌리고(끝나면 다시 불림) 지금 화면은 그대로 둔다
+            if (p.imgKind === 'ai' && !ensureAi()) { pendingLevel = Math.max(pendingLevel, level); return; }
             const t0 = performance.now();
             if (level >= LEVELS.mask || !stageB) {
                 stageB = computeStageB(p);

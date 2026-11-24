@@ -247,7 +247,7 @@
             frameShape: 'rect', cornerR: 3,
             borderW: 1.0, innerMargin: 5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
-            // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~4(자리는 자동)
+            // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~8(자리는 가장자리 쪽으로 자동)
             magnetOn: false, magnetMode: 'open', magnetCount: 2,
             baseThick: 3.0, borderThick: 0.6,
             colBase: '#ffffff', colBorder: '#000000', colText: '#000000'
@@ -338,11 +338,16 @@
                     <button type="button" data-mode="hidden" data-i18n-en="Hidden (insert while printing)">숨긴 홈(출력 중)</button>
                 </div>
                 <span class="align-label" data-i18n-en="Number of magnets">개수</span>
-                <div class="align-row" id="magnetCountRow">
+                <!-- 1~8개(MagnetCore.MAX_COUNT). 자리는 가장자리 쪽으로 자동 -->
+                <div class="align-row" id="magnetCountRow" style="gap:4px">
                     <button type="button" data-count="1">1</button>
                     <button type="button" data-count="2">2</button>
                     <button type="button" data-count="3">3</button>
                     <button type="button" data-count="4">4</button>
+                    <button type="button" data-count="5">5</button>
+                    <button type="button" data-count="6">6</button>
+                    <button type="button" data-count="7">7</button>
+                    <button type="button" data-count="8">8</button>
                 </div>
                 <p class="fmt-hint" id="magnetNote"></p>
             </div>

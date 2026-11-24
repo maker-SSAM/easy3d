@@ -90,7 +90,7 @@
             emojiR: '♠', emojiRScale: 0.9, emojiROffset: 4.5, emojiRMirror: false,
             outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: true, keyringX: -21, keyringY: -0.5, keyringHoleSize: 3.5, keyringRim: 1.0,
-            // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~4(자리는 자동)
+            // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~8(자리는 가장자리 쪽으로 자동)
             magnetOn: false, magnetMode: 'open', magnetCount: 2,
             baseThick: 3.0, outlineThick: 0.4, borderThick: 0.6, textThick: 0.8,
             colBase: '#ffffff', colOutline: '#ff9a5b', colBorder: '#000000',
@@ -162,11 +162,16 @@
                     <button type="button" data-mode="hidden" data-i18n-en="Hidden (insert while printing)">숨긴 홈(출력 중)</button>
                 </div>
                 <span class="seg-label" data-i18n-en="Number of magnets">개수</span>
-                <div class="seg-row" id="magnetCountRow">
+                <!-- 1~8개(MagnetCore.MAX_COUNT). 자리는 가장자리 쪽으로 자동 -->
+                <div class="seg-row" id="magnetCountRow" style="gap:4px">
                     <button type="button" data-count="1">1</button>
                     <button type="button" data-count="2">2</button>
                     <button type="button" data-count="3">3</button>
                     <button type="button" data-count="4">4</button>
+                    <button type="button" data-count="5">5</button>
+                    <button type="button" data-count="6">6</button>
+                    <button type="button" data-count="7">7</button>
+                    <button type="button" data-count="8">8</button>
                 </div>
                 <p class="seg-hint" id="magnetNote"></p>
             </div>

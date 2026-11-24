@@ -1,7 +1,7 @@
 // 자석 홈 — 이름표·표지판 바닥판에 원형 자석을 넣을 홈을 만든다(갤러리5·9가 같이 쓴다, 2026-11-24).
 //   열린 홈(open): 바닥판 뒷면에서 판 홈. 출력 뒤 자석을 끼우거나 붙인다.
 //   숨긴 홈(hidden): 바닥판 속에 갇힌 홈(아래 0.2mm 한 층, 위 0.6mm). 출력 중 '일시정지'를 걸고 자석을 넣은 뒤 이어서 출력한다.
-// 위치는 바닥판 안쪽(가장자리·키링 구멍에서 벽 두께만큼 떨어진 곳)에 자동으로 고르게 놓고, 개수만 고른다.
+// 위치는 바닥판 안쪽(가장자리에서 2mm, 키링 구멍에서 1mm 떨어진 곳)에 가장자리 쪽으로 자동으로 고르게 놓고, 개수(1~8)만 고른다.
 // 자석 크기는 지금 6 × 2mm 하나(선생님). 크기를 늘리려면 SIZES에 더하고 페이지에 고르는 칸을 둔다.
 // 이 파일은 font-core.js(FontCore.isPointInPolygon)와 manifold-core.js(ManifoldCore) 다음에 쓰인다.
 window.MagnetCore = (function () {
@@ -10,7 +10,9 @@ window.MagnetCore = (function () {
     const DEPTH_CLEARANCE = 0.2;          // 홈 깊이 여유
     const SKIN = 0.6;                     // 홈 위(앞면 쪽)로 남길 최소 두께(층 3개, 0.2mm 층 기준) — 앞면이 뚫리지 않게
     const SKIN_BOTTOM = 0.2;              // 숨긴 홈 아래(뒷면 쪽)는 한 층만 — 자석이 벽(철판)에 가까울수록 잘 붙는다(2026-11-24 선생님)
-    const WALL = 1.0;                     // 홈과 바닥판 가장자리·키링 구멍·다른 홈 사이 최소 벽
+    const WALL = 1.0;                     // 홈과 키링 구멍·다른 홈 사이 최소 벽
+    const EDGE_WALL = 2.0;                // 홈과 바닥판 바깥 가장자리 사이 벽 — 자리는 가장자리 쪽으로 붙이되 테두리가 너무 얇지 않게
+    const MAX_COUNT = 8;
     const LAYER = 0.2;                    // 일시정지 높이를 층 높이에 맞추는 기준(0.2mm 층)
 
     function ceilTo(v, step) { return Math.ceil(v / step - 1e-9) * step; }
@@ -39,8 +41,9 @@ window.MagnetCore = (function () {
         const scratch = [];
         function track(m) { scratch.push(m); return m; }
         try {
-            // 홈 가장자리에서 바닥판 가장자리까지 WALL 이상 남도록 안쪽으로 줄인 영역 = 홈 중심이 올 수 있는 곳
-            let safe = track(baseXS.offset(-(r + WALL), 'Round', 2, 32));
+            n = Math.min(n, MAX_COUNT);
+            // 홈 가장자리에서 바닥판 가장자리까지 EDGE_WALL 이상 남도록 안쪽으로 줄인 영역 = 홈 중심이 올 수 있는 곳
+            let safe = track(baseXS.offset(-(r + EDGE_WALL), 'Round', 2, 32));
             (avoid || []).forEach(function (c) {
                 const hole = track(track(ManifoldCore.circleXS(c.r + r + WALL, 48)).translate([c.x, c.y]));
                 safe = track(safe.subtract(hole));
@@ -55,20 +58,40 @@ window.MagnetCore = (function () {
                 polys.forEach(function (poly) { if (FontCore.isPointInPolygon(pt, poly)) c++; });
                 return c % 2 === 1;
             };
-            // 놓을 목표점: 1개 = 가운데, 2·3개 = 가로로 고르게, 4개 = 2×2(가로로 아주 길면 한 줄)
-            const cy = y0 + h / 2;
+            // 놓을 목표점 — 가장자리 쪽으로 붙인다(2026-11-24 선생님): 영역의 끝에서 끝까지 고르게.
+            //   1개 = 가운데, 2·3개 = 한 줄, 4개 이상 = 두 줄(위 줄 = 반올림 n/2, 아래 줄 = 나머지; 아주 긴 판은 한 줄).
+            //   세로로 긴 판은 줄 대신 기둥으로(가로·세로를 바꿔 같은 규칙).
+            const tall = h > w * 1.2;
+            const L = tall ? h : w, S = tall ? w : h;           // 긴 쪽·짧은 쪽 길이
+            const lineOf = function (count, s) {                // 긴 쪽을 따라 count개, 짧은 쪽 위치 s(0~1)
+                return Array.from({ length: count }, function (_, i) {
+                    const u = count === 1 ? 0.5 : i / (count - 1);
+                    return tall ? [x0 + s * w, y0 + u * h] : [x0 + u * w, y0 + s * h];
+                });
+            };
             let targets;
-            if (n === 1) targets = [[x0 + w / 2, cy]];
-            else if (n === 4 && w < h * 2.5) targets = [[x0 + w / 4, y0 + h / 4], [x0 + 3 * w / 4, y0 + h / 4], [x0 + w / 4, y0 + 3 * h / 4], [x0 + 3 * w / 4, y0 + 3 * h / 4]];
-            else targets = Array.from({ length: n }, function (_, i) { return [x0 + w * (i + 0.5) / n, cy]; });
+            if (n === 1) targets = [[x0 + w / 2, y0 + h / 2]];
+            else if (n <= 3 || L > S * 2.5) targets = lineOf(n, 0.5);
+            else targets = lineOf(Math.ceil(n / 2), 1).concat(lineOf(Math.floor(n / 2), 0));
             // 영역 안의 후보 점(격자)에서 목표점에 가장 가깝고 다른 홈과 떨어진 점을 고른다
-            const step = Math.max(0.5, Math.max(w, h) / 80);
+            // 후보 점은 격자 칸의 한가운데 — 좌우·위아래가 똑같고, 경계선 위에 놓이지 않는다
+            // (경계선 위의 점은 안/밖 판정이 왼쪽·오른쪽에서 달라 좌우 자리가 1.6mm 어긋났다).
+            const step = Math.max(0.4, Math.max(w, h) / 120);
+            const nx = Math.max(1, Math.ceil(w / step)), ny = Math.max(1, Math.ceil(h / step));
             const cands = [];
-            for (let x = x0; x <= x0 + w + 1e-9; x += step) {
-                for (let y = y0; y <= y0 + h + 1e-9; y += step) {
-                    if (inside([x, y])) cands.push([x, y]);
+            for (let i = 0; i < nx; i++) {
+                for (let j = 0; j < ny; j++) {
+                    const pt = [x0 + w * (i + 0.5) / nx, y0 + h * (j + 0.5) / ny];
+                    if (inside(pt)) cands.push(pt);
                 }
             }
+            // 목표점을 영역 끝에서 반 칸 안으로 당긴 점도 후보로 — 가운데·가운데 줄이 정확히 맞고, 경계선 위에 놓이지
+            // 않아 좌우가 같다(끝에 놓인 목표점을 그대로 쓰면 왼쪽만 경계선 위 점이 '안'으로 판정됐다).
+            const hx = w / nx / 2, hy = h / ny / 2;
+            targets.forEach(function (t) {
+                const pt = [Math.min(x0 + w - hx, Math.max(x0 + hx, t[0])), Math.min(y0 + h - hy, Math.max(y0 + hy, t[1]))];
+                if (inside(pt)) cands.push(pt);
+            });
             const minGap = 2 * r + WALL;
             const chosen = [];
             targets.forEach(function (t) {
@@ -124,5 +147,5 @@ window.MagnetCore = (function () {
         return parts.join(' ');
     }
 
-    return { SIZES: SIZES, spec: spec, placePoints: placePoints, pocketSolid: pocketSolid, note: note };
+    return { SIZES: SIZES, MAX_COUNT: MAX_COUNT, spec: spec, placePoints: placePoints, pocketSolid: pocketSolid, note: note };
 })();

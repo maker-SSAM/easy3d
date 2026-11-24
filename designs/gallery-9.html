@@ -283,8 +283,15 @@
             b.addEventListener('click', function () { currentAlign = b.dataset.align; onLayoutStyleChange(); });
         });
         // 입력할 때마다 줄(div)의 줄 간격을 내용에 맞춘다. 한글 조합 중에는 글상자를 건드리지 않는다.
-        textBox.addEventListener('input', function (e) { if (!e.isComposing) syncLineStyles(); scheduleUpdate(); });
-        textBox.addEventListener('compositionend', function () { syncLineStyles(); scheduleUpdate(); });
+        // 기록(되돌리기): 줄 나누기·붙여넣기는 한 번씩, 이어서 치는 글자는 묶어서.
+        textBox.addEventListener('input', function (e) {
+            if (!e.isComposing) {
+                syncLineStyles();
+                recordChange(e.inputType === 'insertParagraph' || e.inputType === 'insertFromPaste' || e.inputType === 'insertText' && /\n/.test(e.data || '') ? 'block' : 'type');
+            }
+            scheduleUpdate();
+        });
+        textBox.addEventListener('compositionend', function () { syncLineStyles(); recordChange('type'); scheduleUpdate(); });
         // 틀의 빈 곳(스크롤 막대 옆 등)을 눌러도 입력칸으로 들어가게
         document.getElementById('textBoxWrap').addEventListener('mousedown', function (e) {
             if (e.target === this) { e.preventDefault(); textBox.focus(); }
@@ -584,7 +591,8 @@
             if (sr.whole) model.forEach(function (l, i) { lineSet.add(i); });
             return { chars: chars, sr: sr, targets: targets, lines: Array.from(lineSet).sort(function (a, b) { return a - b; }) };
         }
-        function applyToSelection(change) {
+        // kind: 되돌리기 기록의 종류('format' 한 번씩, 'color'는 색 고르는 동안 하나로 묶음)
+        function applyToSelection(change, kind) {
             const model = readModel();
             const t = selectionTargets(model);
             if (!t.targets.length && !t.lines.length) return;
@@ -599,9 +607,80 @@
             } else if (focused && lastSel) {
                 restoreSelection(lastSel.start, lastSel.start);
             }
+            recordChange(kind || 'format');
             updateFmtRow();
             scheduleUpdate();
         }
+
+        // ---------- 되돌리기(Ctrl+Z)·다시 하기(Ctrl+Y, Ctrl+Shift+Z) ----------
+        // 서식을 바꿀 때마다 글상자를 다시 그려서(renderModel) 브라우저의 되돌리기 기록이 맞지 않으므로,
+        // 글상자 내용(모델)과 고른 위치를 직접 기록한다. 이어서 치는 글자·색 고르기는 1초 안이면 한 번으로 묶는다.
+        const history = { undo: [], redo: [], cur: null, lastKind: '', lastTime: 0 };
+        const HISTORY_MAX = 100;
+        const COALESCE_KINDS = { type: 1, color: 1 };
+        function resetHistory() {
+            history.undo = []; history.redo = [];
+            history.cur = { model: cloneModel(readModel()), sel: null };
+            history.lastKind = '';
+        }
+        function recordChange(kind) {
+            const model = readModel();
+            if (history.cur && JSON.stringify(history.cur.model) === JSON.stringify(model)) return;
+            const now = Date.now();
+            const coalesce = COALESCE_KINDS[kind] && history.lastKind === kind && now - history.lastTime < 1000;
+            if (history.cur && !coalesce) {
+                history.undo.push(history.cur);
+                if (history.undo.length > HISTORY_MAX) history.undo.shift();
+            }
+            history.redo = [];
+            history.cur = { model: cloneModel(model), sel: lastSel ? { start: lastSel.start, end: lastSel.end } : null };
+            history.lastKind = kind;
+            history.lastTime = now;
+        }
+        function applySnapshot(s) {
+            renderModel(cloneModel(s.model));
+            history.lastKind = '';
+            const total = modelText(s.model).length;
+            const sel = s.sel ? { start: Math.min(s.sel.start, total), end: Math.min(s.sel.end, total) } : { start: total, end: total };
+            lastSel = sel;
+            if (document.activeElement === textBox) restoreSelection(sel.start, sel.end);
+            else { lastRange = rangeFor(sel.start, sel.end); showSavedSelection(true); }
+            updateFmtRow();
+            scheduleUpdate();
+        }
+        function undo() {
+            if (!history.undo.length) return;
+            history.redo.push(history.cur);
+            history.cur = history.undo.pop();
+            applySnapshot(history.cur);
+        }
+        function redo() {
+            if (!history.redo.length) return;
+            history.undo.push(history.cur);
+            history.cur = history.redo.pop();
+            applySnapshot(history.cur);
+        }
+        // 고른 위치가 바뀌면 지금 상태에 적어 둔다(되돌렸을 때 그 자리로 돌아가게)
+        document.addEventListener('selectionchange', function () {
+            if (history.cur && lastSel) history.cur.sel = { start: lastSel.start, end: lastSel.end };
+        });
+        // 글상자 안이나 도구 막대 단추(숫자 칸 제외 — 숫자 칸은 그 칸의 되돌리기)에서 단축키를 쓴다
+        document.addEventListener('keydown', function (e) {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
+            const inBox = textBox.contains(document.activeElement) || document.activeElement === textBox;
+            const onToolbar = document.activeElement && document.activeElement.closest && document.activeElement.closest('#fmtGrid, #fmtRow')
+                && document.activeElement.tagName !== 'INPUT';
+            if (!inBox && !onToolbar) return;
+            const key = e.key.toLowerCase();
+            if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+            else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+        });
+        // 메뉴(오른쪽 단추 '실행 취소' 등)로 되돌릴 때도 같은 기록을 쓴다
+        textBox.addEventListener('beforeinput', function (e) {
+            if (e.inputType === 'historyUndo') { e.preventDefault(); undo(); }
+            else if (e.inputType === 'historyRedo') { e.preventDefault(); redo(); }
+        });
+
         function clampProp(k, v) {
             const p = NUM_PROPS[k];
             v = Math.round(v / p.round) * p.round;
@@ -674,7 +753,7 @@
         // 고른 글자의 색(3MF에서 색이 나뉨). 고르는 동안 바로 바뀐다.
         blockColor.addEventListener('input', function () {
             const col = this.value.toLowerCase();
-            applyToSelection(function (t) { t.forEach(function (c) { c.color = col; }); });
+            applyToSelection(function (t) { t.forEach(function (c) { c.color = col; }); }, 'color');
         });
 
         // 글씨체 불러오기 — 같은 TTF를 opentype.js(윤곽선)와 CSS 글꼴(배치) 둘 다로 불러온다.
@@ -725,6 +804,7 @@
             document.getElementById('keyringOn').checked = DEFAULTS.keyringOn;
             renderModel(cloneModel(DEFAULTS.model));
             lastSel = null;
+            recordChange('block'); // 초기화도 되돌릴 수 있게(글상자 내용만)
             lastRange = null;
             showSavedSelection(false);
             updateFmtRow();
@@ -1189,6 +1269,7 @@
         async function main() {
             textBox.style.fontFamily = cssFamily(currentFontFile);
             renderModel(cloneModel(DEFAULTS.model));
+            resetHistory();
             updateFmtRow();
             applyBoxStyle();
             await ManifoldCore.ready;

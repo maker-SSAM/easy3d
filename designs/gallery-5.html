@@ -28,6 +28,7 @@
     <script src="../assets/js/threemf-core.js"></script>
     <!-- 폰트 → 글자 윤곽선 추출 공용 모듈 -->
     <script src="../assets/js/font-core.js"></script>
+    <script src="../assets/js/magnet-core.js"></script>
     <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
     <script src="../assets/js/font-list.js"></script>
     <!-- 2D 윤곽선(offset/union) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
@@ -43,6 +44,15 @@
         .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
         .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
         .emoji-input { width: 100%; box-sizing: border-box; font-size: 1.2em; text-align: center; padding: 6px; }
+        /* 자석 홈 칸: 홈 방식·개수 단추(갤러리9와 같은 모양) */
+        .seg-label { display: block; margin-bottom: 2px; font-size: 0.82em; color: var(--text-muted); }
+        .seg-row { display: flex; gap: 6px; margin-bottom: 12px; }
+        .seg-row button {
+            flex: 1; padding: 6px 0; border: 1px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); color: var(--text-color); cursor: pointer; font-size: 0.9em;
+        }
+        .seg-row button.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+        .seg-hint { font-size: 0.78em; color: var(--text-muted); margin: 0 0 6px; }
     </style>
     <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
@@ -80,6 +90,8 @@
             emojiR: '♠', emojiRScale: 0.9, emojiROffset: 4.5, emojiRMirror: false,
             outlineW: 0.3, borderW: 1.0, innerMargin: 1.5, outerMargin: 1.0,
             keyringOn: true, keyringX: -21, keyringY: -0.5, keyringHoleSize: 3.5, keyringRim: 1.0,
+            // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~4(자리는 자동)
+            magnetOn: false, magnetMode: 'open', magnetCount: 2,
             baseThick: 3.0, outlineThick: 0.4, borderThick: 0.6, textThick: 0.8,
             colBase: '#ffffff', colOutline: '#ff9a5b', colBorder: '#000000',
             colText: '#ff5703', colEmojiL: '#ff0000', colEmojiR: '#ff2424'
@@ -140,13 +152,32 @@
             <div class="control-group"><label><span data-i18n-en="Hole diameter">구멍 지름</span>: <span id="valKeyringHoleSize">3.5</span>mm</label><input type="range" id="keyringHoleSize" min="2" max="8" step="0.5" value="3.5" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Hole rim thickness">구멍 테두리 두께</span>: <span id="valKeyringRim">1.0</span>mm</label><input type="range" id="keyringRim" min="0.5" max="3" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label" data-i18n-en="5. Layer heights">5. 층 높이</div>
+            <div class="section-label" data-i18n-en="5. Magnet pockets">5. 자석 홈</div>
+            <div class="check-row"><input type="checkbox" id="magnetOn" onchange="onMagnetToggle()"><label for="magnetOn" data-i18n-en="Add magnet pockets">자석 홈 사용</label></div>
+            <!-- 켤 때만 보인다. 자석 자리는 바닥판 안쪽에 자동으로 놓는다(assets/js/magnet-core.js). -->
+            <div id="magnetDetails" hidden>
+                <span class="seg-label" data-i18n-en="Pocket type">홈 방식</span>
+                <div class="seg-row" id="magnetModeRow">
+                    <button type="button" data-mode="open" data-i18n-en="Open (back)">열린 홈(뒷면)</button>
+                    <button type="button" data-mode="hidden" data-i18n-en="Hidden (insert while printing)">숨긴 홈(출력 중)</button>
+                </div>
+                <span class="seg-label" data-i18n-en="Number of magnets">개수</span>
+                <div class="seg-row" id="magnetCountRow">
+                    <button type="button" data-count="1">1</button>
+                    <button type="button" data-count="2">2</button>
+                    <button type="button" data-count="3">3</button>
+                    <button type="button" data-count="4">4</button>
+                </div>
+                <p class="seg-hint" id="magnetNote"></p>
+            </div>
+
+            <div class="section-label" data-i18n-en="6. Layer heights">6. 층 높이</div>
             <div class="control-group"><label><span data-i18n-en="Base plate thickness">바닥판 두께</span>: <span id="valBaseThick">3.0</span>mm</label><input type="range" id="baseThick" min="1" max="6" step="0.2" value="3.0" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Outline layer height">외곽선 층 높이</span>: <span id="valOutlineThick">0.4</span>mm</label><input type="range" id="outlineThick" min="0.1" max="2" step="0.1" value="0.4" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Border layer height">테두리 층 높이</span>: <span id="valBorderThick">0.6</span>mm</label><input type="range" id="borderThick" min="0.1" max="2" step="0.1" value="0.6" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text/emoji height">글자/이모지 높이</span>: <span id="valTextThick">0.8</span>mm</label><input type="range" id="textThick" min="0.1" max="3" step="0.1" value="0.8" oninput="scheduleUpdate()"></div>
 
-            <div class="section-label" data-i18n-en="6. Colors">6. 색상</div>
+            <div class="section-label" data-i18n-en="7. Colors">7. 색상</div>
             <div class="color-row"><span data-i18n-en="Base plate">바닥판</span><input type="color" id="colBase" value="#ffffff" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span data-i18n-en="Outline">외곽선</span><input type="color" id="colOutline" value="#ff9a5b" oninput="scheduleUpdate()"></div>
             <div class="color-row"><span data-i18n-en="Border">테두리</span><input type="color" id="colBorder" value="#000000" oninput="scheduleUpdate()"></div>
@@ -240,6 +271,34 @@
             });
         });
 
+        // 자석 홈: 켤 때만 홈 방식·개수를 보인다
+        let currentMagnetMode = DEFAULTS.magnetMode;
+        let currentMagnetCount = DEFAULTS.magnetCount;
+        function syncMagnetUI() {
+            document.getElementById('magnetDetails').hidden = !document.getElementById('magnetOn').checked;
+            document.querySelectorAll('#magnetModeRow button').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === currentMagnetMode); });
+            document.querySelectorAll('#magnetCountRow button').forEach(function (b) { b.classList.toggle('active', +b.dataset.count === currentMagnetCount); });
+        }
+        function onMagnetToggle() { syncMagnetUI(); scheduleUpdate(); }
+        document.querySelectorAll('#magnetModeRow button').forEach(function (b) {
+            b.addEventListener('click', function () { currentMagnetMode = b.dataset.mode; syncMagnetUI(); scheduleUpdate(); });
+        });
+        document.querySelectorAll('#magnetCountRow button').forEach(function (b) {
+            b.addEventListener('click', function () { currentMagnetCount = +b.dataset.count; syncMagnetUI(); scheduleUpdate(); });
+        });
+        syncMagnetUI();
+
+        // 자석 홈 입체: 바닥판 두께로 홈 깊이·높이를 정하고(MagnetCore.spec), 얇으면 만들지 않고 알린다.
+        function magnetCut(p, shapes, track) {
+            const noteEl = document.getElementById('magnetNote');
+            if (!p.magnetOn) { noteEl.textContent = ''; return null; }
+            const sp = MagnetCore.spec(p.magnetMode, p.baseThick);
+            const pts = shapes.magnetPoints || [];
+            noteEl.textContent = MagnetCore.note(p.magnetMode, sp, pts.length, p.magnetCount, LangCore.pick);
+            if (!sp.ok || !pts.length) return null;
+            return MagnetCore.pocketSolid(pts, sp, track);
+        }
+
         function resetToDefaults() {
             document.getElementById('inputText').value = DEFAULTS.text;
             document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
@@ -268,6 +327,10 @@
             document.getElementById('outlineThick').value = DEFAULTS.outlineThick;
             document.getElementById('borderThick').value = DEFAULTS.borderThick;
             document.getElementById('textThick').value = DEFAULTS.textThick;
+            document.getElementById('magnetOn').checked = DEFAULTS.magnetOn;
+            currentMagnetMode = DEFAULTS.magnetMode;
+            currentMagnetCount = DEFAULTS.magnetCount;
+            syncMagnetUI();
             document.getElementById('colBase').value = DEFAULTS.colBase;
             document.getElementById('colOutline').value = DEFAULTS.colOutline;
             document.getElementById('colBorder').value = DEFAULTS.colBorder;
@@ -411,7 +474,13 @@
 
             // 층마다 아주 짧은 변을 없앤다(TIDY_EPS 주석 참고).
             const tidy = function (xs) { return xs && !xs.isEmpty() ? track(xs.simplify(TIDY_EPS)) : xs; };
-            const out = { textXS: tidy(textXS), emojiLXS: tidy(emojiLXS), emojiRXS: tidy(emojiRXS), outlineXS: tidy(outlineXS), baseXS: tidy(baseXS), borderRingXS: tidy(borderRingXS), holeXS: holeXS };
+            // 자석 자리(바닥판 모양에서 정함 — 홈 깊이·높이는 바닥판 두께에 달려 있어 입체를 만들 때 정한다)
+            let magnetPoints = [];
+            if (p.magnetOn) {
+                const avoid = p.keyringOn ? [{ x: p.keyringX, y: p.keyringY, r: p.keyringHoleSize / 2 }] : [];
+                magnetPoints = MagnetCore.placePoints(baseXS, avoid, p.magnetCount, MagnetCore.spec('open', 0).r);
+            }
+            const out = { textXS: tidy(textXS), emojiLXS: tidy(emojiLXS), emojiRXS: tidy(emojiRXS), outlineXS: tidy(outlineXS), baseXS: tidy(baseXS), borderRingXS: tidy(borderRingXS), holeXS: holeXS, magnetPoints: magnetPoints };
 
             // 최종적으로 돌려줄 도형들은 scratch(중간 산출물 정리 목록)에서 빼둔다 — 캐시로
             // 살아남아야 하므로 여기서 지우면 안 된다. 무효화될 때 disposeShapes()가 대신 지운다.
@@ -472,6 +541,7 @@
                 const holeCyl = own(ManifoldCore.extrudeXS(shapes.holeXS, p.baseThick + p.borderThick + 2));
                 holeCylPositioned = own(ManifoldCore.translateY(holeCyl, -1));
             }
+            const magnet = magnetCut(p, shapes, own);
 
             const meshes = [];
             layerDefs.forEach(function (def) {
@@ -482,9 +552,14 @@
                 const idToColor = new Map([[solid.originalID(), def.color]]);
                 let finalSolid = solid;
                 let cutResult = null;
-                if (holeCylPositioned) {
-                    idToColor.set(holeCylPositioned.originalID(), def.color); // 구멍 안쪽 벽면도 같은 층 색으로
-                    cutResult = ManifoldCore.subtract(solid, holeCylPositioned);
+                let cut = holeCylPositioned;
+                if (holeCylPositioned) idToColor.set(holeCylPositioned.originalID(), def.color); // 구멍 안쪽 벽면도 같은 층 색으로
+                if (def.name === 'base' && magnet) { // 자석 홈은 바닥판에서만 뺀다
+                    magnet.ids.forEach(function (id) { idToColor.set(id, def.color); });
+                    cut = cut ? own(ManifoldCore.union(cut, magnet.solid)) : magnet.solid;
+                }
+                if (cut) {
+                    cutResult = ManifoldCore.subtract(solid, cut);
                     finalSolid = cutResult;
                 }
                 const mesh = ManifoldCore.toThreeMesh(finalSolid, idToColor, def.color);
@@ -540,6 +615,9 @@
                 holeCylPositioned = track(ManifoldCore.translateY(holeCyl, -1));
             }
 
+            const magnet = magnetCut(p, shapes, track);
+            if (magnet) magnet.ids.forEach(function (id) { idToColor.set(id, p.colBase); }); // 홈 안쪽 면도 바닥판 색으로
+
             disposeShapes(shapes); // 2D 도형은 압출이 다 끝났으니 이제 정리해도 된다(3D 솔리드는 아직 필요)
 
             let fused = parts[0];
@@ -549,6 +627,7 @@
             if (holeCylPositioned) {
                 fused = track(ManifoldCore.subtract(fused, holeCylPositioned));
             }
+            if (magnet) fused = track(ManifoldCore.subtract(fused, magnet.solid));
 
             return { fused: fused, idToColor: idToColor };
         }
@@ -592,6 +671,7 @@
                 keyringY: parseFloat(document.getElementById('keyringY').value),
                 keyringHoleSize: parseFloat(document.getElementById('keyringHoleSize').value),
                 keyringRim: parseFloat(document.getElementById('keyringRim').value),
+                magnetOn: document.getElementById('magnetOn').checked, magnetMode: currentMagnetMode, magnetCount: currentMagnetCount,
                 baseThick: parseFloat(document.getElementById('baseThick').value),
                 outlineThick: parseFloat(document.getElementById('outlineThick').value),
                 borderThick: parseFloat(document.getElementById('borderThick').value),
@@ -615,7 +695,8 @@
                 emojiL: p.emojiL, emojiLScale: p.emojiLScale, emojiLOffset: p.emojiLOffset, emojiLMirror: p.emojiLMirror,
                 emojiR: p.emojiR, emojiRScale: p.emojiRScale, emojiROffset: p.emojiROffset, emojiRMirror: p.emojiRMirror,
                 outlineW: p.outlineW, borderW: p.borderW, innerMargin: p.innerMargin, outerMargin: p.outerMargin,
-                keyringOn: p.keyringOn, keyringX: p.keyringX, keyringY: p.keyringY, keyringHoleSize: p.keyringHoleSize, keyringRim: p.keyringRim
+                keyringOn: p.keyringOn, keyringX: p.keyringX, keyringY: p.keyringY, keyringHoleSize: p.keyringHoleSize, keyringRim: p.keyringRim,
+                magnetOn: p.magnetOn, magnetMode: p.magnetMode, magnetCount: p.magnetCount
             });
         }
 
@@ -751,6 +832,7 @@
         window.onFontChange = onFontChange;
         window.download3MF = download3MF;
         window.downloadSTL = downloadSTL;
+        window.onMagnetToggle = onMagnetToggle;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
         // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
         window.__getPreviewGroup = function () { return currentGroup; };

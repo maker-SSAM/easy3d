@@ -184,6 +184,10 @@
         function fontLabel(key) {
             const entry = fontRegistry.get(key);
             if (!entry) return key;
+            if (entry.file) { // 내 파일: 파일 안의 이름(한국어 화면 = 한글 이름, 없으면 영어 이름·파일 이름)
+                const n = entry.names || {};
+                return LangCore.pick(n.ko || n.en || entry.label, n.en || entry.label);
+            }
             return entry.koLabel && window.LangCore ? LangCore.pick(entry.koLabel, entry.label) : entry.label;
         }
         function userFontKey(file) { return 'upload:' + file.name + ':' + file.size + ':' + file.lastModified; }
@@ -874,8 +878,15 @@
             }
             userFontGroups.forEach(function (g) {
                 const title = g.id === 'files' ? LangCore.pick('내 폰트 파일', 'My font files') : g.title;
-                h += '<optgroup data-kind="' + (g.id === 'files' ? 'files' : 'folder') + '" label="' + escHtml(title) + '">' + g.keys.map(function (k) {
-                    return '<option value="' + escHtml(k) + '">' + escHtml(fontRegistry.get(k).label) + '</option>';
+                // 화면 언어의 이름으로 정렬하고, 이름이 같은 글씨체는 파일 이름을 덧붙여 구별한다
+                const lang = LangCore.pick('ko', 'en');
+                const items = g.keys.map(function (k) { return { k: k, name: fontLabel(k) }; });
+                const seen = {};
+                items.forEach(function (it) { seen[it.name] = (seen[it.name] || 0) + 1; });
+                items.forEach(function (it) { if (seen[it.name] > 1) it.name += ' (' + fontRegistry.get(it.k).label + ')'; });
+                if (g.id !== 'files') items.sort(function (a, b) { return a.name.localeCompare(b.name, lang); });
+                h += '<optgroup data-kind="' + (g.id === 'files' ? 'files' : 'folder') + '" label="' + escHtml(title) + '">' + items.map(function (it) {
+                    return '<option value="' + escHtml(it.k) + '">' + escHtml(it.name) + '</option>';
                 }).join('') + '</optgroup>';
             });
             return h;
@@ -906,7 +917,7 @@
             ensureFont(key).then(function () {
                 if (!isFontReady(key)) {
                     revertFontSelect(target);
-                    setFontNote(LangCore.pick('「' + fontRegistry.get(key).label + '」 글씨체 파일을 읽을 수 없습니다.', 'Could not read this font file.'), target);
+                    setFontNote(LangCore.pick('「' + fontLabel(key) + '」 글씨체 파일을 읽을 수 없습니다.', 'Could not read this font file.'), target);
                     return;
                 }
                 setFontNote('', target);
@@ -1202,6 +1213,79 @@
         makeFontPicker(fontSelectEl, document.getElementById('fontPicker'));
 
         function fontLabelOf(file) { return file.name.replace(/\.(ttf|otf)$/i, ''); }
+
+        // 글씨체 파일 안의 이름(name 표)만 읽는다 — 파일 맨 앞의 표 목록과 name 표(보통 몇 KB)만 잘라 읽음.
+        // 돌려주는 값: { ko, en }(없으면 null). Windows 이름 중 한국어(0x0412)·영어(0x0409),
+        // 전체 이름(4) → 가족 이름(1) 순서(굵기가 여러 개인 글씨체도 구별되게). 못 읽으면 null.
+        async function readFontNames(file) {
+            try {
+                const head = new DataView(await file.slice(0, 12).arrayBuffer());
+                const tag = head.getUint32(0);
+                if (tag !== 0x00010000 && tag !== 0x4F54544F && tag !== 0x74727565) return null; // TrueType·'OTTO'·'true'
+                const numTables = head.getUint16(4);
+                const dir = new DataView(await file.slice(12, 12 + numTables * 16).arrayBuffer());
+                let off = -1, len = 0;
+                for (let i = 0; i < numTables; i++) {
+                    if (dir.getUint32(i * 16) === 0x6E616D65) { off = dir.getUint32(i * 16 + 8); len = dir.getUint32(i * 16 + 12); break; } // 'name'
+                }
+                if (off < 0 || len > 4 * 1024 * 1024) return null;
+                const nv = new DataView(await file.slice(off, off + len).arrayBuffer());
+                const count = nv.getUint16(2), strOff = nv.getUint16(4);
+                const found = {};
+                for (let i = 0; i < count; i++) {
+                    const r = 6 + i * 12;
+                    const plat = nv.getUint16(r), enc = nv.getUint16(r + 2), lang = nv.getUint16(r + 4);
+                    const id = nv.getUint16(r + 6), l = nv.getUint16(r + 8), o = nv.getUint16(r + 10);
+                    if (plat !== 3 || (enc !== 1 && enc !== 10) || (id !== 1 && id !== 4) || (lang !== 0x412 && lang !== 0x409)) continue;
+                    let s = '';
+                    for (let j = 0; j + 1 < l; j += 2) s += String.fromCharCode(nv.getUint16(strOff + o + j)); // UTF-16BE
+                    s = s.replace(/\0/g, '').trim();
+                    if (s) found[(lang === 0x412 ? 'ko' : 'en') + id] = s;
+                }
+                return { ko: found.ko4 || found.ko1 || null, en: found.en4 || found.en1 || null };
+            } catch (err) {
+                return null;
+            }
+        }
+        // 여러 글씨체의 이름을 읽는다(8개씩 함께). 파일이 PC에 있으면 수백 개도 1~2초.
+        // OneDrive '온라인 전용'처럼 읽을 때 내려받는 파일이면 한 개에 오래 걸린다 → 남은 파일이 300MB 이상이면
+        // 한 번 묻는다(취소하면 나머지는 파일 이름으로 보임). 파일이 PC에 있는지는 브라우저가 알 수 없어서 읽는 속도로 판단한다.
+        const NAME_READ_BATCH = 8;
+        const SLOW_NAME_READ_MS = 400;
+        const DOWNLOAD_WARN_BYTES = 300 * 1024 * 1024;
+        async function readNamesFor(entries, showProgress) {
+            const todo = entries.filter(function (e) { return e && e.file && !e.namesRead; });
+            let remaining = todo.reduce(function (s, e) { return s + e.file.size; }, 0);
+            let asked = false;
+            for (let i = 0; i < todo.length; i += NAME_READ_BATCH) {
+                if (showProgress && todo.length > NAME_READ_BATCH) {
+                    setFontNote(LangCore.pick('글씨체 이름을 읽는 중… (' + i + '/' + todo.length + ')', 'Reading font names… (' + i + '/' + todo.length + ')'));
+                }
+                const batch = todo.slice(i, i + NAME_READ_BATCH);
+                let slowest = 0;
+                await Promise.all(batch.map(function (e) {
+                    const t0 = performance.now();
+                    return readFontNames(e.file).then(function (names) {
+                        e.names = names;
+                        e.namesRead = true;
+                        slowest = Math.max(slowest, performance.now() - t0);
+                    });
+                }));
+                batch.forEach(function (e) { remaining -= e.file.size; });
+                if (!asked && slowest > SLOW_NAME_READ_MS && remaining >= DOWNLOAD_WARN_BYTES) {
+                    asked = true;
+                    const mb = Math.round(remaining / 1024 / 1024).toLocaleString();
+                    const go = window.confirm(LangCore.pick(
+                        '글씨체 파일을 내려받으면서 읽는 것 같습니다(OneDrive \'온라인 전용\' 파일 등).\n'
+                        + '글씨체 이름을 모두 읽으려면 약 ' + mb + 'MB를 더 내려받을 수 있습니다.\n\n'
+                        + '[확인] 계속 읽기\n[취소] 멈추고, 나머지 글씨체는 파일 이름으로 보기',
+                        'The font files seem to be downloading while being read (e.g. OneDrive online-only files).\n'
+                        + 'Reading all font names may download about ' + mb + ' MB more.\n\n'
+                        + '[OK] Keep reading\n[Cancel] Stop and show file names for the rest'));
+                    if (!go) break;
+                }
+            }
+        }
         function upsertFontGroup(id, title, keys) {
             const old = userFontGroups.find(function (g) { return g.id === id; });
             if (old) { old.title = title; old.keys = keys; }
@@ -1214,11 +1298,13 @@
             const file = this.files && this.files[0];
             if (!file) return;
             const key = userFontKey(file);
-            registerFont(key, { label: fontLabelOf(file), file: file });
+            const entry = registerFont(key, { label: fontLabelOf(file), file: file });
+            readNamesFor([entry], false).then(function () {
             const g = userFontGroups.find(function (x) { return x.id === 'files'; });
             upsertFontGroup('files', LangCore.pick('내 폰트 파일', 'My font files'), (g ? g.keys.filter(function (k) { return k !== key; }) : []).concat([key]));
             refreshFontSelects();
             pickFont(key, pendingFontTarget);
+            });
         });
 
         // 📁 내 폴더 가져오기: 폴더(하위 폴더 포함) 안의 .ttf·.otf를 모두 목록에 올린다(이름만, 읽기는 고를 때).
@@ -1229,7 +1315,7 @@
         const canPickDir = typeof window.showDirectoryPicker === 'function';
         let savedDirHandle = null;
         let savedDirLoaded = false;
-        function setFolderFonts(folderName, items) {
+        async function setFolderFonts(folderName, items) {
             const fonts = items.filter(function (it) { return FONT_EXT.test(it.file.name); }).slice(0, MAX_FOLDER_FONTS);
             const count = {};
             fonts.forEach(function (it) { const l = fontLabelOf(it.file); count[l] = (count[l] || 0) + 1; });
@@ -1240,7 +1326,8 @@
                 registerFont(key, { label: label, file: it.file });
                 return key;
             });
-            const uniq = Array.from(new Set(keys)).sort(function (a, b) { return fontRegistry.get(a).label.localeCompare(fontRegistry.get(b).label, 'ko'); });
+            const uniq = Array.from(new Set(keys)); // 정렬은 목록을 그릴 때 화면 언어의 이름으로
+            await readNamesFor(uniq.map(function (k) { return fontRegistry.get(k); }), true);
             upsertFontGroup('folder:' + folderName, folderName, uniq);
             refreshFontSelects();
             setFontNote(uniq.length

@@ -14,7 +14,8 @@
       "홍보자료/**",
       "serve.py",
       "serve.bat",
-      "serve.command"
+      "serve.command",
+      "tools/**"
     ],
     "headers": [
       {

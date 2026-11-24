@@ -58,21 +58,24 @@ window.MagnetCore = (function () {
                 polys.forEach(function (poly) { if (FontCore.isPointInPolygon(pt, poly)) c++; });
                 return c % 2 === 1;
             };
-            // 놓을 목표점 — 가장자리 쪽으로 붙인다(2026-11-24 선생님): 영역의 끝에서 끝까지 고르게.
-            //   1개 = 가운데, 2·3개 = 한 줄, 4개 이상 = 두 줄(위 줄 = 반올림 n/2, 아래 줄 = 나머지; 아주 긴 판은 한 줄).
-            //   세로로 긴 판은 줄 대신 기둥으로(가로·세로를 바꿔 같은 규칙).
+            // 놓을 목표점 — 가장자리 쪽으로, 끝에서 끝까지 고르게(2026-11-24 선생님이 정한 배치):
+            //   1 = 가운데 · 2 = 가운데 줄 양 끝 · 3 = 가운데 줄 나란히 · 4 = 위 2·아래 2 · 5 = 위 2·아래 2 + 가운데
+            //   6 = 위 3·아래 3 · 7 = 위 3·아래 3 + 가운데 · 8 = 위 4·아래 4
+            //   두 줄이 들어갈 높이가 없으면(판이 아주 얇으면) 가운데 줄 하나에 n개. 세로로 긴 판은 가로·세로를 바꿔 같은 규칙.
             const tall = h > w * 1.2;
-            const L = tall ? h : w, S = tall ? w : h;           // 긴 쪽·짧은 쪽 길이
-            const lineOf = function (count, s) {                // 긴 쪽을 따라 count개, 짧은 쪽 위치 s(0~1)
+            const S = tall ? w : h;                              // 짧은 쪽 길이(두 줄 사이 거리)
+            const lineOf = function (count, s) {                // 긴 쪽을 따라 count개, 짧은 쪽 위치 s(0 = 아래·1 = 위·0.5 = 가운데)
                 return Array.from({ length: count }, function (_, i) {
                     const u = count === 1 ? 0.5 : i / (count - 1);
                     return tall ? [x0 + s * w, y0 + u * h] : [x0 + u * w, y0 + s * h];
                 });
             };
+            const PLAN = { 1: [[0.5, 1]], 2: [[0.5, 2]], 3: [[0.5, 3]], 4: [[1, 2], [0, 2]], 5: [[1, 2], [0, 2], [0.5, 1]],
+                           6: [[1, 3], [0, 3]], 7: [[1, 3], [0, 3], [0.5, 1]], 8: [[1, 4], [0, 4]] };
+            const twoRowsFit = S >= 2 * r + WALL;                // 위·아래 줄 홈이 서로 겹치지 않을 높이
             let targets;
-            if (n === 1) targets = [[x0 + w / 2, y0 + h / 2]];
-            else if (n <= 3 || L > S * 2.5) targets = lineOf(n, 0.5);
-            else targets = lineOf(Math.ceil(n / 2), 1).concat(lineOf(Math.floor(n / 2), 0));
+            if (n >= 4 && !twoRowsFit) targets = lineOf(n, 0.5);
+            else targets = PLAN[n].reduce(function (all, row) { return all.concat(lineOf(row[1], row[0])); }, []);
             // 영역 안의 후보 점(격자)에서 목표점에 가장 가깝고 다른 홈과 떨어진 점을 고른다
             // 후보 점은 격자 칸의 한가운데 — 좌우·위아래가 똑같고, 경계선 위에 놓이지 않는다
             // (경계선 위의 점은 안/밖 판정이 왼쪽·오른쪽에서 달라 좌우 자리가 1.6mm 어긋났다).

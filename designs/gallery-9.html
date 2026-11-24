@@ -42,6 +42,14 @@
             background: var(--input-bg); cursor: text;
         }
         .text-box-wrap:focus-within { border-color: #1e88e5; }
+        /* 글상자 자동 맞춤 배율 표시(줄었을 때만). 글상자 틀(.text-box-wrap) 오른쪽 위에 겹쳐 둔다. */
+        .text-box-holder { position: relative; }
+        .box-zoom {
+            /* 글자를 가리지 않게 글상자 틀 바로 위(오른쪽 끝)에 둔다 */
+            position: absolute; right: 2px; top: -20px; pointer-events: none;
+            font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 4px;
+            color: var(--text-muted); background: var(--panel-accent-bg);
+        }
         .text-box {
             width: max-content; min-width: 100%; min-height: 88px;
             padding: 10px; box-sizing: border-box;
@@ -242,8 +250,9 @@
             <div class="section-label" data-i18n-en="1. Text">1. 글자</div>
             <!-- 글상자가 맨 위, 그 아래 고른 글자의 서식(2026-11-24 선생님). 기본 글씨체·기본 색 칸은 없고,
                  글자를 고르지 않고 바꾸면 글상자 전체가 바뀐다(처음 값: 카페24 프로업·주황). -->
-            <div class="control-group">
+            <div class="control-group text-box-holder">
                 <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="true" spellcheck="false"></div></div>
+                <span class="box-zoom" id="boxZoom" hidden></span>
             </div>
             <!-- 값은 숨긴 칸에 둔다: 처음 글씨체(fontSelect)·처음 글자 색(colText) -->
             <select id="fontSelect" hidden></select>
@@ -361,11 +370,62 @@
         textBox.addEventListener('input', function (e) {
             if (!e.isComposing) {
                 syncLineStyles();
+                fitTextBoxSoon();
                 recordChange(e.inputType === 'insertParagraph' || e.inputType === 'insertFromPaste' || e.inputType === 'insertText' && /\n/.test(e.data || '') ? 'block' : 'type');
             }
             scheduleUpdate();
         });
-        textBox.addEventListener('compositionend', function () { syncLineStyles(); recordChange('type'); scheduleUpdate(); });
+        textBox.addEventListener('compositionstart', function () { boxComposing = true; });
+        textBox.addEventListener('compositionend', function () { boxComposing = false; syncLineStyles(); fitTextBoxSoon(); recordChange('type'); scheduleUpdate(); });
+
+        // ---------- 글상자 자동 맞춤(2026-11-24 선생님) ----------
+        // 글자를 크게 하면 글상자 밖으로 넘쳤다(글상자 화면은 1mm = 3px). 내용이 칸에 다 들어가도록 글상자 화면 배율을
+        // 줄인다(CSS zoom — 글 내용·구조는 그대로라 한글 조합·커서에 영향이 적다). 넘칠 때만 줄이고 100%보다 키우지는 않는다.
+        // 줄었을 때는 오른쪽 위에 '60%'처럼 배율을 보인다. 입체는 이 배율과 상관없이 실제 크기(mm)로 만든다.
+        let boxZoom = 1;
+        let boxComposing = false;
+        let fitTimer = null;
+        const BOX_PAD_PX = 10;        // .text-box의 padding(배율 1일 때)
+        const BOX_MAX_H = 260;        // .text-box-wrap의 max-height
+        const BOX_MIN_H = 88;         // .text-box의 min-height(배율 1일 때)
+        function fitTextBox() {
+            if (boxComposing) return; // 한글 조합 중에는 건드리지 않고, 조합이 끝나면 다시 맞춘다
+            const wrap = document.getElementById('textBoxWrap');
+            const r = document.createRange();
+            let w = 0, top = Infinity, bottom = -Infinity;
+            textBox.childNodes.forEach(function (n) {
+                if (n.nodeType === 3) { if (!n.data) return; r.selectNode(n); }
+                else if (n.nodeType === 1) r.selectNodeContents(n);
+                else return;
+                const tr = r.getBoundingClientRect();            // 글자가 차지하는 폭
+                const br = n.nodeType === 1 ? n.getBoundingClientRect() : tr; // 줄 높이
+                w = Math.max(w, tr.width);
+                if (br.height) { top = Math.min(top, br.top); bottom = Math.max(bottom, br.bottom); }
+            });
+            // 지금 배율로 잰 값 → 배율 1일 때의 크기
+            const contentW = w / boxZoom + 2 * BOX_PAD_PX + 12; // +12: 글자 획이 글자 칸 밖으로 조금 나오는 것·커서 자리
+            const contentH = (bottom > top ? bottom - top : 0) / boxZoom + 2 * BOX_PAD_PX;
+            const availW = wrap.clientWidth;
+            const availH = BOX_MAX_H - 2;
+            let z = Math.min(1, availW / contentW, availH / contentH);
+            z = Math.max(0.15, Math.floor(z * 100) / 100);
+            // 넘치면(줄여야 하면) 언제나 줄이고, 키울 때만 작은 차이(2%p 미만)는 무시한다(흔들림 방지)
+            if (z === boxZoom || (z > boxZoom && z - boxZoom < 0.02 && z !== 1)) return;
+            boxZoom = z;
+            textBox.style.zoom = z === 1 ? '' : String(z);
+            textBox.style.minHeight = z === 1 ? '' : (BOX_MIN_H / z) + 'px'; // 줄여도 칸 높이는 그대로 보이게
+            const badge = document.getElementById('boxZoom');
+            badge.hidden = z === 1;
+            badge.textContent = Math.round(z * 100) + '%';
+            badge.title = LangCore.pick('글상자 화면 배율 — 글자가 커서 칸에 맞게 줄여 보여 줍니다(입체는 실제 크기).', 'Text box view scale — shrunk to fit (the 3D model keeps the real size).');
+        }
+        function fitTextBoxSoon() {
+            if (fitTimer) cancelAnimationFrame(fitTimer);
+            fitTimer = requestAnimationFrame(function () { fitTimer = null; fitTextBox(); });
+        }
+        // 글상자 폭이 바뀌거나(왼쪽 판 크기 조절·창 크기) 글씨체 파일이 늦게 불러와져 글자 폭이 바뀌면 다시 맞춘다
+        if ('ResizeObserver' in window) new ResizeObserver(fitTextBoxSoon).observe(document.getElementById('textBoxWrap'));
+        if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', fitTextBoxSoon);
         // 틀의 빈 곳(스크롤 막대 옆 등)을 눌러도 입력칸으로 들어가게
         document.getElementById('textBoxWrap').addEventListener('mousedown', function (e) {
             if (e.target === this) { e.preventDefault(); textBox.focus(); }
@@ -543,6 +603,7 @@
                 if (!line.runs.length) div.appendChild(document.createElement('br'));
                 textBox.appendChild(div);
             });
+            fitTextBoxSoon();
         }
         // 화면 구조를 모델대로 다시 그린다(붙여넣기 뒤). 글자 위치(커서)는 글자 수로 되살린다.
         function normalizeBox() {

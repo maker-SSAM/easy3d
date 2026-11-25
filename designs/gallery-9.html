@@ -235,11 +235,28 @@
 
         const DEFAULTS = {
             // 글상자 내용 = 줄 배열 [{ lh, runs: [서식 조각…] }]. 처음에는 서식 없음(2026-11-24 선생님).
-            // 기본 예시(2026-11-24 선생님): 표지판 — 노토 세리프 KR 20mm, 줄 간격 1, 검정, 사각형 테두리(둥글기 3·간격 5)
+            // 기본 예시(2026-11-25 선생님 화면 그대로): 글씨마다 글씨체·크기·색을 달리 한 표지판 — 기본 글씨체 노토 세리프 KR,
+            // 20mm, 검정, 사각형 테두리(둥글기 3·간격 5), 자석 홈(열린 홈 4개)
             model: [
-                { lh: 1, runs: [Object.assign(plainRun('표지판 만들기'), { size: 20 })] },
-                { lh: 1, runs: [Object.assign(plainRun('여러줄 가능'), { size: 20 })] },
-                { lh: 1, runs: [Object.assign(plainRun('글씨별 세팅🙂'), { size: 20 })] }
+                { lh: 0.75, runs: [
+                    Object.assign(plainRun('표지판'), { size: 25, font: 'Paperlogy-8ExtraBold.ttf', color: '#ff0000' }),
+                    Object.assign(plainRun(' 만'), { size: 20 }),
+                    Object.assign(plainRun('들기'), { size: 20, font: 'NotoSerifKR-Black.ttf' })
+                ] },
+                { lh: 1, runs: [
+                    Object.assign(plainRun('여러줄'), { size: 20, font: 'Cafe24Ssurround-v2.0.ttf', color: '#000000' }),
+                    Object.assign(plainRun(' '), { size: 20, color: '#000000' }),
+                    Object.assign(plainRun('가능'), { size: 23, font: 'KCCMurukmuruk.ttf', color: '#000000' })
+                ] },
+                { lh: 1, runs: [
+                    Object.assign(plainRun('글'), { size: 20, font: 'Cafe24PROUP.ttf', color: '#00ffee' }),
+                    Object.assign(plainRun('씨'), { size: 20, font: 'Cafe24Ohsquare-v2.0.ttf', color: '#ff8800' }),
+                    Object.assign(plainRun('별'), { size: 20, font: 'Mulmaru.ttf', color: '#ff00f7' }),
+                    Object.assign(plainRun(' '), { size: 20 }),
+                    Object.assign(plainRun('세'), { size: 20, font: 'Hakgyoansim_EohangkkumigiB.ttf', color: '#04fa00' }),
+                    Object.assign(plainRun('팅'), { size: 20, font: 'Ghanachocolate.ttf', color: '#6600ff' }),
+                    Object.assign(plainRun('🙂'), { size: 20, wt: 0.5, color: '#0008ff' })
+                ] }
             ],
             fontKey: FONT_OPTIONS[DEFAULT_FONT_INDEX].file, align: 'center',
             // 갤러리9에는 글자 외곽선이 없다(2026-11-24 선생님: 깔끔한 이름표). 글자 높이는 글상자 도구 막대(글씨별).
@@ -248,7 +265,7 @@
             borderW: 1.0, innerMargin: 5, outerMargin: 1.0,
             keyringOn: false, keyringX: -25, keyringY: 0, keyringHoleSize: 3.5, keyringRim: 1.0,
             // 자석 홈(assets/js/magnet-core.js): 열린 홈(open)·숨긴 홈(hidden), 개수 1~8(자리는 가장자리 쪽으로 자동)
-            magnetOn: false, magnetMode: 'open', magnetCount: 2,
+            magnetOn: true, magnetMode: 'open', magnetCount: 4,
             baseThick: 3.0, borderThick: 0.6,
             colBase: '#ffffff', colBorder: '#000000', colText: '#000000'
         };
@@ -264,6 +281,7 @@
                 <div class="text-box-wrap" id="textBoxWrap"><div id="textBox" class="text-box" contenteditable="true" spellcheck="false"></div></div>
                 <span class="box-zoom" id="boxZoom" hidden></span>
             </div>
+            <p class="fmt-hint box-hint" data-i18n-en="Select a block of text to apply the options below.">블록을 지정하여 원하는 옵션을 적용하세요.</p>
             <!-- 값은 숨긴 칸에 둔다: 처음 글씨체(fontSelect)·처음 글자 색(colText) -->
             <select id="fontSelect" hidden></select>
             <input type="color" id="colText" value="#000000" hidden>
@@ -2089,6 +2107,11 @@
 
         async function main() {
             textBox.style.fontFamily = cssFamily(currentFontFile);
+            // 체크 칸의 처음 상태도 DEFAULTS를 따른다(HTML에는 checked가 없음)
+            document.getElementById('magnetOn').checked = DEFAULTS.magnetOn;
+            document.getElementById('keyringOn').checked = DEFAULTS.keyringOn;
+            syncMagnetUI();
+            syncKeyringDetails();
             renderModel(cloneModel(DEFAULTS.model));
             resetHistory();
             refreshFontSelects();

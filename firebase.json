@@ -15,7 +15,8 @@
       "serve.py",
       "serve.bat",
       "serve.command",
-      "tools/**"
+      "tools/**",
+      "CLAUDE.md"
     ],
     "headers": [
       {

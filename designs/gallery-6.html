@@ -30,6 +30,9 @@
     <script src="../assets/js/font-core.js"></script>
     <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
     <script src="../assets/js/font-list.js"></script>
+    <!-- 글씨체 고르는 목록(easy3D 공용 — 이름을 그 글씨체 모양으로, 내 폰트 파일 업로드·내 폴더 가져오기) -->
+    <script src="../assets/js/font-name-previews.js"></script>
+    <script src="../assets/js/font-picker.js"></script>
     <!-- 2D 윤곽선(offset/rotate/revolve) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
          ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -109,11 +112,7 @@
             </div>
             <div class="control-group">
                 <label data-i18n-en="Text line 1 font">텍스트 1 폰트 선택</label>
-                <select id="font1Select" onchange="onFont1Change()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="font1Upload" accept=".ttf,.otf" style="display:none">
+                <div id="font1Picker"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Text line 1 size">텍스트 1 크기</span>: <span id="valSize1">11</span></label><input type="range" id="size1" min="5" max="50" step="0.5" value="11" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text 1 width">텍스트1 장평</span>: <span id="valT1ScaleX">1.0</span></label><input type="range" id="t1ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
@@ -127,11 +126,7 @@
             </div>
             <div class="control-group">
                 <label data-i18n-en="Text line 2 font">텍스트 2 폰트 선택</label>
-                <select id="font2Select" onchange="onFont2Change()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex2 ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="font2Upload" accept=".ttf,.otf" style="display:none">
+                <div id="font2Picker"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Text line 2 size">텍스트 2 크기</span>: <span id="valSize2">14</span></label><input type="range" id="size2" min="5" max="50" step="0.5" value="14" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text 2 width">텍스트2 장평</span>: <span id="valT2ScaleX">1.0</span></label><input type="range" id="t2ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
@@ -145,11 +140,7 @@
             </div>
             <div class="control-group">
                 <label data-i18n-en="Text line 3 font">텍스트 3 폰트 선택</label>
-                <select id="font3Select" onchange="onFont3Change()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULTS.fontIndex3 ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="font3Upload" accept=".ttf,.otf" style="display:none">
+                <div id="font3Picker"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Text line 3 size">텍스트 3 크기</span>: <span id="valSize3">10</span></label><input type="range" id="size3" min="5" max="50" step="0.5" value="10" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text 3 width">텍스트3 장평</span>: <span id="valT3ScaleX">1.0</span></label><input type="range" id="t3ScaleX" min="0.5" max="2.0" step="0.1" value="1.0" oninput="scheduleUpdate()"></div>
@@ -226,61 +217,18 @@
             if (event.key === 'Enter') scheduleUpdate();
         }
 
-        // 텍스트1/2/3 세 줄 모두 "번들 폰트 select + 업로드 옵션 + 숨은 file input"이 같은
-        // 패턴이라, 반복을 피하려고 배선 로직을 함수로 뺐다. onFontResolved(font, cacheKey)가
-        // 실제로 textNFont/fontNFile 상태를 갱신하고 모델을 다시 그린다.
-        function setupFontPicker(selectId, uploadId, defaultIndex, onFontResolved) {
-            const select = document.getElementById(selectId);
-            const upload = document.getElementById(uploadId);
-            let prevValue = String(defaultIndex);
-
-            function change() {
-                if (select.value === '__upload__') { upload.click(); return; }
-                const uploadedFont = FontCore.getFont(select.value);
-                if (uploadedFont) {
-                    prevValue = select.value;
-                    onFontResolved(uploadedFont, select.value);
-                    return;
-                }
-                prevValue = select.value;
-                const file = FONT_OPTIONS[select.value].file;
-                FontCore.loadFont(file, function (font) { onFontResolved(font, file); });
-            }
-
-            upload.addEventListener('change', function (e) {
-                const file = e.target.files[0];
-                e.target.value = ''; // 같은 파일을 다시 선택해도 change 이벤트가 뜨도록 초기화
-                if (!file) { select.value = prevValue; return; }
-                FontCore.loadFontFromFile(file, function (font, cacheKey) {
-                    const opt = document.createElement('option');
-                    opt.value = cacheKey;
-                    opt.textContent = '📁 ' + file.name;
-                    select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
-                    select.value = cacheKey;
-                    prevValue = cacheKey;
-                    onFontResolved(font, cacheKey);
-                }, function () {
-                    alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
-                    select.value = prevValue;
-                });
-            });
-
-            return { change: change };
-        }
-
-        const font1Picker = setupFontPicker('font1Select', 'font1Upload', DEFAULT_FONT_INDEX, function (font, file) {
-            text1Font = font; font1File = file; updateModel();
+        // 텍스트1/2/3 글씨체: 글씨체 목록(assets/js/font-picker.js, easy3D 공용) 세 칸. 고르면 그 글씨체를
+        // 불러온 뒤 onChange가 textNFont/fontNFile을 바꾸고 모델을 다시 그린다. 처음 값도 바로 불러온다.
+        // 가져온 내 글씨체(업로드·폴더)는 세 칸이 함께 쓴다.
+        const font1Picker = FontPicker.create(document.getElementById('font1Picker'), {
+            value: font1File, onChange: function (key, font) { text1Font = font; font1File = key; updateModel(); }
         });
-        const font2Picker = setupFontPicker('font2Select', 'font2Upload', DEFAULTS.fontIndex2, function (font, file) {
-            text2Font = font; font2File = file; updateModel();
+        const font2Picker = FontPicker.create(document.getElementById('font2Picker'), {
+            value: font2File, onChange: function (key, font) { text2Font = font; font2File = key; updateModel(); }
         });
-        const font3Picker = setupFontPicker('font3Select', 'font3Upload', DEFAULTS.fontIndex3, function (font, file) {
-            text3Font = font; font3File = file; updateModel();
+        const font3Picker = FontPicker.create(document.getElementById('font3Picker'), {
+            value: font3File, onChange: function (key, font) { text3Font = font; font3File = key; updateModel(); }
         });
-
-        function onFont1Change() { font1Picker.change(); }
-        function onFont2Change() { font2Picker.change(); }
-        function onFont3Change() { font3Picker.change(); }
 
         function resetToDefaults() {
             // facesSegment 슬라이더는 UI에서 뺐다 — 되살리면 여기도 원래대로
@@ -288,21 +236,18 @@
             document.getElementById('distance').value = DEFAULTS.distance;
 
             document.getElementById('text1').value = DEFAULTS.text1;
-            document.getElementById('font1Select').value = DEFAULTS.fontIndex1;
             document.getElementById('size1').value = DEFAULTS.size1;
             document.getElementById('t1ScaleX').value = DEFAULTS.t1ScaleX;
             document.getElementById('t1Spacing').value = DEFAULTS.t1Spacing;
             document.getElementById('t1Offset').value = DEFAULTS.t1Offset;
 
             document.getElementById('text2').value = DEFAULTS.text2;
-            document.getElementById('font2Select').value = DEFAULTS.fontIndex2;
             document.getElementById('size2').value = DEFAULTS.size2;
             document.getElementById('t2ScaleX').value = DEFAULTS.t2ScaleX;
             document.getElementById('t2Spacing').value = DEFAULTS.t2Spacing;
             document.getElementById('t2Offset').value = DEFAULTS.t2Offset;
 
             document.getElementById('text3').value = DEFAULTS.text3;
-            document.getElementById('font3Select').value = DEFAULTS.fontIndex3;
             document.getElementById('size3').value = DEFAULTS.size3;
             document.getElementById('t3ScaleX').value = DEFAULTS.t3ScaleX;
             document.getElementById('t3Spacing').value = DEFAULTS.t3Spacing;
@@ -328,7 +273,10 @@
             document.getElementById('colBase').value = DEFAULTS.colBase;
 
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-            onFont1Change(); onFont2Change(); onFont3Change(); // 폰트를 다시 로드하면서 모델도 재생성
+            // 글씨체를 되돌리면서 모델도 다시 만든다
+            font1Picker.setValue(FONT_OPTIONS[DEFAULTS.fontIndex1].file);
+            font2Picker.setValue(FONT_OPTIONS[DEFAULTS.fontIndex2].file);
+            font3Picker.setValue(FONT_OPTIONS[DEFAULTS.fontIndex3].file);
         }
 
         // ---------- 실제 모델링 ----------
@@ -959,9 +907,6 @@
 
         window.scheduleUpdate = scheduleUpdate;
         window.onTextKeydown = onTextKeydown;
-        window.onFont1Change = onFont1Change;
-        window.onFont2Change = onFont2Change;
-        window.onFont3Change = onFont3Change;
         window.downloadSTL = downloadSTL;
         window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
@@ -1036,9 +981,8 @@
             await ManifoldCore.ready;
             manifoldReady = true;
             FontCore.loadFont(EMOJI_FONT_FILE, function (font) { emojiFont = font; updateModel(); });
-            onFont1Change();
-            onFont2Change();
-            onFont3Change();
+            updateModel(); // 글씨체 세 개가 먼저 준비됐으면 여기서 첫 모델(아니면 글씨체 목록의 onChange에서)
+            FontPicker.restoreSavedFolder(); // 지난번에 가져온 내 폴더(크롬·엣지)
         }
         main();
     </script>

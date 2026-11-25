@@ -31,6 +31,9 @@
     <script src="../assets/js/magnet-core.js"></script>
     <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
     <script src="../assets/js/font-list.js"></script>
+    <!-- 글씨체 고르는 목록(easy3D 공용 — 이름을 그 글씨체 모양으로, 내 폰트 파일 업로드·내 폴더 가져오기) -->
+    <script src="../assets/js/font-name-previews.js"></script>
+    <script src="../assets/js/font-picker.js"></script>
     <!-- 2D 윤곽선(offset/union) → Manifold-3D 솔리드 → three.js 변환 공용 브릿지. ES 모듈이라
          로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
          ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -108,11 +111,7 @@
             </div>
             <div class="control-group">
                 <label data-i18n-en="Choose font">글씨체 선택</label>
-                <select id="fontSelect" onchange="onFontChange()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+                <div id="fontPicker"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Font size">글자 크기</span>: <span id="valFontSize">12</span></label><input type="range" id="fontSize" min="5" max="50" step="0.5" value="12" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Font weight">글자 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
@@ -215,12 +214,9 @@
         let manifoldReady = false;
         let textFont = null;
         let emojiFont = null;
-        // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명(FONT_OPTIONS[i].file), 업로드
-        // 파일이면 FontCore.loadFontFromFile()이 만들어준 합성 키. readParams()가 매번
-        // FONT_OPTIONS[select.value]를 다시 계산하면 업로드 폰트일 때(select.value가 숫자가
-        // 아니라 캐시 키라서) 배열 인덱싱이 깨지므로, onFontChange()가 갱신해두는 이 값을 쓴다.
+        // 지금 적용 중인 폰트의 캐시 키 — 사이트 글씨체면 파일명, 내 PC 글씨체면 'upload:…' 합성 키
+        // (FontCore 캐시 키와 같음). 글씨체 목록(FontPicker)이 글씨체를 불러온 뒤 바꿔 준다.
         let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
-        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
         let updateTimer = null;
 
         function scheduleUpdate() {
@@ -232,48 +228,15 @@
             if (event.key === 'Enter') scheduleUpdate();
         }
 
-        function onFontChange() {
-            const select = document.getElementById('fontSelect');
-            if (select.value === '__upload__') {
-                document.getElementById('fontUpload').click();
-                return; // 실제 처리는 fontUpload의 change 핸들러(아래)에서
-            }
-            fontSelectPrevValue = select.value;
-            // 이미 업로드해서 fontCache에 들어있는 폰트라면(캐시 키로 재선택한 경우) 다시
-            // 읽지 않고 바로 꺼내 쓴다.
-            const uploadedFont = FontCore.getFont(select.value);
-            if (uploadedFont) {
-                textFont = uploadedFont;
-                currentFontFile = select.value;
-                updateModel();
-                return;
-            }
-            currentFontFile = FONT_OPTIONS[select.value].file;
-            FontCore.loadFont(currentFontFile, function (font) {
+        // 글씨체 목록(assets/js/font-picker.js, easy3D 공용): 고르면 그 글씨체를 불러온 뒤 onChange를 부른다.
+        // 처음 값도 바로 불러온다(이모지 글씨체·Manifold가 준비되기 전이면 updateModel이 그냥 돌아감).
+        const fontPicker = FontPicker.create(document.getElementById('fontPicker'), {
+            value: currentFontFile,
+            onChange: function (key, font) {
                 textFont = font;
+                currentFontFile = key;
                 updateModel();
-            });
-        }
-
-        document.getElementById('fontUpload').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            e.target.value = ''; // 같은 파일을 다시 선택해도 change 이벤트가 뜨도록 초기화
-            const select = document.getElementById('fontSelect');
-            if (!file) { select.value = fontSelectPrevValue; return; }
-            FontCore.loadFontFromFile(file, function (font, cacheKey) {
-                const opt = document.createElement('option');
-                opt.value = cacheKey;
-                opt.textContent = '📁 ' + file.name;
-                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
-                select.value = cacheKey;
-                fontSelectPrevValue = cacheKey;
-                textFont = font;
-                currentFontFile = cacheKey;
-                updateModel();
-            }, function () {
-                alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please make sure it is a .ttf or .otf file.'));
-                select.value = fontSelectPrevValue;
-            });
+            }
         });
 
         // 자석 홈: 켤 때만 홈 방식·개수를 보인다
@@ -306,7 +269,6 @@
 
         function resetToDefaults() {
             document.getElementById('inputText').value = DEFAULTS.text;
-            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
             document.getElementById('fontSize').value = DEFAULTS.fontSize;
             document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
             document.getElementById('spacing').value = DEFAULTS.spacing;
@@ -343,7 +305,7 @@
             document.getElementById('colEmojiL').value = DEFAULTS.colEmojiL;
             document.getElementById('colEmojiR').value = DEFAULTS.colEmojiR;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-            onFontChange(); // 폰트를 다시 로드하면서 모델도 재생성
+            fontPicker.setValue(FONT_OPTIONS[DEFAULTS.fontIndex].file); // 글씨체를 되돌리면서 모델도 다시 만든다
         }
 
         // 글자 윤곽선 추출 + 자간/장평 배치 + 글자 단위 캐싱은 font-core.js의
@@ -838,7 +800,6 @@
 
         window.scheduleUpdate = scheduleUpdate;
         window.onTextKeydown = onTextKeydown;
-        window.onFontChange = onFontChange;
         window.download3MF = download3MF;
         window.downloadSTL = downloadSTL;
         window.onMagnetToggle = onMagnetToggle;
@@ -853,7 +814,8 @@
                 emojiFont = font;
                 updateModel();
             });
-            onFontChange(); // 기본 폰트 로드 후 첫 모델 생성 시도 (이모지 폰트도 준비돼야 실제로 만들어짐)
+            updateModel(); // 글씨체가 먼저 준비됐으면 여기서 첫 모델(아니면 글씨체 목록의 onChange에서)
+            FontPicker.restoreSavedFolder(); // 지난번에 가져온 내 폴더(크롬·엣지)
         }
         main();
     </script>

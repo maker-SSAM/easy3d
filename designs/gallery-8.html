@@ -31,6 +31,9 @@
     <script src="../assets/js/font-core.js"></script>
     <!-- 3D 글자 폰트 목록 (모든 폰트 페이지 공용) -->
     <script src="../assets/js/font-list.js"></script>
+    <!-- 글씨체 고르는 목록(easy3D 공용 — 이름을 그 글씨체 모양으로, 내 폰트 파일 업로드·내 폴더 가져오기) -->
+    <script src="../assets/js/font-name-previews.js"></script>
+    <script src="../assets/js/font-picker.js"></script>
     <!-- 뚜껑 STL(원본 메시) + 글자 윤곽선을 Manifold-3D 솔리드로 만들어 하나로 합치는 데
          쓰는 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도
          type="module"로 만들어서 ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
@@ -112,11 +115,7 @@
 
             <div class="control-group">
                 <label data-i18n-en="Choose a font">글씨체 선택</label>
-                <select id="fontSelect" onchange="onFontChange()">
-                    ${FONT_OPTIONS.map((f, i) => `<option value="${i}"${i === DEFAULT_FONT_INDEX ? ' selected' : ''}>${f.label}</option>`).join('')}
-                    <option value="__upload__" data-i18n-en="📁 Upload my font file...">📁 내 폰트 파일 업로드...</option>
-                </select>
-                <input type="file" id="fontUpload" accept=".ttf,.otf" style="display:none">
+                <div id="fontPicker"></div>
             </div>
             <div class="control-group"><label><span data-i18n-en="Text size">텍스트 크기</span>: <span id="valFontSize">14</span>mm</label><input type="range" id="fontSize" min="2" max="16" step="0.5" value="14" oninput="scheduleUpdate()"></div>
             <div class="control-group"><label><span data-i18n-en="Text weight">텍스트 굵기</span>: <span id="valFontWeight">0</span></label><input type="range" id="fontWeight" min="-1" max="2" step="0.1" value="0" oninput="scheduleUpdate()"></div>
@@ -167,14 +166,13 @@
 
         function resetToDefaults() {
             buildGridUI();
-            document.getElementById('fontSelect').value = DEFAULTS.fontIndex;
             document.getElementById('fontSize').value = DEFAULTS.fontSize;
             document.getElementById('fontWeight').value = DEFAULTS.fontWeight;
             document.getElementById('protrudeHeight').value = DEFAULTS.protrudeHeight;
             document.getElementById('colCap').value = DEFAULTS.colCap;
             document.getElementById('colText').value = DEFAULTS.colText;
             ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-            onFontChange(); // 폰트를 다시 로드하면서 위 값들을 반영해 모델도 재생성한다
+            fontPicker.setValue(FONT_OPTIONS[DEFAULTS.fontIndex].file); // 글씨체를 되돌리면서 위 값들을 반영해 모델도 재생성한다
         }
 
         let currentGroup = null;
@@ -187,11 +185,9 @@
         // 'Noto Emoji'로 바꾸지 않아도, 이모지가 필요한 칸만 알아서 깨지지 않고 나온다.
         let emojiFallbackFont = null;
         const EMOJI_FALLBACK_FILE = FontList.EMOJI_FILE;
-        // 지금 적용 중인 폰트의 캐시 키 — 번들 폰트면 파일명, 업로드 파일이면 FontCore.loadFontFromFile()이
-        // 만들어준 합성 키. readGlobalParams()가 이 값을 쓴다(select.value를 그때그때 다시
-        // 인덱싱하면 업로드 폰트일 때 어긋난다).
+        // 지금 적용 중인 폰트의 캐시 키 — 사이트 글씨체면 파일명, 내 PC 글씨체면 'upload:…' 합성 키
+        // (FontCore 캐시 키와 같음). 글씨체 목록(FontPicker)이 글씨체를 불러온 뒤 바꿔 준다.
         let currentFontFile = FONT_OPTIONS[DEFAULT_FONT_INDEX].file;
-        let fontSelectPrevValue = String(DEFAULT_FONT_INDEX); // 업로드 취소/실패 시 되돌릴 값
 
         // 뚜껑 STL은 원래 Z축이 "위"인 제작 좌표계로 만들어졌다(3D 프린터 슬라이서 관례).
         // core.js의 화면 표시 관례는 Y-up이라서, exportSTL()이 내보낼 때 하는 회전
@@ -213,46 +209,14 @@
             updateTimer = setTimeout(updateModel, 100);
         }
 
-        function onFontChange() {
-            const select = document.getElementById('fontSelect');
-            if (select.value === '__upload__') {
-                document.getElementById('fontUpload').click();
-                return;
-            }
-            fontSelectPrevValue = select.value;
-            const uploadedFont = FontCore.getFont(select.value);
-            if (uploadedFont) {
-                textFont = uploadedFont;
-                currentFontFile = select.value;
-                updateModel();
-                return;
-            }
-            currentFontFile = FONT_OPTIONS[select.value].file;
-            FontCore.loadFont(currentFontFile, function (font) {
+        // 글씨체 목록(assets/js/font-picker.js, easy3D 공용): 고르면 그 글씨체를 불러온 뒤 onChange를 부른다.
+        const fontPicker = FontPicker.create(document.getElementById('fontPicker'), {
+            value: currentFontFile,
+            onChange: function (key, font) {
                 textFont = font;
+                currentFontFile = key;
                 updateModel();
-            });
-        }
-
-        document.getElementById('fontUpload').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            e.target.value = '';
-            const select = document.getElementById('fontSelect');
-            if (!file) { select.value = fontSelectPrevValue; return; }
-            FontCore.loadFontFromFile(file, function (font, cacheKey) {
-                const opt = document.createElement('option');
-                opt.value = cacheKey;
-                opt.textContent = '📁 ' + file.name;
-                select.insertBefore(opt, select.querySelector('option[value="__upload__"]'));
-                select.value = cacheKey;
-                fontSelectPrevValue = cacheKey;
-                textFont = font;
-                currentFontFile = cacheKey;
-                updateModel();
-            }, function () {
-                alert(LangCore.pick('폰트 파일을 열 수 없어요. .ttf 또는 .otf 파일인지 확인해 주세요.', 'Could not open the font file. Please check that it is a .ttf or .otf file.'));
-                select.value = fontSelectPrevValue;
-            });
+            }
         });
 
         let capGeoNormalized = null; // 원본 뚜껑 STL(정규화 완료)
@@ -420,7 +384,6 @@
         }
 
         window.scheduleUpdate = scheduleUpdate;
-        window.onFontChange = onFontChange;
         window.downloadSTL = downloadSTL;
         window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
@@ -437,7 +400,7 @@
         function tryInit() {
             if (!manifoldReady || !capGeoNormalized || capTemplate) return;
             capTemplate = ManifoldCore.markAsOriginal(ManifoldCore.fromGeometry(capGeoNormalized));
-            onFontChange(); // 기본 폰트 로드 후 첫 모델 생성
+            updateModel(); // 글씨체가 먼저 준비됐으면 여기서 첫 모델(아니면 글씨체 목록의 onChange에서)
         }
 
         async function main() {
@@ -448,6 +411,7 @@
                 updateModel(); // 이미 그려진 뒤라면, 폴백이 필요했던 칸을 다시 그려 반영한다
             });
             tryInit();
+            FontPicker.restoreSavedFolder(); // 지난번에 가져온 내 폴더(크롬·엣지)
         }
         main();
     </script>

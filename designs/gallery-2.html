@@ -24,9 +24,8 @@
     <script src="../assets/js/lang-core.js"></script>
     <script src="../assets/js/core.js"></script>
     <script src="../assets/js/threemf-core.js"></script>
-    <!-- 2D 단면 → Manifold-3D 회전체(revolve) → three.js 변환 공용 브릿지. ES 모듈이라
-         로딩이 비동기다 — 그래서 아래 페이지 로직 스크립트도 type="module"로 만들어서
-         ManifoldCore.ready를 안전하게 await할 수 있게 했다. -->
+    <!-- Manifold-3D 공용 브릿지. ES 모듈이라 로딩이 비동기다 — 그래서 아래 페이지 로직
+         스크립트도 type="module"로 만들어서 ManifoldCore.ready를 안전하게 await한다. -->
     <script type="module" src="../assets/js/manifold-core.js"></script>
     <style>
         .color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -34,6 +33,20 @@
         .color-row input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--input-border); border-radius: 4px; cursor: pointer; }
         .section-label { font-weight: bold; font-size: 0.95em; margin: 18px 0 10px; padding-top: 12px; border-top: 1px solid var(--panel-border); color: var(--text-color); }
         .section-label:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
+        .sub-label { display: block; font-size: 0.9em; color: var(--text-color); margin-bottom: 6px; }
+        .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .btn-row button {
+            flex: 1; min-width: 0; padding: 6px 4px; border: 1px solid var(--input-border); border-radius: 4px;
+            background: var(--input-bg); color: var(--text-color); cursor: pointer; font-size: 0.88em;
+        }
+        .btn-row button.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+        .btn-row button:disabled { opacity: 0.4; cursor: default; }
+        .btn-row.points button { flex: 0 0 auto; min-width: 34px; }
+        .point-box { border: 1px solid var(--panel-border); background: var(--panel-accent-bg); border-radius: 6px; padding: 10px 10px 2px; margin-bottom: 12px; }
+        .fmt-hint { font-size: 0.78em; color: var(--text-muted); margin: 0 0 10px; line-height: 1.5; }
+        .fmt-hint.warn { color: #e65100; }
+        .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 0.9em; color: var(--text-color); }
+        .control-group.is-disabled { opacity: 0.45; }
     </style>
     <script data-goatcounter="https://maker-ssam.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
@@ -41,53 +54,95 @@
 <body>
 
     <script type="module">
-        // 갤러리2: 물결무늬 꽃병. thingiverse의 사인파 꽃병 OpenSCAD 디자인(jamcultur, 2021)을
-        // 이 프로젝트의 three.js + Manifold-3D 스택으로 포팅했다.
+        // 갤러리2: 물결무늬 꽃병 (2026-11-25 새로 설계).
         //
-        // 원본 구조: 세로 단면(속이 빈 벽 두께만큼의 리본 모양 + 바닥 사각형)을 하나의 2D
-        // 프로파일로 만들고, rotate_extrude()로 360도 통째로 회전시켜 입체로 만든다. 프로파일의
-        // x좌표(반지름 방향)에 "높이에 따른 선형 테이퍼 + 사인파" 오프셋을 더해서 물결치는
-        // 벽면을 만든다. 갤러리6의 bend_engine과 달리 별도의 축 재배치 회전이 필요 없다 —
-        // 원본 프로파일이 이미 (반지름, 높이) 좌표로 짜여 있어서 ManifoldCore.revolveXS()에
-        // 그대로 넣을 수 있다(갤러리4 나사통과 동일한 방식). 주의: OpenSCAD의 sin()은 도(degree)
-        // 단위라서 JS의 Math.sin(라디안)으로 옮길 때 반드시 (값 * Math.PI/180) 변환이 필요하다.
+        // 예전에는 옆모양 선 하나(사인파)를 한 바퀴 돌린 회전체라 둘레가 매끈한 원이었다.
+        // 이제는 두 가지를 따로 정한다.
+        //   1) 옆모양: 높이마다 놓인 "점(고리)" 3~8개. 점 사이는 단조 3차 곡선(Fritsch–Carlson)으로
+        //      잇는다 — 점보다 더 부풀거나 줄어드는 넘침이 없어서 반지름이 음수가 되지 않는다.
+        //   2) 단면: 원 / 다각형 / 물결. 높이마다 그 높이의 반지름으로 단면을 그리고, 비틀림만큼 돌린다.
+        // 몸통은 층(가로 고리)을 쌓은 닫힌 메시를 직접 짓는다(바깥 벽 → 윗 테두리 → 안쪽 벽 →
+        // 안쪽 바닥, 바깥 바닥). 불리언 연산이 없어서 빠르고, Manifold.ofMesh가 닫힌 입체인지 검사한다.
         //
-        // 텍스트나 여러 파츠가 없는 단일 색상 단일 솔리드 디자인이라, 갤러리5/6의
-        // "레이어 분리 + 모양/두께 캐시 분리" 같은 최적화 장치는 필요 없다 — 슬라이더가
-        // 바뀔 때마다 프로파일을 다시 계산해서 한 번에 revolve하면 충분히 가볍다. 세로/가로
-        // 분할 수(slices/circleSegments, 원본의 $fn)는 순수 품질/성능 트레이드오프라 갤러리1의
-        // 면(facet) 개수 슬라이더(그 자체가 디자인 요소)와는 다르게 취급한다 — 사용자에게
-        // 슬라이더로 노출하지 않고, 미리보기는 낮은 해상도로 빠르게, STL 다운로드할 때만
-        // 인쇄 품질로 다시 계산한다(갤러리3/5/6/8과 동일한 방침).
+        // 안쪽 벽: 단면을 그냥 줄이면 물결 골짜기나 다각형 모서리에서 벽이 얇아지거나 꼬인다.
+        // 그래서 층마다 바깥 단면을 2D로 안쪽 오프셋(CrossSection.offset, 둥근 모서리)한 뒤,
+        // 가운데에서 바깥 단면과 같은 각도로 광선을 쏘아 만나는 거리를 안쪽 점으로 쓴다.
+        // 이렇게 하면 안쪽 고리도 바깥과 점 개수·각도가 같아 층끼리 바로 이을 수 있고, 어느
+        // 방향으로 재도 벽 두께가 정한 값 이상이다. 옆모양이 기울어진 곳(어깨)은 가로로 잰
+        // 벽이 얇아 보이므로 오프셋을 sqrt(1+기울기²)배(최대 3배) 한다.
+        //
+        // 화면의 고리: 점마다 그 높이·반지름의 원(고리)을 그리고, 가운데 손잡이(위아래 = 높이)와
+        // 테두리 손잡이(좌우 = 폭)를 둔다. 테두리 손잡이는 늘 화면 오른쪽에 오게 카메라가 움직일
+        // 때마다 옮긴다. 고르기는 광선 대신 화면 좌표 거리로 한다(작은 손잡이도 손가락으로 잡히게).
         const shell = ParametricCore.mountEditorShell(document.body, null, {
             sourceUrl: 'https://www.thingiverse.com/thing:4820712',
             licenseType: 'BY'
         });
 
+        const DEFAULT_POINTS = [
+            { t: 0.00, r: 30 },
+            { t: 0.38, r: 44 },
+            { t: 0.78, r: 24 },
+            { t: 1.00, r: 32 }
+        ];
         const DEFAULTS = {
-            height: 100, radius: 25, wallThickness: 2, baseThickness: 2.4,
-            scaleTop: 0.7, waves: 1, waveAmplitude: 8, waveStartAngle: 0,
-            col: '#4fc3f7'
+            height: 120, wallThickness: 2, baseThickness: 2.4,
+            section: 'wave', sides: 6, waves: 10, waveDepth: 4, twist: 0,
+            col: '#4fc3f7', showRings: true
         };
+        const MIN_POINTS = 3, MAX_POINTS = 8;
+        const MIN_GAP = 4;              // 이웃한 점 사이 최소 높이 간격(mm)
+        const MIN_R = 6, MAX_R = 120;   // 점 반지름 범위(mm)
+
+        let points = DEFAULT_POINTS.map(function (p) { return { t: p.t, r: p.r }; });
+        let selected = 1;
+        let section = DEFAULTS.section;
 
         shell.controlsBodyEl.innerHTML = `
             <h3 data-i18n-en="Wavy Vase Settings">물결무늬 꽃병 설정</h3>
-            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* A revolved vase with a wall that ripples in a sine wave. The top is open.">* 사인파로 물결치는 벽면을 가진 회전체 꽃병입니다. 위쪽이 뚫려있어요.</p>
+            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* Shape the body with side-profile points (rings) and the outline with the cross-section. The top is open.">* 옆모양 점(고리)으로 몸통 곡선을, 단면 모양으로 둘레 무늬를 정해요. 위쪽은 뚫려 있어요.</p>
 
-            <div class="section-label" data-i18n-en="1. Basic settings">1. 기본 설정</div>
-            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="10" max="400" step="1" value="100" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Radius">반지름</span>: <span id="valRadius">25</span>mm</label><input type="range" id="radius" min="10" max="150" step="0.5" value="25" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Wall thickness">벽 두께</span>: <span id="valWallThickness">2</span>mm</label><input type="range" id="wallThickness" min="1" max="10" step="0.1" value="2" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Base thickness">바닥 두께</span>: <span id="valBaseThickness">2.4</span>mm</label><input type="range" id="baseThickness" min="0" max="10" step="0.1" value="2.4" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="1. Side profile points">1. 옆모양 점</div>
+            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">120</span>mm</label><input type="range" id="height" min="40" max="300" step="1" value="120"></div>
+            <span class="sub-label" data-i18n-en="Pick a point (bottom → top)">점 고르기 (아래 → 위)</span>
+            <div class="btn-row points" id="pointButtons"></div>
+            <div class="point-box">
+                <div class="control-group" id="ptZGroup"><label><span data-i18n-en="Point height">점 높이</span>: <span id="valPtZ">0</span>mm</label><input type="range" id="ptZ" min="0" max="120" step="0.5" value="0"></div>
+                <div class="control-group"><label><span data-i18n-en="Point radius">점 반지름</span>: <span id="valPtR">30</span>mm</label><input type="range" id="ptR" min="${MIN_R}" max="${MAX_R}" step="0.5" value="30"></div>
+                <p class="fmt-hint" id="ptZHint"></p>
+            </div>
+            <div class="btn-row">
+                <button type="button" id="addPointBtn" data-i18n-en="+ Add point">+ 점 더하기</button>
+                <button type="button" id="removePointBtn" data-i18n-en="− Remove point">− 점 빼기</button>
+            </div>
+            <p class="fmt-hint" data-i18n-en="You can also drag the rings in the view: the center dot up/down (height), the edge dot left/right (width).">화면의 고리도 끌 수 있어요. 가운데 점은 위아래로(높이), 테두리 점은 좌우로(폭).</p>
+            <label class="check-row"><input type="checkbox" id="showRings" checked> <span data-i18n-en="Show rings in the view">화면에 고리 보이기</span></label>
 
-            <div class="section-label" data-i18n-en="2. Wave shape">2. 물결 모양</div>
-            <div class="control-group"><label><span data-i18n-en="Top scale">위쪽 배율</span>: <span id="valScaleTop">0.7</span></label><input type="range" id="scaleTop" min="0.25" max="4" step="0.05" value="0.7" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Number of waves">물결 개수</span>: <span id="valWaves">1</span></label><input type="range" id="waves" min="0" max="10" step="0.1" value="1" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Wave amplitude">물결 진폭</span>: <span id="valWaveAmplitude">8</span>mm</label><input type="range" id="waveAmplitude" min="0" max="25" step="0.1" value="8" oninput="scheduleUpdate()"></div>
-            <div class="control-group"><label><span data-i18n-en="Wave start angle">물결 시작 각도</span>: <span id="valWaveStartAngle">0</span>°</label><input type="range" id="waveStartAngle" min="0" max="360" step="1" value="0" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="2. Cross-section shape">2. 단면 모양</div>
+            <div class="btn-row" id="sectionButtons">
+                <button type="button" data-section="circle" data-i18n-en="Circle">원</button>
+                <button type="button" data-section="polygon" data-i18n-en="Polygon">다각형</button>
+                <button type="button" data-section="wave" data-i18n-en="Wave">물결</button>
+            </div>
+            <div id="polygonControls">
+                <div class="control-group"><label><span data-i18n-en="Number of sides">변 개수</span>: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" step="1" value="6"></div>
+            </div>
+            <div id="waveControls">
+                <div class="control-group"><label><span data-i18n-en="Number of waves">물결 개수</span>: <span id="valWaves">10</span></label><input type="range" id="waves" min="3" max="24" step="1" value="10"></div>
+                <div class="control-group"><label><span data-i18n-en="Wave depth">물결 깊이</span>: <span id="valWaveDepth">4</span>mm</label><input type="range" id="waveDepth" min="0.5" max="12" step="0.5" value="4"></div>
+                <p class="fmt-hint" data-i18n-en="Depth is measured at the widest part; narrower parts get shallower waves.">깊이는 가장 넓은 곳 기준이에요. 좁은 곳은 물결도 얕아져요.</p>
+            </div>
 
-            <div class="section-label" data-i18n-en="3. Color">3. 색상</div>
-            <div class="color-row"><span data-i18n-en="Vase">꽃병</span><input type="color" id="col" value="#4fc3f7" oninput="scheduleUpdate()"></div>
+            <div class="section-label" data-i18n-en="3. Twist">3. 비틀림</div>
+            <div class="control-group"><label><span data-i18n-en="Twist">비틀림</span>: <span id="valTwist">0</span>°</label><input type="range" id="twist" min="0" max="360" step="5" value="0"></div>
+
+            <div class="section-label" data-i18n-en="4. Wall and base">4. 벽과 바닥</div>
+            <div class="control-group"><label><span data-i18n-en="Wall thickness">벽 두께</span>: <span id="valWallThickness">2</span>mm</label><input type="range" id="wallThickness" min="1" max="6" step="0.1" value="2"></div>
+            <div class="control-group"><label><span data-i18n-en="Base thickness">바닥 두께</span>: <span id="valBaseThickness">2.4</span>mm</label><input type="range" id="baseThickness" min="0" max="10" step="0.1" value="2.4"></div>
+            <p class="fmt-hint warn" id="buildWarn" style="display:none"></p>
+
+            <div class="section-label" data-i18n-en="5. Color">5. 색상</div>
+            <div class="color-row"><span data-i18n-en="Vase">꽃병</span><input type="color" id="col" value="#4fc3f7"></div>
         `;
 
         ParametricCore.enhanceRangeInputs(shell.controlsBodyEl);
@@ -95,18 +150,33 @@
         ParametricCore.mountDownloadPanel(shell.controlsFooterEl, { onSTL: downloadSTL, on3MF: download3MF });
         if (window.LangCore) window.LangCore.applyTranslations(document);
 
+        // 꽃병은 키가 커서, 다른 갤러리처럼 바닥 가운데를 보면 위가 잘린다. 꽃병 중간 높이를
+        // 바라보게 하고(saveState로 기억시켜 시점 단추·초기화도 같은 곳을 봄), 시점 위치도 그만큼 올린다.
+        const LOOK_Y = 55;
+        const CAMERA_PRESETS = {};
+        Object.keys(ParametricCore.DEFAULT_CAMERA_PRESETS).forEach(function (k) {
+            const v = ParametricCore.DEFAULT_CAMERA_PRESETS[k];
+            CAMERA_PRESETS[k] = [v[0], v[1] + LOOK_Y, v[2]];
+        });
         const viewer = ParametricCore.initViewer(shell.viewerEl, {
-            initialCameraPosition: ParametricCore.DEFAULT_CAMERA_PRESETS.ISO
+            initialCameraPosition: CAMERA_PRESETS.ISO
         });
         const scene = viewer.scene;
         const camera = viewer.camera;
         const controls = viewer.controls;
+        controls.target.set(0, LOOK_Y, 0);
+        controls.update();
+        controls.saveState();
 
         ParametricCore.setupResizer(shell.resizerEl, shell.controlsEl, viewer.onWindowResize);
-        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls);
+        ParametricCore.bindViewCube(shell.cubeButtons, camera, controls, CAMERA_PRESETS);
         ParametricCore.bindDimensionToggle(shell.dimensionToggleBtn);
         ParametricCore.bindScreenshotButton(shell.screenshotBtn, viewer);
         shell.resetBtn.onclick = function () { resetToDefaults(); };
+
+        const $ = function (id) { return document.getElementById(id); };
+        const isEn = function () { return document.documentElement.getAttribute('data-lang') === 'en'; };
+        const T = function (ko, en) { return isEn() ? en : ko; };
 
         let currentMesh = null;
         let manifoldReady = false;
@@ -114,85 +184,200 @@
 
         function scheduleUpdate() {
             if (updateTimer) clearTimeout(updateTimer);
-            updateTimer = setTimeout(updateModel, 100);
+            updateTimer = setTimeout(updateModel, 60);
         }
 
-        function resetToDefaults() {
-            document.getElementById('height').value = DEFAULTS.height;
-            document.getElementById('radius').value = DEFAULTS.radius;
-            document.getElementById('wallThickness').value = DEFAULTS.wallThickness;
-            document.getElementById('baseThickness').value = DEFAULTS.baseThickness;
-            document.getElementById('scaleTop').value = DEFAULTS.scaleTop;
-            document.getElementById('waves').value = DEFAULTS.waves;
-            document.getElementById('waveAmplitude').value = DEFAULTS.waveAmplitude;
-            document.getElementById('waveStartAngle').value = DEFAULTS.waveStartAngle;
-            document.getElementById('col').value = DEFAULTS.col;
-            ParametricCore.resetCameraTo(camera, controls, ParametricCore.DEFAULT_CAMERA_PRESETS.ISO);
-            updateModel();
-        }
-
-        // ---------- 실제 모델링 ----------
-        // 세로/가로 분할 수(slices/circleSegments)는 순수 품질/성능 트레이드오프라 슬라이더로
-        // 노출하지 않는다 — 미리보기는 낮게 고정해 속도를 확보하고, 다운로드할 때만 잠깐
-        // 인쇄 품질로 다시 계산한다(갤러리3/5/6/8과 동일한 방침). EXPORT 값은 원래 이 갤러리가
-        // 쓰던 기본값(slices=100, circleSegments=180) 그대로라 인쇄 품질은 이전과 동일하다.
-        const PREVIEW_SLICES = 50;
-        const EXPORT_SLICES = 100;
-        const PREVIEW_CIRCLE_SEGMENTS = 90;
-        const EXPORT_CIRCLE_SEGMENTS = 180;
-
-        // 원본 draw_profile()의 point 생성 로직을 그대로 옮긴 것 — i=0..slices는 안쪽 벽(아래→위),
-        // i=slices+1..slices*2+1은 바깥쪽 벽(위→아래)을 그려서 벽 두께만큼의 리본 모양 폐곡선을
-        // 만든다. offset()이 테이퍼(선형)+사인파를 더해 물결치는 반지름을 만든다.
-        function buildProfileContours(p, slices) {
-            const slicesPerMm = slices / p.height;
-            const offsetPerMm = (p.scaleTop - 1) * p.radius / p.height;
-
-            function offsetAt(y) {
-                const wavePhaseDeg = (y / p.height) * (360 * p.waves) + p.waveStartAngle;
-                return y * offsetPerMm + Math.sin(wavePhaseDeg * Math.PI / 180) * p.waveAmplitude;
+        // ---------- 옆모양 곡선 ----------
+        // 단조 3차 에르미트(Fritsch–Carlson). xs는 증가하는 높이, ys는 반지름.
+        function makeProfile(xs, ys) {
+            const n = xs.length;
+            const h = [], d = [], m = new Array(n);
+            for (let i = 0; i < n - 1; i++) { h.push(xs[i + 1] - xs[i]); d.push((ys[i + 1] - ys[i]) / h[i]); }
+            m[0] = d[0]; m[n - 1] = d[n - 2];
+            for (let i = 1; i < n - 1; i++) {
+                if (d[i - 1] * d[i] <= 0) { m[i] = 0; continue; }
+                const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+                m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
             }
-            function xAt(i) { return i > slices ? p.wallThickness : 0; }
-            function yAt(i) { return i > slices ? p.height - ((i - slices - 1) / slicesPerMm) : i / slicesPerMm; }
-
-            const shiftX = p.radius - p.wallThickness; // 원본의 translate([radius-wall_thickness,0,0])
-            const wallPoints = [];
-            for (let i = 0; i <= slices * 2 + 1; i++) {
-                const y = yAt(i);
-                const x = xAt(i) + offsetAt(y);
-                wallPoints.push([x + shiftX, y]);
+            function seg(x) {
+                let i = 0;
+                while (i < n - 2 && x > xs[i + 1]) i++;
+                return i;
             }
-
-            const contours = [wallPoints];
-            if (p.baseThickness > 0) {
-                // 원본의 square([radius+x(0)+offset(0), base_thickness]) — x(0)은 항상 0.
-                const baseWidth = p.radius + offsetAt(0);
-                // 점 순서가 중요하다 — wallPoints(안쪽 벽 아래→위, 바깥쪽 벽 위→아래)는 시계
-                // 방향으로 감기는데, 이 사각형을 반시계 방향([0,0]→[baseWidth,0]→...)으로 그리면
-                // CrossSection의 NonZero 규칙 아래 둘이 겹치는 영역(벽 두께만큼의 바닥 테두리)의
-                // 감김 수가 서로 상쇄돼(+1과 -1) 그 자리에 도넛 모양의 빈 틈이 생긴다 — 실제로
-                // 겪은 문제, 바닥에서 보면 벽과 바닥판이 안 이어져 있는 것처럼 보였다. 두 폐곡선을
-                // 같은(시계) 방향으로 감아야 겹치는 부분이 하나의 solid로 합쳐진다.
-                contours.push([[0, 0], [0, p.baseThickness], [baseWidth, p.baseThickness], [baseWidth, 0]]);
-            }
-            return contours;
+            return {
+                value: function (x) {
+                    const i = seg(x), t = (x - xs[i]) / h[i];
+                    const t2 = t * t, t3 = t2 * t;
+                    return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h[i] * m[i]
+                         + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h[i] * m[i + 1];
+                },
+                slope: function (x) {
+                    const i = seg(x), t = (x - xs[i]) / h[i];
+                    const t2 = t * t;
+                    return ((6 * t2 - 6 * t) * ys[i] + (3 * t2 - 4 * t + 1) * h[i] * m[i]
+                          + (-6 * t2 + 6 * t) * ys[i + 1] + (3 * t2 - 2 * t) * h[i] * m[i + 1]) / h[i];
+                }
+            };
         }
 
-        // 여러 폐곡선을 한 CrossSection에 함께 넣으면(NonZero 규칙) 자동으로 합쳐진다 — 글자
-        // 윤곽선(자모별 여러 하위경로)을 다룰 때와 동일한 방식이라 별도 union 호출이 필요 없다.
-        function buildVaseSolid(p, slices, circleSegments) {
-            const contours = buildProfileContours(p, slices);
-            const xs = ManifoldCore.contoursToXS(contours);
-            if (!xs) return null;
-            const revolved = ManifoldCore.revolveXS(xs, circleSegments, 360);
-            xs.delete();
-            const yUp = ManifoldCore.toYUp(revolved);
-            revolved.delete();
-            return yUp;
+        // ---------- 단면 ----------
+        // 단면 하나 = 각도 θ에서 가운데까지의 거리 ρ(θ, R). R은 그 높이의 옆모양 반지름.
+        function makeSection(p, rMax) {
+            if (p.section === 'polygon') {
+                const n = p.sides, a = 2 * Math.PI / n, c = Math.cos(a / 2);
+                // 꼭짓점이 R에 오는 정다각형(θ=0에 꼭짓점).
+                return { period: n, rho: function (th, R) {
+                    let u = th % a; if (u < 0) u += a;
+                    return R * c / Math.cos(u - a / 2);
+                } };
+            }
+            if (p.section === 'wave') {
+                const n = p.waves;
+                const depth = Math.min(p.waveDepth, rMax * 0.45);
+                return { period: n, rho: function (th, R) {
+                    return R + depth * (R / rMax) * Math.cos(n * th);
+                } };
+            }
+            return { period: 1, rho: function (th, R) { return R; } };
         }
+
+        // 2D 다각형(점 배열)에서 가운데→각도 θ 광선이 처음 만나는 거리.
+        function rayHit(polys, th) {
+            const dx = Math.cos(th), dy = Math.sin(th);
+            let best = Infinity;
+            for (let k = 0; k < polys.length; k++) {
+                const poly = polys[k];
+                for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                    const px = poly[j][0], py = poly[j][1];
+                    const ex = poly[i][0] - px, ey = poly[i][1] - py;
+                    const den = dx * ey - dy * ex;
+                    if (Math.abs(den) < 1e-12) continue;
+                    const t = (px * ey - py * ex) / den;
+                    const u = (px * dy - py * dx) / den;
+                    if (t > 1e-6 && u >= -1e-9 && u <= 1 + 1e-9 && t < best) best = t;
+                }
+            }
+            return best;
+        }
+
+        // 다각형 꼭짓점·물결 마루가 고른 자리에 오게 period의 배수로 점 개수를 맞춘다.
+        function angularCount(base, period) {
+            return period * Math.ceil(base / period);
+        }
+
+        // ---------- 몸통 메시 ----------
+        // 결과: { solid, error }. solid는 Z-up Manifold(호출부에서 toYUp).
+        function buildVaseSolid(p, res) {
+            const H = p.height;
+            const zs = p.points.map(function (pt) { return pt.t * H; });
+            const rs = p.points.map(function (pt) { return Math.max(pt.r, p.wallThickness + 3); });
+            const rMax = Math.max.apply(null, rs);
+            const prof = makeProfile(zs, rs);
+            const sec = makeSection(p, rMax);
+            const N = angularCount(res.angular, sec.period);
+            const L = res.layers;
+            const twistRad = p.twist * Math.PI / 180;
+            const base = Math.min(p.baseThickness, H - 5);
+            const w = p.wallThickness;
+
+            const thetas = [];
+            for (let i = 0; i < N; i++) thetas.push(2 * Math.PI * i / N);
+
+            const verts = [];
+            const tris = [];
+            function addV(x, y, z) { verts.push([x, y, z]); return verts.length - 1; }
+            function tri(a, b, c) { tris.push([a, c, b]); } // polyhedron()이 순서를 뒤집으므로 미리 뒤집어 넣는다
+
+            // 바깥 고리
+            const outer = [];
+            for (let k = 0; k <= L; k++) {
+                const z = H * k / L;
+                const R = prof.value(z);
+                const tw = twistRad * z / H;
+                const ring = [];
+                for (let i = 0; i < N; i++) {
+                    const rho = sec.rho(thetas[i], R);
+                    ring.push(addV(rho * Math.cos(thetas[i] + tw), rho * Math.sin(thetas[i] + tw), z));
+                }
+                outer.push(ring);
+            }
+
+            // 안쪽 고리: 그 높이의 바깥 단면을 2D 오프셋 → 같은 각도로 광선 거리
+            const inner = [];
+            for (let k = 0; k <= L; k++) {
+                const z = base + (H - base) * k / L;
+                const R = prof.value(z);
+                const slope = prof.slope(z);
+                const delta = w * Math.min(3, Math.sqrt(1 + slope * slope));
+                const contour = [];
+                for (let i = 0; i < N; i++) {
+                    const rho = sec.rho(thetas[i], R);
+                    contour.push([rho * Math.cos(thetas[i]), rho * Math.sin(thetas[i])]);
+                }
+                const xs = ManifoldCore.contoursToXS([contour]);
+                const off = xs.offset(-delta, 'Round', 2, 64);
+                const polys = off.toPolygons();
+                xs.delete(); off.delete();
+                if (!polys.length) return { solid: null, error: 'narrow' };
+                const tw = twistRad * z / H;
+                const ring = [];
+                for (let i = 0; i < N; i++) {
+                    const rIn = rayHit(polys, thetas[i]);
+                    if (!isFinite(rIn) || rIn < 0.3) return { solid: null, error: 'narrow' };
+                    ring.push(addV(rIn * Math.cos(thetas[i] + tw), rIn * Math.sin(thetas[i] + tw), z));
+                }
+                inner.push(ring);
+            }
+
+            for (let k = 0; k < L; k++) {
+                for (let i = 0; i < N; i++) {
+                    const j = (i + 1) % N;
+                    // 바깥 벽(바깥을 향함)
+                    tri(outer[k][i], outer[k][j], outer[k + 1][j]);
+                    tri(outer[k][i], outer[k + 1][j], outer[k + 1][i]);
+                    // 안쪽 벽(가운데를 향함)
+                    tri(inner[k][i], inner[k + 1][j], inner[k][j]);
+                    tri(inner[k][i], inner[k + 1][i], inner[k + 1][j]);
+                }
+            }
+            // 윗 테두리(위를 향함)
+            for (let i = 0; i < N; i++) {
+                const j = (i + 1) % N;
+                tri(inner[L][i], outer[L][i], outer[L][j]);
+                tri(inner[L][i], outer[L][j], inner[L][j]);
+            }
+            if (base > 0) {
+                const cBottom = addV(0, 0, 0);
+                const cFloor = addV(0, 0, base);
+                for (let i = 0; i < N; i++) {
+                    const j = (i + 1) % N;
+                    tri(cBottom, outer[0][j], outer[0][i]);  // 바깥 바닥(아래를 향함)
+                    tri(cFloor, inner[0][i], inner[0][j]);   // 안쪽 바닥(위를 향함)
+                }
+            } else {
+                for (let i = 0; i < N; i++) {
+                    const j = (i + 1) % N;
+                    tri(inner[0][i], outer[0][j], outer[0][i]);
+                    tri(inner[0][i], inner[0][j], outer[0][j]);
+                }
+            }
+
+            let solid;
+            try {
+                solid = ManifoldCore.polyhedron(verts, tris);
+            } catch (err) {
+                return { solid: null, error: 'mesh' };
+            }
+            if (solid.isEmpty() || solid.volume() <= 0) { solid.delete(); return { solid: null, error: 'mesh' }; }
+            return { solid: solid, error: null, profile: prof };
+        }
+
+        // 받는 파일: 둘레 200점 × 140층이면 삼각형 약 11만 개(STL 약 6MB). 360×220으로 하면
+        // 32만 개(16MB)였는데 출력 결과는 거의 같아 줄였다.
+        const PREVIEW_RES = { angular: 120, layers: 70 };
+        const EXPORT_RES = { angular: 200, layers: 140 };
 
         function meshFromSolid(solid, color) {
-            if (!solid) return null;
             const buf = ManifoldCore.toBufferGeometry(solid);
             const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({
                 color: color, metalness: 0.2, roughness: 0.45, envMapIntensity: 0.55
@@ -213,90 +398,426 @@
 
         function readParams() {
             return {
-                height: parseFloat(document.getElementById('height').value),
-                radius: parseFloat(document.getElementById('radius').value),
-                wallThickness: parseFloat(document.getElementById('wallThickness').value),
-                baseThickness: parseFloat(document.getElementById('baseThickness').value),
-                scaleTop: parseFloat(document.getElementById('scaleTop').value),
-                waves: parseFloat(document.getElementById('waves').value),
-                waveAmplitude: parseFloat(document.getElementById('waveAmplitude').value),
-                waveStartAngle: parseFloat(document.getElementById('waveStartAngle').value),
-                col: document.getElementById('col').value
+                height: parseFloat($('height').value),
+                wallThickness: parseFloat($('wallThickness').value),
+                baseThickness: parseFloat($('baseThickness').value),
+                section: section,
+                sides: parseInt($('sides').value, 10),
+                waves: parseInt($('waves').value, 10),
+                waveDepth: parseFloat($('waveDepth').value),
+                twist: parseFloat($('twist').value),
+                col: $('col').value,
+                points: points.map(function (pt) { return { t: pt.t, r: pt.r }; })
             };
         }
 
+        function showWarn(code) {
+            const el = $('buildWarn');
+            if (!code) { el.style.display = 'none'; return; }
+            el.textContent = code === 'narrow'
+                ? T('꽃병이 너무 좁거나 벽이 너무 두꺼워서 만들 수 없어요. 점 반지름을 키우거나 벽 두께를 줄여 보세요.',
+                    'The vase is too narrow or the wall too thick. Make the points wider or the wall thinner.')
+                : T('이 설정으로는 모양을 만들 수 없어요. 값을 조금 바꿔 보세요.', 'This setting can\'t be built. Try changing a value.');
+            el.style.display = '';
+        }
+
         function updateModel() {
+            updateTimer = null;
             if (!manifoldReady) return;
             const p = readParams();
 
             [
-                ['valHeight', p.height], ['valRadius', p.radius], ['valWallThickness', p.wallThickness], ['valBaseThickness', p.baseThickness],
-                ['valScaleTop', p.scaleTop], ['valWaves', p.waves], ['valWaveAmplitude', p.waveAmplitude], ['valWaveStartAngle', p.waveStartAngle]
-            ].forEach(function (pair) { document.getElementById(pair[0]).innerText = pair[1]; });
+                ['valHeight', p.height], ['valWallThickness', p.wallThickness], ['valBaseThickness', p.baseThickness],
+                ['valSides', p.sides], ['valWaves', p.waves], ['valWaveDepth', p.waveDepth], ['valTwist', p.twist]
+            ].forEach(function (pair) { $(pair[0]).innerText = pair[1]; });
 
-            let solid;
+            let result;
             try {
-                solid = buildVaseSolid(p, PREVIEW_SLICES, PREVIEW_CIRCLE_SEGMENTS);
+                result = buildVaseSolid(p, PREVIEW_RES);
             } catch (err) {
                 console.error('꽃병 생성 실패:', err);
-                solid = null;
+                result = { solid: null, error: 'mesh' };
             }
+            showWarn(result.error);
+            updateRings(p);
+            if (!result.solid) return; // 만들 수 없으면 바로 전 모양을 그대로 둔다
 
             disposeCurrentMesh();
-            if (!solid) return;
-
-            currentMesh = meshFromSolid(solid, p.col);
-            solid.delete();
+            const yUp = ManifoldCore.toYUp(result.solid);
+            result.solid.delete();
+            currentMesh = meshFromSolid(yUp, p.col);
+            yUp.delete();
             scene.add(currentMesh);
             ParametricCore.updateDimensionOverlay(scene, currentMesh);
         }
 
-        function downloadSTL() {
-            if (!manifoldReady) return;
-            const p = readParams();
+        // ---------- 점 고르기·고치기(조절 칸) ----------
+        function pointLabel(i) {
+            if (i === 0) return T('1 바닥', '1 Base');
+            if (i === points.length - 1) return T(points.length + ' 입구', points.length + ' Rim');
+            return String(i + 1);
+        }
 
-            let solid;
-            try {
-                solid = buildVaseSolid(p, EXPORT_SLICES, EXPORT_CIRCLE_SEGMENTS);
-            } catch (err) {
-                console.error('STL 생성 실패:', err);
+        function renderPointButtons() {
+            const box = $('pointButtons');
+            box.innerHTML = '';
+            points.forEach(function (pt, i) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.textContent = pointLabel(i);
+                if (i === selected) b.classList.add('active');
+                b.onclick = function () { selectPoint(i); };
+                box.appendChild(b);
+            });
+            $('addPointBtn').disabled = points.length >= MAX_POINTS;
+            $('removePointBtn').disabled = points.length <= MIN_POINTS || selected === 0 || selected === points.length - 1;
+        }
+
+        function syncPointControls() {
+            const H = parseFloat($('height').value);
+            const pt = points[selected];
+            const zInput = $('ptZ'), rInput = $('ptR');
+            const isEnd = selected === 0 || selected === points.length - 1;
+            if (isEnd) {
+                zInput.min = 0; zInput.max = H;
+                zInput.value = pt.t * H;
+                zInput.disabled = true;
+                $('ptZGroup').classList.add('is-disabled');
+                $('ptZHint').textContent = selected === 0
+                    ? T('바닥 점은 높이 0에 고정이에요.', 'The base point stays at height 0.')
+                    : T('입구 점의 높이는 위의 「높이」로 바꿔요.', 'Change the rim point height with "Height" above.');
+            } else {
+                const lo = points[selected - 1].t * H + MIN_GAP;
+                const hi = points[selected + 1].t * H - MIN_GAP;
+                zInput.min = lo.toFixed(1); zInput.max = hi.toFixed(1);
+                zInput.value = (pt.t * H).toFixed(1);
+                zInput.disabled = false;
+                $('ptZGroup').classList.remove('is-disabled');
+                $('ptZHint').textContent = '';
+            }
+            rInput.value = pt.r;
+            $('valPtZ').innerText = (pt.t * H).toFixed(1).replace(/\.0$/, '');
+            $('valPtR').innerText = String(pt.r).replace(/\.0$/, '');
+        }
+
+        function selectPoint(i) {
+            selected = i;
+            renderPointButtons();
+            syncPointControls();
+            updateRings(readParams());
+        }
+
+        $('ptZ').addEventListener('input', function () {
+            if (selected === 0 || selected === points.length - 1) return;
+            const H = parseFloat($('height').value);
+            points[selected].t = parseFloat(this.value) / H;
+            $('valPtZ').innerText = this.value;
+            scheduleUpdate();
+        });
+        $('ptR').addEventListener('input', function () {
+            points[selected].r = parseFloat(this.value);
+            $('valPtR').innerText = this.value;
+            scheduleUpdate();
+        });
+
+        // 높이를 바꾸면 점은 비율(t)을 그대로 두되, 점 사이가 MIN_GAP보다 좁아지면 고르게 편다.
+        $('height').addEventListener('input', function () {
+            const H = parseFloat(this.value);
+            const minT = MIN_GAP / H;
+            for (let i = 1; i < points.length - 1; i++) {
+                points[i].t = Math.max(points[i].t, points[i - 1].t + minT);
+            }
+            for (let i = points.length - 2; i > 0; i--) {
+                points[i].t = Math.min(points[i].t, points[i + 1].t - minT);
+            }
+            syncPointControls();
+            scheduleUpdate();
+        });
+
+        $('addPointBtn').onclick = function () {
+            if (points.length >= MAX_POINTS) return;
+            // 고른 점과 그 위 점 사이 가운데에 넣는다(입구 점을 골랐으면 그 아래 칸).
+            const lower = selected === points.length - 1 ? selected - 1 : selected;
+            const H = parseFloat($('height').value);
+            const tMid = (points[lower].t + points[lower + 1].t) / 2;
+            if ((points[lower + 1].t - points[lower].t) * H < MIN_GAP * 2) {
+                alert(T('이 두 점 사이가 너무 좁아서 점을 더할 수 없어요. 다른 점을 골라 보세요.',
+                        'These two points are too close to add one between them. Pick another point.'));
                 return;
             }
-            if (!solid) return;
+            const p = readParams();
+            const prof = makeProfile(p.points.map(function (q) { return q.t * H; }), p.points.map(function (q) { return q.r; }));
+            const r = Math.round(prof.value(tMid * H) * 2) / 2;
+            points.splice(lower + 1, 0, { t: tMid, r: Math.min(MAX_R, Math.max(MIN_R, r)) });
+            selectPoint(lower + 1);
+            scheduleUpdate();
+        };
+        $('removePointBtn').onclick = function () {
+            if (points.length <= MIN_POINTS || selected === 0 || selected === points.length - 1) return;
+            points.splice(selected, 1);
+            selectPoint(Math.min(selected, points.length - 2));
+            scheduleUpdate();
+        };
 
-            const buf = ManifoldCore.toBufferGeometry(solid);
-            solid.delete();
+        function renderSectionButtons() {
+            document.querySelectorAll('#sectionButtons button').forEach(function (b) {
+                b.classList.toggle('active', b.dataset.section === section);
+            });
+            $('polygonControls').style.display = section === 'polygon' ? '' : 'none';
+            $('waveControls').style.display = section === 'wave' ? '' : 'none';
+        }
+        document.querySelectorAll('#sectionButtons button').forEach(function (b) {
+            b.onclick = function () { section = b.dataset.section; renderSectionButtons(); scheduleUpdate(); };
+        });
 
-            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
+        ['sides', 'waves', 'waveDepth', 'twist', 'wallThickness', 'baseThickness', 'col'].forEach(function (id) {
+            $(id).addEventListener('input', scheduleUpdate);
+        });
+        $('showRings').addEventListener('change', function () { ringGroup.visible = this.checked; });
+
+        // ---------- 화면의 고리와 손잡이 ----------
+        const ringGroup = new THREE.Group();
+        ringGroup.renderOrder = 10;
+        scene.add(ringGroup);
+        let handles = []; // { index, kind: 'center'|'edge', obj }
+        const RING_SEGMENTS = 96;
+        const COLOR_RING = 0xffffff, COLOR_SEL = 0xff6d00;
+
+        function clearRings() {
+            ringGroup.children.slice().forEach(function (o) {
+                ringGroup.remove(o);
+                if (o.geometry) o.geometry.dispose();
+                if (o.material) o.material.dispose();
+            });
+            handles = [];
+        }
+
+        // 몸통을 만들 때 반지름은 벽 두께+3mm보다 작아지지 않게 한다(buildVaseSolid). 고리도 같은 값으로 그린다.
+        function shownRadius(r) {
+            return Math.max(r, parseFloat($('wallThickness').value) + 3);
+        }
+
+        function cameraRightHorizontal() {
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            const right = new THREE.Vector3(-dir.z, 0, dir.x);
+            if (right.lengthSq() < 1e-6) {
+                // 바로 위에서 내려다볼 때: 화면 오른쪽 = 카메라의 오른쪽 축
+                right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0;
+            }
+            return right.normalize();
+        }
+
+        function updateRings(p) {
+            clearRings();
+            const H = p.height;
+            const size = Math.max(1.6, H * 0.016);
+            const right = cameraRightHorizontal();
+            points.forEach(function (pt, i) {
+                const y = pt.t * H;
+                const rr = shownRadius(pt.r);
+                const sel = i === selected;
+                const color = sel ? COLOR_SEL : COLOR_RING;
+                const pos = [];
+                for (let s = 0; s < RING_SEGMENTS; s++) {
+                    const a = 2 * Math.PI * s / RING_SEGMENTS;
+                    pos.push(rr * Math.cos(a), y, rr * Math.sin(a));
+                }
+                const g = new THREE.BufferGeometry();
+                g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+                const ring = new THREE.LineLoop(g, new THREE.LineBasicMaterial({
+                    color: color, transparent: true, opacity: sel ? 1 : 0.75, depthTest: false
+                }));
+                ring.renderOrder = 10;
+                ringGroup.add(ring);
+
+                // 가운데 축 표시(점에서 점으로 이어진 세로선은 따로 그리지 않고 손잡이만)
+                [['center', new THREE.Vector3(0, y, 0)], ['edge', right.clone().multiplyScalar(rr).setY(y)]].forEach(function (h) {
+                    const m = new THREE.Mesh(new THREE.SphereGeometry(sel ? size * 1.25 : size, 16, 12),
+                        new THREE.MeshBasicMaterial({ color: color, depthTest: false, transparent: true, opacity: 0.95 }));
+                    m.position.copy(h[1]);
+                    m.renderOrder = 11;
+                    ringGroup.add(m);
+                    handles.push({ index: i, kind: h[0], obj: m });
+                });
+            });
+            // 가운데 축 선
+            const axisG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, H, 0)]);
+            const axis = new THREE.Line(axisG, new THREE.LineBasicMaterial({ color: COLOR_RING, transparent: true, opacity: 0.4, depthTest: false }));
+            axis.renderOrder = 10;
+            ringGroup.add(axis);
+        }
+
+        // 카메라가 움직이면 테두리 손잡이를 다시 화면 오른쪽으로.
+        controls.addEventListener('change', function () {
+            if (!handles.length) return;
+            const right = cameraRightHorizontal();
+            handles.forEach(function (h) {
+                if (h.kind !== 'edge') return;
+                const pt = points[h.index];
+                if (!pt) return;
+                h.obj.position.copy(right.clone().multiplyScalar(shownRadius(pt.r)).setY(h.obj.position.y));
+            });
+        });
+
+        // ---------- 끌기 ----------
+        const canvas = viewer.renderer.domElement;
+        let drag = null; // { index, kind }
+        let dragFrame = 0;
+
+        function pointerNdc(e) {
+            const rect = canvas.getBoundingClientRect();
+            return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+        }
+
+        function pickHandle(e) {
+            if (!ringGroup.visible || !handles.length) return null;
+            const rect = canvas.getBoundingClientRect();
+            const px = e.clientX - rect.left, py = e.clientY - rect.top;
+            const limit = e.pointerType === 'touch' ? 26 : 14;
+            let best = null, bestD = limit;
+            handles.forEach(function (h) {
+                const v = h.obj.position.clone().project(camera);
+                const sx = (v.x + 1) / 2 * rect.width, sy = (1 - v.y) / 2 * rect.height;
+                const d = Math.hypot(sx - px, sy - py);
+                if (d < bestD) { bestD = d; best = h; }
+            });
+            return best;
+        }
+
+        // 끄는 동안 쓰는 평면: 가운데 축을 품고 카메라를 마주 보는 세로 평면.
+        // 바로 위에서 볼 때는 그 점 높이의 가로 평면(폭만 바뀜).
+        function dragPlaneHit(e, y) {
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(pointerNdc(e), camera);
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            let plane;
+            if (Math.abs(dir.y) > 0.92) plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
+            else plane = new THREE.Plane(new THREE.Vector3(dir.x, 0, dir.z).normalize(), 0);
+            const hit = new THREE.Vector3();
+            return ray.ray.intersectPlane(plane, hit) ? { hit: hit, topDown: Math.abs(dir.y) > 0.92 } : null;
+        }
+
+        shell.viewerEl.addEventListener('pointerdown', function (e) {
+            if (e.target !== canvas || e.button > 0) return;
+            const h = pickHandle(e);
+            if (!h) return;
+            e.stopPropagation();
+            e.preventDefault();
+            drag = { index: h.index, kind: h.kind, pointerId: e.pointerId };
+            controls.enabled = false;
+            try { shell.viewerEl.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+            if (selected !== h.index) selectPoint(h.index);
+            canvas.style.cursor = 'grabbing';
+        }, true);
+
+        shell.viewerEl.addEventListener('pointermove', function (e) {
+            if (!drag) {
+                if (e.target === canvas && e.buttons === 0) canvas.style.cursor = pickHandle(e) ? 'grab' : '';
+                return;
+            }
+            if (e.pointerId !== drag.pointerId) return;
+            const H = parseFloat($('height').value);
+            const pt = points[drag.index];
+            const res = dragPlaneHit(e, pt.t * H);
+            if (!res) return;
+            if (drag.kind === 'center') {
+                if (res.topDown || drag.index === 0) return;
+                if (drag.index === points.length - 1) {
+                    // 입구 점을 위아래로 끌면 꽃병 높이가 바뀐다(다른 점은 비율 그대로).
+                    const hIn = $('height');
+                    const prevTop = points[points.length - 2].t * H + MIN_GAP;
+                    const newH = Math.round(Math.min(parseFloat(hIn.max), Math.max(parseFloat(hIn.min), prevTop, res.hit.y)));
+                    if (newH !== H) {
+                        points.forEach(function (q, i) { if (i < points.length - 1) q.t = q.t * H / newH; });
+                        hIn.value = newH;
+                    }
+                } else {
+                    const lo = points[drag.index - 1].t * H + MIN_GAP;
+                    const hi = points[drag.index + 1].t * H - MIN_GAP;
+                    const z = Math.round(Math.min(hi, Math.max(lo, res.hit.y)) * 2) / 2;
+                    pt.t = z / H;
+                }
+            } else {
+                let r;
+                if (res.topDown) r = Math.hypot(res.hit.x, res.hit.z);
+                else r = Math.abs(res.hit.dot(cameraRightHorizontal()));
+                pt.r = Math.round(Math.min(MAX_R, Math.max(MIN_R, r)) * 2) / 2;
+            }
+            syncPointControls();
+            if (!dragFrame) {
+                dragFrame = requestAnimationFrame(function () { dragFrame = 0; updateModel(); });
+            }
+        });
+
+        function endDrag(e) {
+            if (!drag || (e && e.pointerId !== drag.pointerId)) return;
+            drag = null;
+            controls.enabled = true;
+            canvas.style.cursor = '';
+            updateModel();
+        }
+        shell.viewerEl.addEventListener('pointerup', endDrag);
+        shell.viewerEl.addEventListener('pointercancel', endDrag);
+
+        // ---------- 초기화 ----------
+        function resetToDefaults() {
+            points = DEFAULT_POINTS.map(function (p) { return { t: p.t, r: p.r }; });
+            selected = 1;
+            section = DEFAULTS.section;
+            $('height').value = DEFAULTS.height;
+            $('wallThickness').value = DEFAULTS.wallThickness;
+            $('baseThickness').value = DEFAULTS.baseThickness;
+            $('sides').value = DEFAULTS.sides;
+            $('waves').value = DEFAULTS.waves;
+            $('waveDepth').value = DEFAULTS.waveDepth;
+            $('twist').value = DEFAULTS.twist;
+            $('col').value = DEFAULTS.col;
+            $('showRings').checked = DEFAULTS.showRings;
+            ringGroup.visible = DEFAULTS.showRings;
+            renderSectionButtons();
+            renderPointButtons();
+            syncPointControls();
+            ParametricCore.resetCameraTo(camera, controls, CAMERA_PRESETS.ISO);
+            updateModel();
+        }
+
+        // ---------- 내보내기 ----------
+        function buildExportMesh() {
+            if (!manifoldReady) return null;
+            const p = readParams();
+            let result;
+            try {
+                result = buildVaseSolid(p, EXPORT_RES);
+            } catch (err) {
+                console.error('내보내기용 꽃병 생성 실패:', err);
+                return null;
+            }
+            if (!result.solid) { showWarn(result.error); return null; }
+            const yUp = ManifoldCore.toYUp(result.solid);
+            result.solid.delete();
+            const buf = ManifoldCore.toBufferGeometry(yUp);
+            yUp.delete();
+            return new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
+        }
+
+        function downloadSTL() {
+            const mesh = buildExportMesh();
+            if (!mesh) return;
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
             ParametricCore.exportSTL(exportGroup, LangCore.pick('물결무늬_꽃병.stl', 'wave_vase.stl'));
-
             mesh.geometry.dispose();
             mesh.material.dispose();
         }
 
         function download3MF() {
-            if (!manifoldReady) return;
-            const p = readParams();
-
-            let solid;
-            try {
-                solid = buildVaseSolid(p, EXPORT_SLICES, EXPORT_CIRCLE_SEGMENTS);
-            } catch (err) {
-                console.error('3MF 생성 실패:', err);
-                return;
-            }
-            if (!solid) return;
-
-            const buf = ManifoldCore.toBufferGeometry(solid);
-            solid.delete();
-
-            const mesh = new THREE.Mesh(buf.geo, new THREE.MeshStandardMaterial({ color: p.col }));
+            const mesh = buildExportMesh();
+            if (!mesh) return;
             const exportGroup = new THREE.Group();
             exportGroup.add(mesh);
             ThreeMFCore.export3MF(exportGroup, LangCore.pick('물결무늬_꽃병.3mf', 'wave_vase.3mf'));
-
             mesh.geometry.dispose();
             mesh.material.dispose();
         }
@@ -305,10 +826,27 @@
         window.downloadSTL = downloadSTL;
         window.download3MF = download3MF;
         // 메인화면 카드 미리보기(GLB)를 구울 때 바깥에서 완성된 모델을 꺼내가기 위한 훅.
-        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다.
+        // 실제 사용자 기능은 아니고, index.html의 미리보기 파일을 다시 구울 때만 쓴다(고리는 빠짐).
         window.__getPreviewGroup = function () { return currentMesh; };
+        // 시험용: 내보내기 해상도로 만든 메시(삼각형 수·결함 확인에 씀).
+        window.__buildExportForTest = function () {
+            const p = readParams();
+            const r = buildVaseSolid(p, EXPORT_RES);
+            if (!r.solid) return { error: r.error };
+            const out = { tris: r.solid.numTri(), volume: r.solid.volume(), genus: r.solid.genus(), status: r.solid.status ? String(r.solid.status()) : '' };
+            const bb = r.solid.boundingBox();
+            out.size = [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]];
+            r.solid.delete();
+            return out;
+        };
+        // 언어를 바꾸면 점 단추 이름(바닥·입구)과 안내 글도 바꾼다.
+        new MutationObserver(function () { renderPointButtons(); syncPointControls(); })
+            .observe(document.documentElement, { attributes: true, attributeFilter: ['data-lang'] });
 
         async function main() {
+            renderSectionButtons();
+            renderPointButtons();
+            syncPointControls();
             await ManifoldCore.ready;
             manifoldReady = true;
             updateModel();

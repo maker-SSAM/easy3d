@@ -370,7 +370,8 @@
         // zoom: 카드 안에서 모델이 차지하는 비율 배율(기본 1.0, 클수록 확대).
         // cameraPosition: 카메라 위치[x,y,z] 오버라이드(기본 [2.4, 2, 3]).
         // wobble: 회전체(rotate_extrude)라서 Y축으로만 돌리면 계속 똑같아 보이는 디자인에
-        // 좌우로 살짝 갸우뚱거리는 움직임을 더해 "돌아가는 느낌"을 준다.
+        // 좌우로 살짝 갸우뚱거리는 움직임을 더해 "돌아가는 느낌"을 준다. (지금은 쓰는 카드 없음 —
+        // 갤러리2는 2026-11-25 새 꽃병이 물결 단면이라 돌아가는 게 보여, 다른 카드와 같은 시점으로 바꿈)
         const designs = [
             {
                 title: '보석 만들기',
@@ -389,10 +390,9 @@
                 descriptionEn: 'Shape the curve to design your own vase',
                 url: 'designs/gallery-2.html',
                 glb: 'assets/previews/gallery-2.glb',
-                wobble: true,
                 zoom: 1.20,
-                panY: -0.55,
-                cameraPosition: [2.45, 3.00, 2.80]
+                panY: -0.40,
+                cameraPosition: [0.00, 4.00, 4.00]
             },
             {
                 title: '꼬임디자인 연필꽂이',

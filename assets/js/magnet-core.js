@@ -203,6 +203,25 @@ window.MagnetCore = (function () {
         return { solid: all, ids: ids };
     }
 
+    // 미리보기 전용 표시: 숨긴 홈은 판 속에 있어 화면에서 안 보이므로(2026-11-25 선생님), 홈 자리에 반투명 색 원기둥을
+    // 그려 판·글자에 가려져도 비쳐 보이게 한다(depthTest 끔). three.js 메시라 받는 STL·3MF(Manifold로 따로 만듦)에는
+    // 들어가지 않는다. 좌표: 단면 (x, y), 높이 h → three.js (x, h, -y) (manifold-core.js extrudeXS의 X축 -90도 회전과 같게).
+    // 돌려주는 값: 메시 배열(userData.previewOnly = true, layerName = 'magnetMarker<번호>')
+    const MARKER_COLOR = 0xe6007a;
+    function previewMarkers(points, sp) {
+        if (!window.THREE || !points || !points.length || !sp || !sp.ok) return [];
+        return points.map(function (pt, i) {
+            const geo = new THREE.CylinderGeometry(sp.r, sp.r, sp.depth, 40);
+            const mat = new THREE.MeshBasicMaterial({ color: MARKER_COLOR, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(pt[0], sp.z0 + sp.depth / 2, -pt[1]);
+            mesh.renderOrder = 999;
+            mesh.userData.previewOnly = true;
+            mesh.userData.layerName = 'magnetMarker' + i;
+            return mesh;
+        });
+    }
+
     // 화면 안내 글(한국어, 영어)
     function note(mode, sp, placed, wanted, pick) {
         if (!sp.ok) {
@@ -220,5 +239,5 @@ window.MagnetCore = (function () {
         return parts.join(' ');
     }
 
-    return { SIZES: SIZES, MAX_COUNT: MAX_COUNT, spec: spec, placePoints: placePoints, pocketSolid: pocketSolid, note: note };
+    return { SIZES: SIZES, MAX_COUNT: MAX_COUNT, spec: spec, placePoints: placePoints, pocketSolid: pocketSolid, previewMarkers: previewMarkers, note: note };
 })();

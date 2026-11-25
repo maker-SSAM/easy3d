@@ -1916,6 +1916,10 @@
                 meshes.push(mesh);
                 if (cutResult) cutResult.delete();
             });
+            // 숨긴 홈은 판 속이라 안 보이므로 미리보기에만 자리를 색으로 표시(받는 파일에는 안 들어감)
+            if (magnet && p.magnetMode === 'hidden') {
+                MagnetCore.previewMarkers(shapes.magnetPoints, MagnetCore.spec(p.magnetMode, p.baseThick)).forEach(function (m) { meshes.push(m); });
+            }
             owned.forEach(function (m) { if (m && typeof m.delete === 'function') m.delete(); });
             return meshes.length ? meshes : null;
         }

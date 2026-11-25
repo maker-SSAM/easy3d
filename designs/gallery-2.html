@@ -79,15 +79,16 @@
             licenseType: 'BY-NC-SA'
         });
 
+        // 기본 모양 = 선생님 화면 값 그대로(2026-11-25): 높이 100, 점 (0,25)(40,40)(65,15)(100,25)mm, 물결 15개·깊이 2mm.
         const DEFAULT_POINTS = [
-            { t: 0.00, r: 30 },
-            { t: 0.38, r: 44 },
-            { t: 0.78, r: 24 },
-            { t: 1.00, r: 32 }
+            { t: 0.00, r: 25 },
+            { t: 0.40, r: 40 },
+            { t: 0.65, r: 15 },
+            { t: 1.00, r: 25 }
         ];
         const DEFAULTS = {
-            height: 120, wallThickness: 2, baseThickness: 2.4,
-            section: 'wave', sides: 6, waves: 10, waveDepth: 4, twist: 0,
+            height: 100, wallThickness: 2, baseThickness: 2.4,
+            section: 'wave', sides: 6, waves: 15, waveDepth: 2, twist: 0,
             col: '#4fc3f7', showRings: true
         };
         const MIN_POINTS = 3, MAX_POINTS = 8;
@@ -103,12 +104,12 @@
             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 20px;" data-i18n-en="* Shape the body with side-profile points (rings) and the outline with the cross-section. The top is open.">* 옆모양 점(고리)으로 몸통 곡선을, 단면 모양으로 둘레 무늬를 정해요. 위쪽은 뚫려 있어요.</p>
 
             <div class="section-label" data-i18n-en="1. Side profile points">1. 옆모양 점</div>
-            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">120</span>mm</label><input type="range" id="height" min="40" max="300" step="1" value="120"></div>
+            <div class="control-group"><label><span data-i18n-en="Height">높이</span>: <span id="valHeight">100</span>mm</label><input type="range" id="height" min="40" max="300" step="1" value="100"></div>
             <span class="sub-label" data-i18n-en="Pick a point (bottom → top)">점 고르기 (아래 → 위)</span>
             <div class="btn-row points" id="pointButtons"></div>
             <div class="point-box">
                 <div class="control-group" id="ptZGroup"><label><span data-i18n-en="Point height">점 높이</span>: <span id="valPtZ">0</span>mm</label><input type="range" id="ptZ" min="0" max="120" step="0.5" value="0"></div>
-                <div class="control-group"><label><span data-i18n-en="Point radius">점 반지름</span>: <span id="valPtR">30</span>mm</label><input type="range" id="ptR" min="${MIN_R}" max="${MAX_R}" step="0.5" value="30"></div>
+                <div class="control-group"><label><span data-i18n-en="Point radius">점 반지름</span>: <span id="valPtR">25</span>mm</label><input type="range" id="ptR" min="${MIN_R}" max="${MAX_R}" step="0.5" value="30"></div>
                 <p class="fmt-hint" id="ptZHint"></p>
             </div>
             <div class="btn-row">
@@ -128,8 +129,8 @@
                 <div class="control-group"><label><span data-i18n-en="Number of sides">변 개수</span>: <span id="valSides">6</span></label><input type="range" id="sides" min="3" max="12" step="1" value="6"></div>
             </div>
             <div id="waveControls">
-                <div class="control-group"><label><span data-i18n-en="Number of waves">물결 개수</span>: <span id="valWaves">10</span></label><input type="range" id="waves" min="3" max="24" step="1" value="10"></div>
-                <div class="control-group"><label><span data-i18n-en="Wave depth">물결 깊이</span>: <span id="valWaveDepth">4</span>mm</label><input type="range" id="waveDepth" min="0.5" max="12" step="0.5" value="4"></div>
+                <div class="control-group"><label><span data-i18n-en="Number of waves">물결 개수</span>: <span id="valWaves">15</span></label><input type="range" id="waves" min="3" max="24" step="1" value="15"></div>
+                <div class="control-group"><label><span data-i18n-en="Wave depth">물결 깊이</span>: <span id="valWaveDepth">2</span>mm</label><input type="range" id="waveDepth" min="0.5" max="12" step="0.5" value="2"></div>
                 <p class="fmt-hint" data-i18n-en="Depth is measured at the widest part; narrower parts get shallower waves.">깊이는 가장 넓은 곳 기준이에요. 좁은 곳은 물결도 얕아져요.</p>
             </div>
 
@@ -152,7 +153,7 @@
 
         // 꽃병은 키가 커서, 다른 갤러리처럼 바닥 가운데를 보면 위가 잘린다. 꽃병 중간 높이를
         // 바라보게 하고(saveState로 기억시켜 시점 단추·초기화도 같은 곳을 봄), 시점 위치도 그만큼 올린다.
-        const LOOK_Y = 55;
+        const LOOK_Y = 50;
         const CAMERA_PRESETS = {};
         Object.keys(ParametricCore.DEFAULT_CAMERA_PRESETS).forEach(function (k) {
             const v = ParametricCore.DEFAULT_CAMERA_PRESETS[k];
@@ -762,7 +763,8 @@
         shell.viewerEl.addEventListener('pointercancel', endDrag);
 
         // ---------- 초기화 ----------
-        function resetToDefaults() {
+        // 조절 칸을 DEFAULTS로 맞춘다(처음 열 때와 초기화 둘 다 — HTML의 value와 어긋나도 이 값이 이긴다).
+        function applyDefaults() {
             points = DEFAULT_POINTS.map(function (p) { return { t: p.t, r: p.r }; });
             selected = 1;
             section = DEFAULTS.section;
@@ -779,6 +781,10 @@
             renderSectionButtons();
             renderPointButtons();
             syncPointControls();
+        }
+
+        function resetToDefaults() {
+            applyDefaults();
             ParametricCore.resetCameraTo(camera, controls, CAMERA_PRESETS.ISO);
             updateModel();
         }
@@ -844,9 +850,7 @@
             .observe(document.documentElement, { attributes: true, attributeFilter: ['data-lang'] });
 
         async function main() {
-            renderSectionButtons();
-            renderPointButtons();
-            syncPointControls();
+            applyDefaults();
             await ManifoldCore.ready;
             manifoldReady = true;
             updateModel();

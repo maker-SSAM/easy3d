@@ -209,9 +209,9 @@ window.MagnetCore = (function () {
             return pick('바닥판이 얇아 홈을 만들지 않았습니다. ' + (mode === 'hidden' ? '숨긴 홈' : '열린 홈') + '은 바닥판 두께가 ' + sp.needBase + 'mm 이상이어야 합니다.',
                 'The base plate is too thin for the pocket: it needs at least ' + sp.needBase + ' mm.');
         }
+        // 자석 크기 글('자석 6×2mm (홈 …)')은 뺐다 — 크기는 '자석 홈 사용 (6×2mm)' 체크 칸에 적었다(2026-11-25 선생님).
+        // 필요할 때만 나오는 알림(자리가 모자람·숨긴 홈 일시정지 높이)은 남긴다.
         const parts = [];
-        parts.push(pick('자석 ' + sp.size.d + '×' + sp.size.t + 'mm (홈 ' + (sp.r * 2).toFixed(1) + '×' + sp.depth.toFixed(1) + 'mm)',
-            'Magnet ' + sp.size.d + '×' + sp.size.t + ' mm (pocket ' + (sp.r * 2).toFixed(1) + '×' + sp.depth.toFixed(1) + ' mm)'));
         if (placed < wanted) parts.push(pick('자리가 모자라 ' + placed + '개만 넣었습니다.', 'Only ' + placed + ' fit.'));
         if (mode === 'hidden' && placed > 0) {
             parts.push(pick('슬라이서에서 ' + sp.pauseZ.toFixed(1) + 'mm 높이 층을 인쇄하기 전에 일시정지를 넣고, 멈추면 자석을 넣으세요(층 높이 0.2mm 기준, 자석 방향을 맞춰 넣기).',

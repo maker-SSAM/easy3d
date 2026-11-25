@@ -154,8 +154,9 @@ window.ParametricCore = (function () {
         cubeContainer.appendChild(screenshotBtn);
 
         // 원작 디자인 출처 + 라이선스 — 리믹스 기반 갤러리 페이지에서 opts.sourceUrl을 넘겨줄
-        // 때만 만든다(원작 없이 직접 만든 디자인이면 이 구간 자체가 생기지 않는다).
-        if (opts.sourceUrl) {
+        // 때 만든다. 원작 없이 직접 만든 디자인도 opts.licenseType만 넘기면 라이선스 배지만
+        // 나오고 원작 링크는 생기지 않는다(갤러리2, 2026-11-25). 둘 다 없으면 이 구간이 없다.
+        if (opts.sourceUrl || opts.licenseType) {
             const licenseDivider = document.createElement('div');
             licenseDivider.className = 'viewcube-divider';
             cubeContainer.appendChild(licenseDivider);
@@ -235,14 +236,16 @@ window.ParametricCore = (function () {
                 cubeContainer.appendChild(licenseBadge);
             }
 
-            const originalLink = document.createElement('a');
-            originalLink.className = 'cube-btn';
-            originalLink.href = opts.sourceUrl;
-            originalLink.target = '_blank';
-            originalLink.rel = 'noopener noreferrer';
-            originalLink.textContent = '👉원작디자인링크';
-            originalLink.setAttribute('data-i18n-en', '👉 Original design');
-            cubeContainer.appendChild(originalLink);
+            if (opts.sourceUrl) {
+                const originalLink = document.createElement('a');
+                originalLink.className = 'cube-btn';
+                originalLink.href = opts.sourceUrl;
+                originalLink.target = '_blank';
+                originalLink.rel = 'noopener noreferrer';
+                originalLink.textContent = '👉원작디자인링크';
+                originalLink.setAttribute('data-i18n-en', '👉 Original design');
+                cubeContainer.appendChild(originalLink);
+            }
         }
 
         viewerEl.appendChild(cubeContainer);

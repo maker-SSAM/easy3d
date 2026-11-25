@@ -58,36 +58,106 @@ window.MagnetCore = (function () {
                 polys.forEach(function (poly) { if (FontCore.isPointInPolygon(pt, poly)) c++; });
                 return c % 2 === 1;
             };
+            // 영역 안의 후보 점(격자). 후보 점은 격자 칸의 한가운데 — 좌우·위아래가 똑같고, 경계선 위에 놓이지 않는다
+            // (경계선 위의 점은 안/밖 판정이 왼쪽·오른쪽에서 달라 좌우 자리가 1.6mm 어긋났다).
+            const step = Math.max(0.4, Math.max(w, h) / 120);
+            const nx = Math.max(1, Math.ceil(w / step)), ny = Math.max(1, Math.ceil(h / step));
+            const cands = [];
+            const grid = [];                                     // grid[i][j] = 칸 (i, j)의 가운데가 영역 안인가
+            for (let i = 0; i < nx; i++) {
+                grid.push([]);
+                for (let j = 0; j < ny; j++) {
+                    const pt = [x0 + w * (i + 0.5) / nx, y0 + h * (j + 0.5) / ny];
+                    const isIn = inside(pt);
+                    grid[i].push(isIn);
+                    if (isIn) cands.push(pt);
+                }
+            }
             // 놓을 목표점 — 가장자리 쪽으로, 끝에서 끝까지 고르게(2026-11-24 선생님이 정한 배치):
             //   1 = 가운데 · 2 = 가운데 줄 양 끝 · 3 = 가운데 줄 나란히 · 4 = 위 2·아래 2 · 5 = 위 2·아래 2 + 가운데
             //   6 = 위 3·아래 3 · 7 = 위 3·아래 3 + 가운데 · 8 = 위 4·아래 4
             //   두 줄이 들어갈 높이가 없으면(판이 아주 얇으면) 가운데 줄 하나에 n개. 세로로 긴 판은 가로·세로를 바꿔 같은 규칙.
+            // 줄은 판을 감싸는 상자의 위·아래 끝이 아니라 '그 높이에서 판이 실제로 있는 가장 긴 구간'을 따른다
+            // (2026-11-25 선생님: 글자 따라 판처럼 울퉁불퉁하면 상자 모서리가 판 밖 빈 곳이라, 가장 가까운 안쪽 점을 고르면
+            //  한쪽 귀에 두 개가 몰렸다). 위 줄은 위쪽 절반, 아래 줄은 아래쪽 절반에서 가로로 그었을 때 판 안 구간이 가장 긴
+            //  높이(거의 같으면 가장자리 쪽)를 고르고, 그 구간의 끝에서 끝까지 고르게 놓는다. 사각형 판은 어느 높이나 길이가
+            //  같아 맨 가장자리 줄이 골라지므로 전과 같은 자리다.
             const tall = h > w * 1.2;
-            const S = tall ? w : h;                              // 짧은 쪽 길이(두 줄 사이 거리)
-            const lineOf = function (count, s) {                // 긴 쪽을 따라 count개, 짧은 쪽 위치 s(0 = 아래·1 = 위·0.5 = 가운데)
+            const nA = tall ? ny : nx, nB = tall ? nx : ny;    // A = 긴 쪽(줄 방향), B = 짧은 쪽(줄 높이)
+            const isIn = function (a, b) { return tall ? grid[b][a] : grid[a][b]; };
+            const posA = function (a) { return tall ? y0 + h * (a + 0.5) / ny : x0 + w * (a + 0.5) / nx; };
+            const posB = function (b) { return tall ? x0 + w * (b + 0.5) / nx : y0 + h * (b + 0.5) / ny; };
+            const toXY = function (a, b) { return tall ? [b, a] : [a, b]; };
+            // 줄 하나(높이 bPos)에서 판 안의 가장 긴 구간. 글자 사이 잘록한 곳처럼 홈 하나 자리(2r + 벽)보다 좁은 틈은
+            // 끊긴 것으로 보지 않는다(그 틈에 걸린 목표점은 아래에서 가장 가까운 안쪽 점으로 옮겨진다). 넓게 떨어진 귀와
+            // 몸통은 다른 구간 — 그래야 아래 줄이 위쪽 귀로 끌려가지 않는다.
+            const gapCells = Math.floor((2 * r + WALL) / ((tall ? h / ny : w / nx)));
+            const rows = [];
+            const addRow = function (bPos, onAt) {
+                let best = null, start = -1, last = -1;
+                for (let a = 0; a <= nA; a++) {
+                    const on = a < nA && onAt(a);
+                    if (on) {
+                        if (start < 0) start = a;
+                        else if (a - last - 1 > gapCells) {     // 넓은 틈: 앞 구간을 닫고 새로 시작
+                            if (!best || last - start > best.a1 - best.a0) best = { a0: start, a1: last };
+                            start = a;
+                        }
+                        last = a;
+                    }
+                }
+                if (start >= 0 && (!best || last - start > best.a1 - best.a0)) best = { a0: start, a1: last };
+                if (best) rows.push({ b: bPos, lo: posA(best.a0), hi: posA(best.a1), len: posA(best.a1) - posA(best.a0) });
+            };
+            for (let b = 0; b < nB; b++) addRow(posB(b), function (a) { return isIn(a, b); });
+            const midB = tall ? x0 + w / 2 : y0 + h / 2;
+            // 정확히 가운데 높이의 줄도 하나 더(격자 칸 가운데만 쓰면 가운데 줄이 반 칸 아래로 어긋난다)
+            addRow(midB, function (a) { return inside(toXY(posA(a), midB)); });
+            if (!rows.length) return [];
+            // s: 1 = 위 줄(위쪽 절반), 0 = 아래 줄(아래쪽 절반), 0.5 = 가운데 줄(어디서나, 가운데에 가까운 것)
+            const pickRow = function (s) {
+                const pool = rows.filter(function (rw) { return s === 1 ? rw.b >= midB : s === 0 ? rw.b <= midB : true; });
+                if (!pool.length) return null;
+                const maxLen = Math.max.apply(null, pool.map(function (rw) { return rw.len; }));
+                // 이만큼 짧은 줄까지는 '거의 같은 길이'로 보고 가장자리 쪽을 고른다. 가운데 줄은 가운데에 있는 게 더 중요해서
+                // 가장 긴 줄의 3/4까지 받아 준다(1개일 때 판 가운데에서 멀리 내려가지 않게).
+                const tol = s === 0.5 ? Math.max(2 * step, 0.25 * maxLen) : Math.max(2 * step, 0.08 * maxLen);
+                const near = pool.filter(function (rw) { return rw.len >= maxLen - tol; });
+                const score = function (rw) { return s === 1 ? rw.b : s === 0 ? -rw.b : -Math.abs(rw.b - midB); };
+                return near.reduce(function (p, q) { return score(q) > score(p) ? q : p; });
+            };
+            const lineOf = function (count, row) {              // 그 줄의 구간을 따라 count개(1개면 구간 한가운데)
+                if (!row) return [];
+                return Array.from({ length: count }, function (_, i) {
+                    const u = count === 1 ? 0.5 : i / (count - 1);
+                    return toXY(row.lo + u * (row.hi - row.lo), row.b);
+                });
+            };
+            const PLAN = { 1: [[0.5, 1]], 2: [[0.5, 2]], 3: [[0.5, 3]], 4: [[1, 2], [0, 2]], 5: [[1, 2], [0, 2], [0.5, 1]],
+                           6: [[1, 3], [0, 3]], 7: [[1, 3], [0, 3], [0.5, 1]], 8: [[1, 4], [0, 4]] };
+            const topRow = pickRow(1), bottomRow = pickRow(0);
+            // 위·아래 줄 홈이 서로 겹치지 않을 만큼(2r + 벽) 떨어져 있어야 두 줄
+            const rowGap = 2 * r + WALL;
+            const rowsFit = topRow && bottomRow && topRow.b - bottomRow.b >= rowGap;
+            // 작은 키링처럼 판이 낮아 가장 긴 줄 둘이 너무 가까우면, 전처럼 상자의 위·아래 끝을 목표로 삼는다
+            // (위·아래 끝 줄은 울퉁불퉁해서 짧게 끊기지만, 가장 가까운 안쪽 점으로 옮기면 양 끝에 잘 놓인다 — 2026-11-24 방식)
+            const S = tall ? w : h;
+            const boxLine = function (count, s) {
                 return Array.from({ length: count }, function (_, i) {
                     const u = count === 1 ? 0.5 : i / (count - 1);
                     return tall ? [x0 + s * w, y0 + u * h] : [x0 + u * w, y0 + s * h];
                 });
             };
-            const PLAN = { 1: [[0.5, 1]], 2: [[0.5, 2]], 3: [[0.5, 3]], 4: [[1, 2], [0, 2]], 5: [[1, 2], [0, 2], [0.5, 1]],
-                           6: [[1, 3], [0, 3]], 7: [[1, 3], [0, 3], [0.5, 1]], 8: [[1, 4], [0, 4]] };
-            const twoRowsFit = S >= 2 * r + WALL;                // 위·아래 줄 홈이 서로 겹치지 않을 높이
             let targets;
-            if (n >= 4 && !twoRowsFit) targets = lineOf(n, 0.5);
-            else targets = PLAN[n].reduce(function (all, row) { return all.concat(lineOf(row[1], row[0])); }, []);
-            // 영역 안의 후보 점(격자)에서 목표점에 가장 가깝고 다른 홈과 떨어진 점을 고른다
-            // 후보 점은 격자 칸의 한가운데 — 좌우·위아래가 똑같고, 경계선 위에 놓이지 않는다
-            // (경계선 위의 점은 안/밖 판정이 왼쪽·오른쪽에서 달라 좌우 자리가 1.6mm 어긋났다).
-            const step = Math.max(0.4, Math.max(w, h) / 120);
-            const nx = Math.max(1, Math.ceil(w / step)), ny = Math.max(1, Math.ceil(h / step));
-            const cands = [];
-            for (let i = 0; i < nx; i++) {
-                for (let j = 0; j < ny; j++) {
-                    const pt = [x0 + w * (i + 0.5) / nx, y0 + h * (j + 0.5) / ny];
-                    if (inside(pt)) cands.push(pt);
-                }
-            }
+            if (n >= 4 && !rowsFit && S >= rowGap) {
+                targets = PLAN[n].reduce(function (all, row) {
+                    return all.concat(row[0] === 0.5 ? lineOf(row[1], pickRow(0.5)) : boxLine(row[1], row[0]));
+                }, []);
+            } else if (n >= 4 && !rowsFit) targets = lineOf(n, pickRow(0.5));
+            else targets = PLAN[n].reduce(function (all, row) {
+                return all.concat(lineOf(row[1], row[0] === 1 ? topRow : row[0] === 0 ? bottomRow : pickRow(0.5)));
+            }, []);
+            // 후보 점 중 목표점에 가장 가깝고 다른 홈과 떨어진 점을 고른다
             // 목표점을 영역 끝에서 반 칸 안으로 당긴 점도 후보로 — 가운데·가운데 줄이 정확히 맞고, 경계선 위에 놓이지
             // 않아 좌우가 같다(끝에 놓인 목표점을 그대로 쓰면 왼쪽만 경계선 위 점이 '안'으로 판정됐다).
             const hx = w / nx / 2, hy = h / ny / 2;
